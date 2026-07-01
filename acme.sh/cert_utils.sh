@@ -37,7 +37,14 @@ acmecmd() {
     # 240s covers a real (slow) issuance; past that, treat it as failed so
     # get_cert()'s existing self-signed fallback kicks in for this domain
     # only and everything else keeps moving.
-    timeout 240 acme.sh --issue \
+    #
+    # `timeout` execs its argument directly (execvp), bypassing shell
+    # aliases/functions entirely - "acme.sh" only resolves via the alias
+    # `source ./lib/acme.sh.env` sets up above, so `timeout ... acme.sh` was
+    # instantly failing with "No such file or directory" for every single
+    # call, not just stuck ones (every domain silently fell back to
+    # self-signed). Call the real script file instead.
+    timeout 240 /opt/hiddify-manager/acme.sh/lib/acme.sh --issue \
         -w /opt/hiddify-manager/acme.sh/www/ \
         --log /opt/hiddify-manager/log/system/acme.log \
         --pre-hook "bash /opt/hiddify-manager/acme.sh/prepare_acme.sh" \
