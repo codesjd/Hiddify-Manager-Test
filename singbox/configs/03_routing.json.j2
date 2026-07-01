@@ -52,18 +52,15 @@
           "action":"reject",
           "method": "default"
         },
-        {% if hconfigs['amneziawg_enable'] and hconfigs['amneziawg_route_experimental_protocols'] %}
-        {% set experimental_inbounds = ['v10-mieru-tcp', 'v10-mieru-udp', 'v10-naive'] %}
-        {% for d in domains %}
-            {% if d['internal_port_tuic'] %}{% set _ = experimental_inbounds.append('tuic_in_' ~ d['internal_port_tuic']) %}{% endif %}
-            {% if d['internal_port_hysteria2'] %}{% set _ = experimental_inbounds.append('hysteria_in_' ~ d['internal_port_hysteria2']) %}{% endif %}
-            {% if d['internal_port_naive'] %}{% set _ = experimental_inbounds.append('v10-naive-quic' ~ d['internal_port_naive']) %}{% endif %}
+        {# Use a Routing Rule on the admin panel (Match Inbound(s) now lists
+           mieru/naive/tuic/hysteria2, in addition to xray-only tags) to send
+           any inbound's traffic to any outbound, e.g. mieru -> an
+           amneziawg-protocol Outbound - fully admin-controlled instead of a
+           fixed toggle. #}
+        {% set extra = hconfigs.get('additional_configs_singbox','') | from_json %}
+        {% for rule in extra.get('routing_rules', []) %}
+        {{ rule | tojson }},
         {% endfor %}
-        {
-            "inbound": {{ experimental_inbounds | tojson }},
-            "outbound": "amneziawg"
-        },
-        {% endif %}
         {% if hconfigs['block_iran_sites'] %}
         {
           "action":"reject","method":"default",

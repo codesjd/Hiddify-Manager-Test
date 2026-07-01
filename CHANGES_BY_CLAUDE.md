@@ -1,5 +1,73 @@
 # پچ‌های اعمال‌شده روی فورک Hiddify-Manager / Hiddify-Panel
 
+## 🆕 AmneziaWG یکپارچه شد با فرم عمومی Outbounds/Routing Rules (۲۰۲۶-۰۷-۰۱) — ⚠️ بخشی تست نشده
+
+گفتی: "amnezia باید توی outbounds هم باشه! چندبار گفتم و توی settings هم
+نمی‌بینمش. فرم رو هم polish کن." حق داشتی - نسخه‌ی قبلی AmneziaWG رو با
+یه toggle مجزا (`amneziawg_route_experimental_protocols`) سیم‌کشی کرده
+بود، جدا از سیستم عمومی Outbounds/Routing Rules که برای xray ساخته
+بودم. الان یکی شدن:
+
+**چی عوض شد:**
+1. **Outbounds → Protocol → `amneziawg`** یه گزینه‌ی جدیده، هم برای
+   xray هم singbox. انتخابش کنی، فقط یه outbound می‌سازه که به
+   interface `hiddify0` (همونی که `other/amneziawg/` بالا میاره) بایند
+   می‌شه - نه آدرس/پورت/UUID لازم داره. دقیقاً همون الگوی WARP
+   (`bind_interface`/`sockopt.interface`)، فقط این یکی از خود فرم قابل
+   ساختنه، نه هاردکد.
+2. **`amneziawg_route_experimental_protocols` حذف شد.** به‌جاش از
+   Routing Rules معمولی استفاده کن: یه rule بساز، Outbound Tag رو
+   بذار روی تگ همون outbound که با Protocol=amneziawg ساختی، و توی
+   "Match Inbound(s)" حالا mieru/naive/tuic/hysteria2 هم لیست شدن
+   (`get_available_inbound_tags()` بازنویسی شد) - یعنی می‌تونی هر
+   inbound رو به هر outbound وصل کنی، نه فقط این یکی مسیر ثابت.
+3. **`CustomOutbound.to_singbox_dict()` / `CustomRoutingRule.
+   to_singbox_dict()` جدید** - همون ردیف‌های DB که تا حالا فقط برای
+   xray سریالایز می‌شدن (`build_custom_xray_extra`)، الان یه نسخه‌ی
+   singbox هم دارن (`build_custom_singbox_extra`)، merge شده توی
+   `additional_configs_singbox` که `06_outbounds.json.j2` و
+   `03_routing.json.j2` جدیداً واقعاً می‌خوننش (قبلاً این کانفیگ فقط
+   توی subscription کلاینت خونده می‌شد، سمت سرور اصلاً استفاده نمی‌شد).
+   این یعنی هرچی از Outbounds/Routing Rules بسازی، چه core_type=xray
+   باشی چه singbox، بدون دوباره وارد کردن، درست رندر می‌شه.
+4. **فرم Outbounds پولیش شد** - یه اسکریپت JS کوچیک (`OutboundAdmin.py`)
+   بسته به Protocol انتخابی، فیلدهای بی‌ربط رو مخفی می‌کنه (مثلاً
+   freedom/amneziawg هیچ‌کدوم از Address/Port/UUID/Network/... رو لازم
+   ندارن، فقط vless فیلد Flow داره، و غیره).
+
+**⚠️ چیزی که تست نشده:**
+- اون اسکریپت JS یه فیلد سفارشی WTForms هست که فقط `<script>` رندر
+  می‌کنه؛ توی مرورگر واقعی تست نشده - فرم‌های این پروژه از طریق مودال
+  Bootstrap لود می‌شن، و اینکه اون لودر AJAX اسکریپت تزریق‌شده رو واقعا
+  اجرا می‌کنه یا نه بستگی به نوع لود داره (jQuery `.html()`/`.load()`
+  چرا، یه `.innerHTML=` خام نه). اگه با عوض کردن Protocol فیلدها مخفی/
+  ظاهر نشدن، کنسول مرورگر رو چک کن.
+- `to_singbox_dict()` برای `wireguard` مستقیم از روی مستندات نوشته شده
+  (schema قدیمی‌تر "outbound"، نه "endpoints" جدید sing-box 1.11+)، رو
+  سرور واقعی تست نشده.
+
+**اگه هنوز بخش AmneziaWG رو توی Settings نمی‌بینی:** پیدا کردم چرا -
+`SettingAdmin.get_config_form()` فیلدهای هر category رو فقط از روی
+ردیف‌های *موجود توی دیتابیس* می‌سازه (`StrConfig`/`BoolConfig` query)،
+نه مستقیم از `ConfigEnum`. اگه migration `_v124` (که کلیدهای
+`amneziawg_enable`/`amneziawg_config` رو می‌سازه) هنوز روی سرورت اجرا
+نشده باشه، بخش Amneziawg خالی می‌مونه یا اصلاً دیده نمی‌شه. این migration
+موقع بالا اومدن اپ اجرا می‌شه اگه `db_version` فعلیت کمتر از ۱۳۰ باشه -
+یه Reinstall کامل (نه فقط Apply Config) باید این رو trigger کنه؛ اگه
+بعد از Reinstall هم نبود، لاگ استارتاپ رو بفرست.
+
+**فایل‌های تغییریافته:** `hiddifypanel/models/routing.py` (`to_singbox_dict`
+×۲، `build_custom_singbox_extra`، `get_available_inbound_tags` گسترش‌یافته)،
+`models/__init__.py`، `models/config_enum.py` (حذف toggle)،
+`panel/init_db.py` (`_v124` ساده‌تر شد)، `panel/hiddify.py` (merge سمت
+singbox توی `all_configs_for_cli`)، `panel/admin/OutboundAdmin.py`
+(فیلد Protocol + اسکریپت پولیش)، `panel/admin/RoutingRuleAdmin.py`
+(توضیح inbound_tags)، `singbox/configs/06_outbounds.json.j2` و
+`03_routing.json.j2` (بلوک ثابت amneziawg حذف و با merge loop عمومی
+جایگزین شد - رندر شدنشون به JSON معتبر با jinja2+json5 لوکال تست شد).
+
+---
+
 ## 🆕 AmneziaWG به‌عنوان یه core جدا اضافه شد (۲۰۲۶-۰۷-۰۲) — ⚠️ تست نشده
 
 خواسته بودی ترافیک mieru/naive/hysteria/tuic بره روی یه outbound

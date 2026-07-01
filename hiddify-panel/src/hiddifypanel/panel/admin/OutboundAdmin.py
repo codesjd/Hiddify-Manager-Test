@@ -1,5 +1,6 @@
 import wtforms as wtf
 from wtforms.validators import ValidationError
+from markupsafe import Markup
 from flask_babel import lazy_gettext as _
 from .adminlte import AdminLTEModelView
 from hiddifypanel.auth import login_required
@@ -7,16 +8,106 @@ from hiddifypanel.models import *
 from hiddifypanel import hutils
 
 
+# Renders as a plain <script> tag wherever it's placed in form_columns -
+# WTForms/flask-admin just call the field to get its HTML, there's no
+# input/label for this one. Used to show/hide the fields that are actually
+# relevant to whichever Protocol is selected (wireguard/amneziawg/freedom
+# don't need SNI/network/security/etc, only vless has Flow, etc) instead of
+# always showing every field for every protocol.
+#
+# Field name must NOT start with an underscore - WTForms' FormMeta silently
+# excludes leading-underscore class attributes from Form._fields, which
+# means the field would never actually render (confirmed by testing).
+#
+# ⚠️ Not verified in a live browser - this project's forms load via a
+# Bootstrap modal (edit_modal/create_modal), and whether the modal's AJAX
+# loader re-executes embedded <script> tags depends on how that's wired
+# (jQuery's html()/load() do this automatically; a raw .innerHTML= does
+# not). If fields don't actually show/hide when you change Protocol, open
+# the browser console for errors - that'll tell us which case this is.
+class _ScriptField(wtf.Field):
+    widget = None
+
+    def process_formdata(self, valuelist):
+        pass
+
+    def _value(self):
+        return ''
+
+    def __call__(self, **kwargs):
+        return Markup(_PROTOCOL_FIELD_SCRIPT)
+
+
+_PROTOCOL_FIELD_SCRIPT = """
+<script>
+(function() {
+  function byName(n) { return document.querySelector('[name="' + n + '"]'); }
+  function wrapper(el) { return el ? (el.closest('.form-group') || el.parentElement) : null; }
+
+  var ALL = ['address', 'port', 'uuid_or_password', 'network', 'security', 'sni',
+             'ws_path', 'host_header', 'fingerprint', 'flow', 'import_link'];
+  var HIDE_FOR = {
+    freedom: ALL,
+    amneziawg: ALL,
+    socks: ['network', 'security', 'sni', 'ws_path', 'host_header', 'fingerprint', 'flow', 'import_link'],
+    http: ['network', 'security', 'sni', 'ws_path', 'host_header', 'fingerprint', 'flow', 'import_link'],
+    wireguard: ['network', 'security', 'sni', 'ws_path', 'host_header', 'fingerprint', 'flow', 'import_link'],
+    vmess: ['flow', 'import_link'],
+    trojan: ['flow', 'import_link'],
+    shadowsocks: ['flow', 'import_link'],
+    vless: []
+  };
+
+  function applyProtocol() {
+    var sel = byName('protocol');
+    if (!sel) return;
+    var hide = HIDE_FOR[sel.value] || [];
+    ALL.forEach(function(n) {
+      var w = wrapper(byName(n));
+      if (w) w.style.display = hide.indexOf(n) === -1 ? '' : 'none';
+    });
+  }
+
+  function init() {
+    var sel = byName('protocol');
+    if (!sel || sel.dataset.protocolToggleBound) return;
+    sel.dataset.protocolToggleBound = '1';
+    sel.addEventListener('change', applyProtocol);
+    applyProtocol();
+  }
+
+  init();
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+  }
+  // Modal content can be inserted after this script already ran once and
+  // found nothing yet (id not in DOM at parse time) - retry briefly.
+  var tries = 0;
+  var retry = setInterval(function() {
+    init();
+    if (byName('protocol') || ++tries > 20) clearInterval(retry);
+  }, 150);
+})();
+</script>
+"""
+
+
 class OutboundAdmin(AdminLTEModelView):
-    """Custom Xray outbounds - lets an admin add/chain outbound proxies
-    (e.g. point traffic at another one of your own servers) from the panel
-    instead of hand-editing xray/configs/06_outbounds.json.j2 over SSH.
+    """Custom Xray/singbox outbounds - lets an admin add/chain outbound
+    proxies (e.g. point traffic at another one of your own servers, or bind
+    to the AmneziaWG interface other/amneziawg/ brings up) from the panel
+    instead of hand-editing the *_outbounds.json.j2 templates over SSH.
+
+    Same rows drive both xray's and singbox's generated config
+    (CustomOutbound.to_xray_dict()/to_singbox_dict()) - whichever core is
+    actually running reads the matching one, so this form isn't tied to one
+    core_type.
     """
     column_hide_backrefs = False
     column_list = ["tag", "protocol", "address", "port", "network", "security", "enable", "comment"]
     form_columns = ["enable", "tag", "import_link", "protocol", "address", "port", "uuid_or_password",
                      "network", "security", "sni", "ws_path", "host_header", "fingerprint", "flow",
-                     "comment", "extra_json"]
+                     "comment", "extra_json", "protocol_field_script"]
 
     column_labels = {
         "tag": _("Tag"),
@@ -37,8 +128,8 @@ class OutboundAdmin(AdminLTEModelView):
     }
     column_descriptions = dict(
         tag=_("Unique identifier for this outbound. Reference it as the Outbound Tag in a Routing Rule to send matching traffic here."),
-        address=_("The destination server's IP or domain - e.g. another one of your own servers, for chaining."),
-        uuid_or_password=_("UUID for vless/vmess, password for trojan/shadowsocks/wireguard private key, or user:pass for socks/http."),
+        address=_("The destination server's IP or domain - e.g. another one of your own servers, for chaining. Not used for freedom/amneziawg."),
+        uuid_or_password=_("UUID for vless/vmess, password for trojan/shadowsocks/wireguard private key, or user:pass for socks/http. Not used for freedom/amneziawg."),
         extra_json=_('Optional. Deep-merged on top of the generated outbound JSON for anything the form above can\'t express, '
                       'e.g. {"streamSettings": {"sockopt": {"dialerProxy": "another-tag"}}} to chain through yet another outbound.'),
     )
@@ -49,6 +140,7 @@ class OutboundAdmin(AdminLTEModelView):
             description=_('Paste a vless:// share link here and save - it fills in Address/Port/UUID/Network/Security/SNI/Path/Host/'
                            'Fingerprint/Flow below from it (overwriting whatever was there). Leave blank to edit the fields manually instead.'),
         ),
+        "protocol_field_script": _ScriptField(label=""),
     }
 
     form_widget_args = {

@@ -14,6 +14,12 @@ class OutboundProtocol(StrEnum):
     http = auto()
     wireguard = auto()
     freedom = auto()
+    # Not a real dialed protocol - binds outbound traffic to the standalone
+    # AmneziaWG interface other/amneziawg/ brings up (hiddify0), the same
+    # way the built-in WARP outbound binds to the "warp" interface. No
+    # address/port/uuid needed; see CustomOutbound.to_xray_dict()/
+    # to_singbox_dict().
+    amneziawg = auto()
 
 
 class OutboundNetwork(StrEnum):
@@ -70,6 +76,15 @@ class CustomOutbound(db.Model):  # type: ignore
 
     def to_xray_dict(self) -> dict:
         import json
+
+        if self.protocol == OutboundProtocol.amneziawg:
+            # xray has no native AmneziaWG support either (same as
+            # sing-box) - this binds a plain "freedom" outbound to the
+            # already-connected other/amneziawg/ interface via sockopt,
+            # xray-core's Linux SO_BINDTODEVICE equivalent to sing-box's
+            # bind_interface. No address/port/uuid/network/security apply.
+            return {"tag": self.tag, "protocol": "freedom", "settings": {}, "streamSettings": {"sockopt": {"interface": "hiddify0"}}}
+
         settings: dict = {}
         stream: dict = {}
 
@@ -124,6 +139,92 @@ class CustomOutbound(db.Model):  # type: ignore
         out = {"tag": self.tag, "protocol": self.protocol.value, "settings": settings}
         if stream:
             out["streamSettings"] = stream
+
+        if self.extra_json and self.extra_json.strip() not in ('', '{}'):
+            try:
+                extra = json.loads(self.extra_json)
+                out = _deep_merge(out, extra)
+            except Exception:
+                pass
+        return out
+
+    def to_singbox_dict(self) -> dict:
+        """sing-box's outbound schema (used by singbox/configs/06_outbounds.
+        json.j2, merged the same way xray's is: build_custom_singbox_extra()
+        -> all_configs_for_cli() -> additional_configs_singbox).
+
+        ⚠️ Written directly from sing-box's documented outbound schema, not
+        verified against a real server - in particular the "wireguard"
+        outbound type is the pre-1.11 schema (this codebase's other singbox
+        templates don't use the newer 1.11+ "endpoints" array anywhere, so
+        that's assumed to be what's actually deployed, but isn't confirmed).
+        """
+        import json
+
+        if self.protocol == OutboundProtocol.amneziawg:
+            return {"tag": self.tag, "type": "direct", "bind_interface": "hiddify0"}
+
+        out: dict = {"tag": self.tag}
+
+        if self.protocol == OutboundProtocol.freedom:
+            out["type"] = "direct"
+        elif self.protocol == OutboundProtocol.wireguard:
+            out["type"] = "wireguard"
+            out["server"] = self.address or ""
+            out["server_port"] = self.port or 51820
+            out["private_key"] = self.uuid_or_password or ""
+            out["peer_public_key"] = self.sni or ""  # repurposed: no dedicated peer-pubkey field exists yet
+            out["local_address"] = ["10.0.0.2/32"]
+        else:
+            type_map = {
+                OutboundProtocol.vless: "vless", OutboundProtocol.vmess: "vmess",
+                OutboundProtocol.trojan: "trojan", OutboundProtocol.shadowsocks: "shadowsocks",
+                OutboundProtocol.socks: "socks", OutboundProtocol.http: "http",
+            }
+            out["type"] = type_map[self.protocol]
+            out["server"] = self.address or ""
+            out["server_port"] = self.port or 443
+
+            if self.protocol in (OutboundProtocol.vless, OutboundProtocol.vmess):
+                out["uuid"] = self.uuid_or_password or ""
+                if self.protocol == OutboundProtocol.vless:
+                    if self.flow:
+                        out["flow"] = self.flow
+                else:
+                    out["security"] = "auto"
+            elif self.protocol == OutboundProtocol.trojan:
+                out["password"] = self.uuid_or_password or ""
+            elif self.protocol == OutboundProtocol.shadowsocks:
+                out["password"] = self.uuid_or_password or ""
+                out["method"] = "chacha20-ietf-poly1305"
+            elif self.protocol in (OutboundProtocol.socks, OutboundProtocol.http):
+                if self.uuid_or_password:
+                    user, _, pw = self.uuid_or_password.partition(':')
+                    out["username"] = user
+                    out["password"] = pw
+
+            if self.protocol in (OutboundProtocol.vless, OutboundProtocol.vmess, OutboundProtocol.trojan):
+                if self.network != OutboundNetwork.tcp:
+                    transport: dict = {"type": self.network.value}
+                    if self.network == OutboundNetwork.ws:
+                        transport["path"] = self.ws_path or "/"
+                        if self.host_header:
+                            transport["headers"] = {"Host": self.host_header}
+                    elif self.network == OutboundNetwork.grpc:
+                        transport["service_name"] = self.ws_path or ""
+                    elif self.network in (OutboundNetwork.httpupgrade, OutboundNetwork.xhttp):
+                        transport["path"] = self.ws_path or "/"
+                        if self.host_header:
+                            transport["host"] = self.host_header
+                    out["transport"] = transport
+
+                if self.security in (OutboundSecurity.tls, OutboundSecurity.reality):
+                    tls: dict = {"enabled": True, "server_name": self.sni or self.address or ""}
+                    if self.fingerprint:
+                        tls["utls"] = {"enabled": True, "fingerprint": self.fingerprint}
+                    if self.security == OutboundSecurity.reality:
+                        tls["reality"] = {"enabled": True}
+                    out["tls"] = tls
 
         if self.extra_json and self.extra_json.strip() not in ('', '{}'):
             try:
@@ -225,6 +326,29 @@ class CustomRoutingRule(db.Model):  # type: ignore
             rule["network"] = self.network
         return rule
 
+    def to_singbox_dict(self) -> dict:
+        """sing-box's rule schema (1.8+ 'action' style, matching this
+        codebase's other singbox templates): no "type":"field" wrapper,
+        "inbound"/"outbound" instead of xray's "inboundTag"/"outboundTag".
+        Reuses the exact same inbound_tags/domains/ips/port/network fields -
+        whichever tags don't apply to the currently-active core (e.g. xray-
+        only tags while running singbox) simply never match anything."""
+        rule: dict = {"outbound": self.outbound_tag}
+        domains = [d.strip() for d in (self.domains or '').splitlines() if d.strip()]
+        ips = [i.strip() for i in (self.ips or '').splitlines() if i.strip()]
+        inbound_tags = [t.strip() for t in (self.inbound_tags or '').split(',') if t.strip()]
+        if inbound_tags:
+            rule["inbound"] = inbound_tags
+        if domains:
+            rule["domain"] = domains
+        if ips:
+            rule["ip_cidr"] = ips
+        if self.port:
+            rule["port"] = self.port
+        if self.network:
+            rule["network"] = self.network
+        return rule
+
 
 def get_available_inbound_tags() -> list[tuple[str, str]]:
     """The real xray inbound tags that will actually exist in the generated
@@ -285,6 +409,34 @@ def get_available_inbound_tags() -> list[tuple[str, str]]:
             tag = f'realityin_{stream}_{port}'
             choices.append((tag, f'{d.domain} - reality {stream}'))
 
+    # mieru/naive/tuic/hysteria2 only exist under singbox in this codebase
+    # (no xray equivalent at all - see singbox/configs/05_inbounds_mieru.
+    # json.j2 etc.), so these only ever mean anything with core_type=
+    # singbox, but are listed regardless of core_type since a routing rule
+    # picked now still applies correctly if core_type is switched later.
+    if hconfig(ConfigEnum.mieru_enable, child_id):
+        if hconfig(ConfigEnum.mieru_tcp_ports, child_id):
+            choices.append(('v10-mieru-tcp', 'mieru / tcp'))
+        if hconfig(ConfigEnum.mieru_udp_ports, child_id):
+            choices.append(('v10-mieru-udp', 'mieru / udp'))
+
+    if hconfig(ConfigEnum.naive_enable, child_id):
+        choices.append(('v10-naive', 'naive / tcp (any domain)'))
+
+    domains_for_ports = Domain.query.filter(Domain.child_id == child_id).all()
+    if hconfig(ConfigEnum.tuic_enable, child_id):
+        for d in domains_for_ports:
+            if d.internal_port_tuic:
+                choices.append((f'tuic_in_{d.internal_port_tuic}', f'{d.domain} - tuic'))
+    if hconfig(ConfigEnum.hysteria_enable, child_id):
+        for d in domains_for_ports:
+            if d.internal_port_hysteria2:
+                choices.append((f'hysteria_in_{d.internal_port_hysteria2}', f'{d.domain} - hysteria2'))
+    if hconfig(ConfigEnum.naive_enable, child_id):
+        for d in domains_for_ports:
+            if d.internal_port_naive:
+                choices.append((f'v10-naive-quic{d.internal_port_naive}', f'{d.domain} - naive quic'))
+
     return choices
 
 
@@ -310,6 +462,27 @@ def build_custom_xray_extra() -> dict:
     ]
     rules = [
         r.to_xray_dict()
+        for r in CustomRoutingRule.query.filter_by(child_id=child_id, enable=True).order_by(CustomRoutingRule.priority.asc()).all()
+    ]
+    return {"outbounds": outbounds, "routing_rules": rules}
+
+
+def build_custom_singbox_extra() -> dict:
+    """Same as build_custom_xray_extra() but in sing-box's schema, merged
+    into additional_configs_singbox and read by singbox/configs/
+    06_outbounds.json.j2 and 03_routing.json.j2. Same underlying
+    CustomOutbound/CustomRoutingRule rows as the xray version - one set of
+    admin-entered outbounds/rules, rendered in whichever core's own schema
+    is actually needed, so switching core_type doesn't require re-entering
+    anything."""
+    from hiddifypanel.models.child import Child
+    child_id = Child.current().id
+    outbounds = [
+        o.to_singbox_dict()
+        for o in CustomOutbound.query.filter_by(child_id=child_id, enable=True).all()
+    ]
+    rules = [
+        r.to_singbox_dict()
         for r in CustomRoutingRule.query.filter_by(child_id=child_id, enable=True).order_by(CustomRoutingRule.priority.asc()).all()
     ]
     return {"outbounds": outbounds, "routing_rules": rules}

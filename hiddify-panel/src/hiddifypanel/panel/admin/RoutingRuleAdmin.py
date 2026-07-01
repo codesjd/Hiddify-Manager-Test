@@ -30,10 +30,12 @@ class RoutingRuleAdmin(AdminLTEModelView):
     column_descriptions = dict(
         priority=_("Lower number = checked first. Rules are evaluated in this order; the first match wins."),
         outbound_tag=_("Must match a Tag from the Outbounds page, or a built-in tag: freedom, blackhole, WARP, forbidden_sites."),
-        inbound_tags=_("Optional. Match traffic that arrived on these inbounds specifically. Hiddify shares one inbound per "
-                        "protocol+transport across every domain/CDN mode (except Reality, which gets one per domain) - so this "
-                        "matches \"vless over ws from anywhere\", not one specific domain/proxy row. Combine with Domains below "
-                        "if you need to narrow it further."),
+        inbound_tags=_("Optional. Match traffic that arrived on these inbounds specifically - covers both xray tags (vless/vmess/"
+                        "trojan over a transport, plus Reality per-domain) and, when running singbox, mieru/naive/tuic/hysteria2 "
+                        "(only the ones relevant to your current core_type will ever actually match anything). Hiddify shares one "
+                        "inbound per protocol+transport across every domain/CDN mode (except Reality, which gets one per domain), "
+                        "so a plain protocol entry matches \"vless over ws from anywhere\", not one specific domain/proxy row. "
+                        "Combine with Domains below if you need to narrow it further."),
         domains=_("One per line. Plain domains, \"domain:example.com\", or \"geosite:netflix\" etc."),
         ips=_("One per line. Plain IPs/CIDRs, or \"geoip:ir\" etc."),
         port=_('Optional, e.g. "443" or "1000-2000". Leave empty to match any port.'),

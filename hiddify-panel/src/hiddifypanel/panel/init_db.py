@@ -20,7 +20,6 @@ MAX_DB_VERSION = 130
 def _v124(child_id):
     add_config_if_not_exist(ConfigEnum.amneziawg_enable, False)
     add_config_if_not_exist(ConfigEnum.amneziawg_config, "")
-    add_config_if_not_exist(ConfigEnum.amneziawg_route_experimental_protocols, False)
 
 
 def _v123(child_id):

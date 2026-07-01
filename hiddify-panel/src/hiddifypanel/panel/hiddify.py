@@ -376,6 +376,23 @@ def all_configs_for_cli():
         configs['chconfigs'][0]['additional_configs_xrayjson'] = json.dumps(merged)
     except Exception:
         logger.exception("Failed to merge custom outbounds/routing rules (non-fatal, falling back to manual field only)")
+
+    # Same merge, sing-box schema - additional_configs_singbox already
+    # existed as a settings field but nothing server-side read it before
+    # this; singbox/configs/06_outbounds.json.j2 and 03_routing.json.j2 now
+    # do, the same way the xray templates read additional_configs_xrayjson.
+    try:
+        import json
+        db_extra_sb = build_custom_singbox_extra()
+        manual_raw_sb = configs['chconfigs'][0].get('additional_configs_singbox') or ''
+        manual_sb = json.loads(manual_raw_sb) if manual_raw_sb.strip() else {}
+        merged_sb = {
+            "outbounds": (manual_sb.get('outbounds') or []) + db_extra_sb['outbounds'],
+            "routing_rules": (manual_sb.get('routing_rules') or []) + db_extra_sb['routing_rules'],
+        }
+        configs['chconfigs'][0]['additional_configs_singbox'] = json.dumps(merged_sb)
+    except Exception:
+        logger.exception("Failed to merge custom singbox outbounds/routing rules (non-fatal, falling back to manual field only)")
     server_ip = hutils.network.get_ip_str(4)
     owner = AdminUser.get_super_admin()
     configs['api_key'] = owner.uuid
