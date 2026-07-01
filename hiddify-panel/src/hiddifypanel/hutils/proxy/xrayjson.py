@@ -400,14 +400,26 @@ def _add_xhttp_details(ss: dict, proxy: dict):
         }
     }
     if proxy.get("download"):
-        
+        dl = proxy['download']
+        # The download sub-object only carries domain-specific fields (sni,
+        # host, server, mode, alpn...) from sni_host_server_extractor() - it
+        # was never guaranteed to carry path/xhttp_mode/params too (shared.py
+        # sets those when it can, but e.g. a domain-level override replacing
+        # 'download' wholesale, or any other path that doesn't go through
+        # that exact fixup, leaves them missing). Recursing into
+        # _add_xhttp_details() below needs them, so fall back to the parent
+        # proxy's values rather than crashing with KeyError.
+        dl.setdefault('path', proxy.get('path'))
+        dl.setdefault('xhttp_mode', proxy.get('xhttp_mode', 'auto'))
+        dl.setdefault('params', proxy.get('params', {}))
+
         dlsettings = {
-            "address":proxy['download'].get("server"),
-            "port":proxy['port']
+            "address": dl.get("server"),
+            "port": proxy['port']
         }
-        _add_xhttp_details(dlsettings, proxy['download'])
-        _add_security(dlsettings, proxy, proxy['download'])
-        
+        _add_xhttp_details(dlsettings, dl)
+        _add_security(dlsettings, proxy, dl)
+
         ss['xhttpSettings']['extra']['downloadSettings']=dlsettings
 
 

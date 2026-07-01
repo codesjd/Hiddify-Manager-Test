@@ -1,5 +1,54 @@
 # پچ‌های اعمال‌شده روی فورک Hiddify-Manager / Hiddify-Panel
 
+## 🚨 دو باگ واقعی دیگه از نصب موفق اولت (۲۰۲۶-۰۷-۰۱، ادامه) - هر دو فیکس شدن
+
+نصب بالاخره کامل تموم شد (`NOTICE: auto-detected local panel source` + واقعاً
+`hiddifypanel==12.3.3` از سورس پچ‌شده build شد) - ولی دو باگ واقعی دیگه رو
+لاگ‌هات نشون دادن:
+
+### باگ الف: منوی "Xray Configs" اصلاً جایی وجود نداشت - نه فقط جای اشتباه
+علت واقعی: `admin-layout.html` (سایدبار پنل) یه لیست کاملاً **دستی و
+هاردکدشده** از صفحاته (`render_nav_item('flask.domain.index_view', ...)`
+برای هر صفحه، یکی‌یکی) - هیچ‌جا از روی چیزی که `flaskadmin.add_view(...)`
+واقعاً ثبت کرده لوپ نمی‌زنه. یعنی پارامتر `category="Xray Configs"` که پچ
+قبلی روی `OutboundAdmin`/`RoutingRuleAdmin`/`InboundOverrideAdmin` گذاشته
+بود، برای این تم/فورک خاص هیچ اثری روی UI نداشت - صفحه‌ها واقعاً ثبت و در
+دسترس بودن (مثلاً `/admin/inbound_override/` مستقیم کار می‌کرد)، ولی هیچ‌جا
+لینکی به سایدبار اضافه نشده بود که بهشون برسی.
+
+**فیکس:** سه‌تا `render_nav_item` جدید به `admin-layout.html` اضافه شد
+(کنار Backup، زیر همون `if g.account.mode=='super_admin'`). endpointها رو
+از روی رفتار پیش‌فرض flask-admin برای `ModelView` بدون `endpoint=` صریح
+پیدا کردم (پیش‌فرض = اسم کلاس مدل، نه اسم کلاس View): `OutboundAdmin` روی
+مدل `CustomOutbound` → endpoint `customoutbound`، `RoutingRuleAdmin` روی
+`CustomRoutingRule` → endpoint `customroutingrule`، و
+`InboundOverrideAdmin` که از قبل صریحاً `endpoint="inbound_override"`
+داشت.
+
+**فایل:** `hiddify-panel/src/hiddifypanel/templates/admin-layout.html`
+
+### باگ ب: subscription همچنان 500 می‌داد - `KeyError: 'path'`
+لاگ واقعی (`hiddify_panel.err.log`) دقیقاً نشون داد کجا: `xrayjson.py`،
+تابع `_add_xhttp_details()`، برای پروتکل‌های xhttp که یه دامنه‌ی download
+جدا دارن (یا حتی همون دامنه‌ی اصلی به‌عنوان download، وقتی CDN جدا تنظیم
+نشده). این تابع خودش رو روی `proxy['download']` صدا می‌زنه (recursive)، ولی
+اون دیکشنری فقط فیلدهای مخصوص دامنه (`sni`, `host`, `server`, `mode`,
+`alpn`) رو داره - نه `path`/`xhttp_mode`/`params` که این تابع بهشون نیاز
+داره. `shared.py` سعی می‌کنه اینا رو ست کنه (`dl['path']=base['path']`)،
+ولی همیشه این اتفاق نمی‌افته (مثلاً وقتی override دامنه یا مسیر دیگه‌ای
+باعث میشه `download` یه دیکشنری متفاوت/جزئی باشه) - و هر بار که میفتاد، کل
+subscription اون یوزر با 500 کرش می‌کرد.
+
+**فیکس:** توی خودِ `_add_xhttp_details()`، قبل از recurse کردن روی
+`proxy['download']`، مقادیر گم‌شده (`path`, `xhttp_mode`, `params`) رو از
+proxy اصلی fallback می‌کنه (`dl.setdefault(...)`) به‌جای اینکه فرض کنه حتماً
+از قبل ست شدن. این مستقل از اینکه دقیقاً چرا `download` این فیلدها رو
+نداشت درست کار می‌کنه.
+
+**فایل:** `hiddify-panel/src/hiddifypanel/hutils/proxy/xrayjson.py`
+
+---
+
 ## 🚨 فیکس قبلی (KillMode) کافی نبود - ریشه‌ی واقعی `systemctl kill` بود (۲۰۲۶-۰۷-۰۱، ادامه)
 
 از لاگ زنده‌ی خودت تست شد: بعد از فیکس قبلی (`KillMode=process`)، دقیقاً
