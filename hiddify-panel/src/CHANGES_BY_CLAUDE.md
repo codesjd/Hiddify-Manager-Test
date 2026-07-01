@@ -1,5 +1,30 @@
 # پچ‌های اعمال‌شده روی فورک Hiddify-Manager / Hiddify-Panel
 
+## 🚨 فیکس قبلی (KillMode) کافی نبود - ریشه‌ی واقعی `systemctl kill` بود (۲۰۲۶-۰۷-۰۱، ادامه)
+
+از لاگ زنده‌ی خودت تست شد: بعد از فیکس قبلی (`KillMode=process`)، دقیقاً
+همون رفتار (کشتن تک‌تک پردازش‌های فرزند) ادامه داشت، با اینکه
+`systemctl show hiddify-panel.service -p KillMode` درست `process` نشون
+می‌داد. دلیلش: `KillMode=` فقط رفتار `systemctl restart`/`stop` عادی رو
+کنترل می‌کنه؛ `systemctl kill` یه دستور جداست که پیش‌فرضش `--kill-who=all`ه
+و **کلاً KillMode رو نادیده می‌گیره**.
+
+آخر خط ۱۵۵ `install.sh` (و معادلش توی `common/hiddify_installer.sh` خط
+۲۵۹) دقیقاً همین `systemctl kill -s SIGTERM hiddify-panel` رو صدا می‌زد -
+یعنی صریحاً و همیشه کل cgroup رو می‌کشت، چه install از پنل صدا زده شده
+باشه چه نه. **فیکس واقعی:** `--kill-who=main` اضافه شد به هر دو جا، که
+دقیقاً همون پردازش اصلی (tracked PID) رو هدف می‌گیره، نه کل cgroup.
+
+فیکس قبلی (`KillMode=process` روی خود سرویس‌ها) بی‌فایده نبود - برای
+`systemctl restart hiddify-panel-background-tasks.service` (توی
+`hiddify-panel/run.sh`، که از `restart` استفاده می‌کنه نه `kill`) هنوز
+لازمه و درست کار می‌کنه. فقط برای *این* باگ خاص (که از `systemctl kill`
+میومد) کافی نبود.
+
+**فایل‌ها:** `install.sh`, `common/hiddify_installer.sh`
+
+---
+
 ## 🚨 باگ واقعاً بزرگ: Reinstall/Apply Config خودش خودش رو می‌کشت وسط کار (۲۰۲۶-۰۷-۰۱)
 
 از لاگ واقعی نصبت (journalctl) پیدا شد. وقتی از پنل "Reinstall" یا "Apply

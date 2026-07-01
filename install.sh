@@ -152,7 +152,15 @@ function main() {
     echo "---------------------Finished!------------------------"
     remove_lock $NAME
     if [ "$MODE" != "apply_users" ]; then
-        systemctl kill -s SIGTERM hiddify-panel
+        # --kill-who=main: `systemctl kill` (unlike `restart`/`stop`) ignores
+        # the unit's KillMode= entirely and defaults to --kill-who=all, i.e.
+        # every process in hiddify-panel.service's cgroup. When this install
+        # run itself was launched from the panel (commander()'s detached
+        # child, see run_commander.py), install.sh IS one of those
+        # processes - so the bare form here was killing this very script
+        # mid-run, well before it ever reached the rest of the install
+        # steps. Restrict the kill to the tracked main PID only.
+        systemctl kill -s SIGTERM --kill-who=main hiddify-panel
     fi
     systemctl start hiddify-panel
     update_progress "${PROGRESS_ACTION}" "Done" 100

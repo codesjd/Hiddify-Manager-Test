@@ -256,7 +256,12 @@ function post_update_tasks() {
 
     if [ "$package_mode" != "docker" ];then
       if [[ $panel_update == 0 ]]; then
-              systemctl kill -s SIGTERM hiddify-panel
+              # --kill-who=main: see the comment on the equivalent line in
+              # install.sh - the bare form kills every process in
+              # hiddify-panel.service's cgroup (systemctl kill ignores
+              # KillMode=), including this very script when it's running as
+              # a detached child of the panel itself.
+              systemctl kill -s SIGTERM --kill-who=main hiddify-panel
       fi
 
       if [[ $panel_update == 0 && $config_update != 0 ]]; then
