@@ -106,5 +106,9 @@
         "port": 53
       }
     }
+    {% set extra = hconfigs.get('additional_configs_xrayjson','') | from_json %}
+    {% for ob in extra.get('outbounds', []) %}
+    ,{{ ob | tojson }}
+    {% endfor %}
   ]
 }

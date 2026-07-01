@@ -26,6 +26,17 @@ systemctl enable hiddify-panel.service
 ln -sf $(pwd)/hiddify-panel-background-tasks.service /etc/systemd/system/hiddify-panel-background-tasks.service
 systemctl enable hiddify-panel-background-tasks.service
 
+if [ -z "$HIDDIFY_PANLE_SOURCE_DIR" ] && [ -f "$(pwd)/src/pyproject.toml" ]; then
+    # A local hiddify-panel/src/ with its own pyproject.toml means this is a
+    # bundled/patched source tree (not the normal empty submodule
+    # placeholder). Auto-detect it so plain `bash install.sh` installs THIS
+    # code instead of silently doing nothing (previously: with no env var
+    # set, this whole block was skipped and hiddifypanel never got
+    # installed at all - "No module named hiddifypanel").
+    export HIDDIFY_PANLE_SOURCE_DIR="$(pwd)/src"
+    echo "NOTICE: auto-detected local panel source at $HIDDIFY_PANLE_SOURCE_DIR"
+fi
+
 if [ -n "$HIDDIFY_PANLE_SOURCE_DIR" ]; then
     echo "NOTICE: building hiddifypanel package from source..."
     echo "NOTICE: the source dir $HIDDIFY_PANLE_SOURCE_DIR"

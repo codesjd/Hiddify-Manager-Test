@@ -43,7 +43,17 @@ function main() {
         runsh install.sh common &
         if [ "$MODE" != "docker" ];then
             install_run other/redis &
-            install_run other/mysql &
+            # DB_BACKEND defaults to mysql (unchanged behavior for every
+            # existing install). Set DB_BACKEND=postgres or
+            # DB_BACKEND=timescaledb before running install.sh to opt into
+            # the new backend instead - e.g.:
+            #   DB_BACKEND=timescaledb ./install.sh --no-gui
+            export DB_BACKEND="${DB_BACKEND:-mysql}"
+            if [ "$DB_BACKEND" == "postgres" ] || [ "$DB_BACKEND" == "timescaledb" ]; then
+                install_run other/postgres &
+            else
+                install_run other/mysql &
+            fi
         fi    
         wait
         # Because we need to generate reality pair in panel
@@ -107,9 +117,22 @@ function main() {
             install_run other/warp 0 &
         fi
 
+        # core_type decides which proxy core actually runs as a service.
+        # Previously xray was hardcoded to 1 and singbox had no flag at all,
+        # so switching core_type in the panel never stopped the unused core -
+        # both kept running and could fight over the same ports/sockets.
+        CORE_TYPE=$(hconfig "core_type")
+        XRAY_ENABLE=1
+        SINGBOX_ENABLE=1
+        if [[ "$CORE_TYPE" == "xray" ]]; then
+            SINGBOX_ENABLE=0
+        elif [[ "$CORE_TYPE" == "singbox" ]]; then
+            XRAY_ENABLE=0
+        fi
+
         update_progress "${PROGRESS_ACTION}" "Xray" 75
         
-        install_run xray 1 &
+        install_run xray $XRAY_ENABLE &
         
         
         update_progress "${PROGRESS_ACTION}" "HiddifyCli" 80
@@ -122,7 +145,7 @@ function main() {
     install_run other/wireguard $(hconfig "wireguard_enable") &
     
     update_progress "${PROGRESS_ACTION}" "Singbox" 95
-    install_run singbox &
+    install_run singbox ${SINGBOX_ENABLE:-1} &
     
     update_progress "${PROGRESS_ACTION}" "Almost Finished" 98
     wait 

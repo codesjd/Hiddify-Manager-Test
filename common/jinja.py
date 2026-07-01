@@ -35,6 +35,23 @@ def b64encode(s):
         s = s.encode("utf-8")
     return base64.b64encode(s).decode("utf-8")
 
+
+def from_json(s):
+    """Jinja filter: safely parse a JSON string config value. Used to let
+    admins inject custom outbounds / routing rules (chaining to another of
+    their own servers, custom WARP-like outbounds, etc.) via the
+    'additional_configs_xrayjson' setting instead of hand-editing the .j2
+    templates over SSH. Returns {} on empty/invalid input so a typo here
+    never breaks the whole render."""
+    if not s:
+        return {}
+    try:
+        return json5.loads(s)
+    except Exception as e:
+        print(f"Error parsing additional_configs_xrayjson: {e}", file=sys.stderr)
+        return {}
+
+
 env_paths = ["/", "/opt/hiddify-manager/singbox/configs/"]
 env = Environment(loader=FileSystemLoader(env_paths))
 def render(template_path):
@@ -45,6 +62,8 @@ def render(template_path):
         env.filters["hexencode"] = lambda s: "".join(
             hex(ord(c))[2:].zfill(2) for c in s
         )
+        env.filters["from_json"] = from_json
+        env.filters["tojson"] = lambda obj: json.dumps(obj)
         print("Rendering: " + template_path)
 
         # Create a template object by reading the file
