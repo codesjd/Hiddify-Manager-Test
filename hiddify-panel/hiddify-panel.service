@@ -10,6 +10,17 @@ WorkingDirectory=/opt/hiddify-manager/hiddify-panel/
 Environment="LANG=C.UTF-8"
 ExecStart=/opt/hiddify-manager/.venv313/bin/python /opt/hiddify-manager/hiddify-panel/app.py
 ExecReload=/bin/kill -HUP $MAINPID
+# The default KillMode (control-group) sends SIGTERM to every process in
+# this unit's cgroup, not just the main one. Apply/Reinstall/Update from the
+# panel run install.sh as a detached child of this very process (see
+# run_commander.py's cmd_in_back(), start_new_session=True) - and that
+# install run always includes restarting hiddify-panel.service itself as one
+# of its steps. With the default KillMode, that self-restart kills the
+# install run partway through (visible in journalctl as this unit sending
+# SIGTERM to its own install.sh/sudo/systemctl children), so xray/singbox/
+# haproxy/etc never finish being (re)installed. KillMode=process signals
+# only the tracked main PID, leaving the detached install child alone.
+KillMode=process
 #RestartSec=1
 #ExecStop=/bin/bash -c "/bin/kill -INT $(/usr/bin/pgrep -f 'hiddifypanel')||echo 'nothing to kill'"
 ExecStop=/bin/kill -INT $MAINPID

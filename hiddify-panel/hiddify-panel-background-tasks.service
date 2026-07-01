@@ -11,6 +11,10 @@ Environment="LANG=C.UTF-8"
 #maximum 5 worker minimum 1 worker
 ExecStart=/opt/hiddify-manager/.venv313/bin/python -m celery -A hiddifypanel.apps.celery_app:celery_app worker --beat --loglevel debug --concurrency 1  --pool=solo
 ExecReload=/bin/kill -HUP $MAINPID
+# See the comment on KillMode in hiddify-panel.service - tasks run through
+# this worker can also shell out to commander()/install.sh, which must
+# survive a restart of this unit rather than being killed along with it.
+KillMode=process
 #RestartSec=1
 ExecStop=/bin/kill -INT $MAINPID
 Restart=always

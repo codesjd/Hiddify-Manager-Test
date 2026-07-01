@@ -1,5 +1,43 @@
 # پچ‌های اعمال‌شده روی فورک Hiddify-Manager / Hiddify-Panel
 
+## 🚨 باگ واقعاً بزرگ: Reinstall/Apply Config خودش خودش رو می‌کشت وسط کار (۲۰۲۶-۰۷-۰۱)
+
+از لاگ واقعی نصبت (journalctl) پیدا شد. وقتی از پنل "Reinstall" یا "Apply
+Configs" می‌زدی:
+
+1. `run_commander.py`ی که قبلاً پچ کردم (Bug اصلی Apply/Reinstall) الان
+   واقعاً `install.sh` رو اجرا می‌کنه، به‌عنوان یه پردازش فرزندِ جدا
+   (`subprocess.Popen(..., start_new_session=True)`) از پردازش خودِ
+   `hiddify-panel.service`.
+2. ولی `install.sh` خودش یکی از کارهایی که می‌کنه اینه که
+   `hiddify-panel.service` رو (چون خودش یکی از کامپوننت‌هاست) دوباره نصب و
+   ری‌استارت کنه.
+3. `hiddify-panel.service` هیچ `KillMode` صریحی نداشت، یعنی پیش‌فرض
+   systemd یعنی `control-group` بود: وقتی این سرویس ری‌استارت می‌شه،
+   systemd سیگنال SIGTERM رو به **همه‌ی پردازش‌های داخل همون cgroup**
+   می‌فرسته - و پردازش نصبی که خودِ همین سرویس چند ثانیه قبل راه انداخته
+   بود هم دقیقاً همونجاست (`start_new_session=True` فقط از سیگنال‌های
+   ترمینال/process-group جلوگیری می‌کنه، نه از کشتار cgroup-based
+   systemd). نتیجه: خودِ عملیات نصب، وسط کار (درست بعد از مرحله‌ی nginx،
+   قبل از xray/singbox/haproxy/warp/ssfaketls) توسط ری‌استارت سرویس خودش
+   کشته می‌شد.
+
+این دقیقاً توضیح می‌ده چرا بعد از نصب، سرویس‌هایی مثل singbox/haproxy/nginx
+fail می‌شدن، فایل‌های config (`singbox/configs/01_api.json`,
+`nginx/parts/short-link.conf`) اصلاً ساخته نشده بودن، `hiddify-ss-faketls.service`
+پیدا نمی‌شد، و `other/warp/run.sh` وجود نداشت - نصب هیچ‌وقت به اون مرحله‌ها
+نمی‌رسید چون قبلش کشته می‌شد.
+
+**فیکس:** `KillMode=process` به هر دو `hiddify-panel.service` و
+`hiddify-panel-background-tasks.service` اضافه شد. این یعنی ری‌استارت این
+سرویس‌ها فقط پردازش اصلی (tracked PID) رو سیگنال می‌ده، نه بقیه‌ی
+پردازش‌های داخل cgroup - پس اسکریپت نصبی که این سرویس‌ها خودشون راه
+انداختن، سالم ادامه پیدا می‌کنه حتی وقتی سرویس مادر ری‌استارت می‌شه.
+
+**فایل‌ها:** `hiddify-panel/hiddify-panel.service`, `hiddify-panel/hiddify-panel-background-tasks.service`
+
+---
+
 ## 🔍 فرم «Inbound Overrides» واقعی شد، ولی Port/Security عمداً توش نیست (۲۰۲۶-۰۷-۰۱)
 
 خواسته بودی «فرم شبیه 3x-ui» (Port/SNI/Security جدا جدا روی هر inbound).
