@@ -27,7 +27,17 @@ isipv6() {
   [[ $1 =~ ^([0-9a-fA-F]{0,4}:){2,7}[0-9a-fA-F]{0,4}$ ]]
 }
 acmecmd() {
-    acme.sh --issue \
+    # timeout: acme.sh polls the CA's order status every ~15s with no
+    # built-in cap on this codepath. A CA order that gets stuck
+    # "processing" (seen with ZeroSSL) makes this hang for as long as the CA
+    # leaves it stuck - and since get_cert() for every domain is `wait`-ed on
+    # together in run.sh, ALL domains would sit blocked behind that one
+    # stuck domain, so nginx/haproxy never get reloaded with the new certs
+    # for domains that succeeded, and the rest of install.sh never proceeds.
+    # 240s covers a real (slow) issuance; past that, treat it as failed so
+    # get_cert()'s existing self-signed fallback kicks in for this domain
+    # only and everything else keeps moving.
+    timeout 240 acme.sh --issue \
         -w /opt/hiddify-manager/acme.sh/www/ \
         --log /opt/hiddify-manager/log/system/acme.log \
         --pre-hook "bash /opt/hiddify-manager/acme.sh/prepare_acme.sh" \
