@@ -1,5 +1,36 @@
 # پچ‌های اعمال‌شده روی فورک Hiddify-Manager / Hiddify-Panel
 
+## 🔍 فرم «Inbound Overrides» واقعی شد، ولی Port/Security عمداً توش نیست (۲۰۲۶-۰۷-۰۱)
+
+خواسته بودی «فرم شبیه 3x-ui» (Port/SNI/Security جدا جدا روی هر inbound).
+قبل از رد کردن دوباره، این‌بار عمیق‌تر رفتم توی کد سرور-ساید (نه فقط
+subscription) تا مطمئن بشم واقعاً چی قابل override هست:
+
+- **Port واقعاً یه مفهوم per-inbound نیست.** اکثر پروتکل‌ها (vless/vmess/
+  trojan/reality) از یه entrypoint مشترک (HAProxy/xray روی ۴۴۳) رد می‌شن که
+  بر اساس SNI/ALPN مسیریابی می‌کنه، نه پورت اختصاصی. کانفیگ واقعی سرور
+  (`xray/configs/*.j2`) از تنظیمات global ساخته می‌شه و اصلاً `Proxy.params`
+  رو نمی‌خونه. یعنی یه فیلد "Port" روی این فرم یا هیچ کاری نمی‌کرد، یا یه
+  پورت اشتباه به کلاینت می‌داد که هیچی روش گوش نمی‌ده (قطعی وصل).
+- **Security هم همینطور** — نوع security (tls/reality/none) از قبل توی
+  ترکیب `l3` همون ردیف Proxy قفل شده؛ چیزی نیست که override بشه، برای اون
+  باید یه Proxy دیگه رو enable کنی.
+- ولی `sni`, `host`, `path`, `fingerprint`, `alpn`, `hysteria_obfs_password`،
+  و `mode` (برای xhttp) واقعاً از `Proxy.params` خونده می‌شن (تایید شده توی
+  `apply_proxy_overrides()` و خط `base['params'].get('mode',"auto")` توی
+  `make_proxy()`), و امن/کاربردی‌ان.
+
+**کاری که کردم:** `InboundOverrideAdmin.py` رو از یه تکست‌باکس خام JSON به یه
+فرم واقعی با فیلدهای جدا (SNI, Host, Path, Fingerprint دراپ‌داون, ALPN
+دراپ‌داون, XHTTP Mode دراپ‌داون, Hysteria2 Obfs Password) تغییر دادم. یه
+فیلد "Advanced Override (JSON)" هم نگه داشتم برای هر کلید دیگه‌ای که این
+فیلدها پوششش نمی‌دن (مثلاً `mux_enable`) — این یکی هم الان round-trip درسته
+(پاک کردن یه کلید ازش واقعاً حذفش می‌کنه، نه فقط merge یک‌طرفه).
+
+**فایل:** `hiddify-panel/src/hiddifypanel/panel/admin/InboundOverrideAdmin.py`
+
+---
+
 ## 🚨 باگ واقعی از نصب خودت (۲۰۲۶-۰۷-۰۱) — `LookupError: 'webhook_secret' is not among the defined enum values`
 
 **ریشه:** `init_db()` توی `panel/init_db.py` یه fast-path داره: اگه `db_version`
