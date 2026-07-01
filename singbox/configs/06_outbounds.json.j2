@@ -13,6 +13,13 @@
       "type": "direct",
       "bind_interface": "warp"
     },
+    {% if hconfigs['amneziawg_enable'] %}
+    {
+      "tag": "amneziawg",
+      "type": "direct",
+      "bind_interface": "hiddify0"
+    },
+    {% endif %}
     // {
     //   "tag":"WARP",
     //   "type":"socks",

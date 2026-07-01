@@ -1,5 +1,56 @@
 # پچ‌های اعمال‌شده روی فورک Hiddify-Manager / Hiddify-Panel
 
+## 🆕 AmneziaWG به‌عنوان یه core جدا اضافه شد (۲۰۲۶-۰۷-۰۲) — ⚠️ تست نشده
+
+خواسته بودی ترافیک mieru/naive/hysteria/tuic بره روی یه outbound
+AmneziaWireGuard. قبل از هر چیز رفتم مستقیم سورس `hiddify-sing-box` رو
+گشتم (نه فقط README) - صفر نتیجه برای Jc/Jmin/Jmax/amnezia. یعنی خودِ
+sing-box این‌ور واقعاً همچین چیزی نداره، حدست درست بود.
+
+**راه‌حل:** دقیقاً همون الگویی که WARP از قبل استفاده می‌کنه - یه
+interface شبکه‌ی مستقل، جدا از خودِ sing-box، که بعد sing-box فقط با
+`bind_interface` بهش وصل می‌شه (نه AWG رو خودش implement کنه). دو تا
+پروژه‌ی جدا از amnezia-vpn، هیچ‌کدوم باینری آماده ندارن، پس از سورس
+build می‌شن:
+- `amneziawg-tools` (C) → `awg`/`awg-quick` (فورک `wg`/`wg-quick`) +
+  یونیت systemd `awg-quick@.service`.
+- `amneziawg-go` (Go) → پیاده‌سازی userspace. `awg-quick` اول
+  `ip link add type amneziawg` رو امتحان می‌کنه (نیاز به کرنل‌ماژول که
+  هیچ کرنل استوک کلاودی نداره)، و خودکار می‌افته روی `amneziawg-go` اگه
+  پیدا بشه - یعنی نیازی به build کردن کرنل‌ماژول/DKMS نیست.
+
+**چطور استفاده کنی:**
+1. Settings → یه بخش جدید "AmneziaWG" - توش `amneziawg_enable` رو بزن، و
+   کانفیگ کامل `[Interface]`/`[Peer]` (همون فرمت WireGuard + Jc/Jmin/
+   Jmax/S1/S2/H1-H4 اگه peer‌ت لازم داره) رو توی فیلد "AmneziaWG Config"
+   پیست کن.
+2. یه toggle دیگه هم هست: "Route mieru/naive/tuic/hysteria2 through
+   amneziawg" - وقتی فعاله، ترافیک این پروتکل‌ها (شامل تگ‌های
+   per-domain برای tuic/hysteria2/naive-quic) مستقیم می‌ره روی
+   outbound جدید `amneziawg`.
+3. Reinstall بزن تا `other/amneziawg/install.sh` باینری‌ها رو build کنه.
+
+**فایل‌های جدید:** `other/amneziawg/install.sh`, `run.sh`, `disable.sh`.
+**فایل‌های تغییریافته:** `install.sh` (مرحله‌ی جدید نصب)،
+`hiddifypanel/models/config_enum.py` (سه تا کانفیگ جدید)،
+`hiddifypanel/panel/admin/SettingAdmin.py` (فیلد textarea کانفیگ)،
+`singbox/configs/06_outbounds.json.j2`، `singbox/configs/03_routing.json.j2`،
+migration `_v124`.
+
+**⚠️ خیلی مهم - این تست نشده:** من سرور واقعی برای build/run کردن
+`amneziawg-tools`/`amneziawg-go` ندارم؛ همه‌ی این کد مستقیم از روی
+مستندات و سورس خودِ این دو پروژه نوشته شده، نه تست‌شده سر یه نصب واقعی.
+اگه `bash install.sh` توی مرحله‌ی AmneziaWG fail کرد، دقیقاً همون خروجی
+رو برام بفرست تا دیباگ کنم.
+
+**چیزی که این نیست:** فرم عمومی singbox Outbounds/Routing Rules (شبیه
+چیزی که برای xray ساختم) که بشه هر outbound دلخواهی (نه فقط
+AmneziaWG) اضافه کرد و به هر inbound دلخواهی route کرد. این یکی
+AmneziaWG رو مشخصاً و مستقیم سیم‌کشی کرده، نه یه سیستم عمومی. اگه اون
+سیستم عمومی‌تر رو هم می‌خوای، جدا بگو.
+
+---
+
 ## 🚨 همون باگ xhttp/download، این‌بار روی کلید 'host' (۲۰۲۶-۰۷-۰۲)
 
 فیکس قبلی‌م برای `KeyError: 'path'` توی `_add_xhttp_details()` رو با

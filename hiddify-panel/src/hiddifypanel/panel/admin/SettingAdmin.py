@@ -273,6 +273,20 @@ def get_config_form():
                 render_kw = {'class': "ltr", 'maxlength': 2048}
                 field = wtf.TextAreaField(_(f'config.{c.key}.label'), validators, default=c.value,
                                           description=_(f'config.{c.key}.description'), render_kw=render_kw)
+            elif c.key == ConfigEnum.amneziawg_config:
+                # Not using the config.{key}.label/.description translation-key
+                # convention here (like the fields above) since that needs
+                # matching .po/.mo catalog entries to actually render
+                # anything readable - a plain literal string always shows up
+                # correctly regardless of locale/compiled translations.
+                render_kw = {'class': "ltr", 'maxlength': 3000, 'rows': 8, 'style': 'font-family: monospace'}
+                field = wtf.TextAreaField(
+                    _("AmneziaWG Config (.conf)"),
+                    default=c.value,
+                    description=_('Paste a complete AmneziaWG [Interface]/[Peer] config here (same as a WireGuard .conf, plus '
+                                   'Jc/Jmin/Jmax/S1/S2/H1-H4 under [Interface] if your peer uses them). Applied on the next '
+                                   'Apply Config/Reinstall.'),
+                    render_kw=render_kw)
             elif c.key in {ConfigEnum.additional_configs_xrayjson,ConfigEnum.additional_configs_singbox,ConfigEnum.additional_configs_urls}:
                 render_kw = {'class': "ltr", 'maxlength': 20480}
                 field = wtf.TextAreaField(_(f'config.{c.key}.label'), default=c.value,
