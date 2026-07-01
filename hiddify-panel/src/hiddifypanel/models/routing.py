@@ -69,10 +69,65 @@ class CustomOutbound(db.Model):  # type: ignore
     fingerprint = Column(String(50), nullable=True, default='')
     # vless-only xtls flow control, e.g. "xtls-rprx-vision".
     flow = Column(String(50), nullable=True, default='')
+    # wireguard/amneziawg peer fields. address/port above double as the
+    # Endpoint host/port and uuid_or_password as the local PrivateKey for
+    # both protocols (same convention xray/singbox already use elsewhere in
+    # this file), these four are the rest of a [Peer]/[Interface] pair that
+    # didn't have dedicated columns before.
+    peer_public_key = Column(String(100), nullable=True, default='')
+    preshared_key = Column(String(100), nullable=True, default='')
+    local_address = Column(String(300), nullable=True, default='')  # client-side [Interface] Address, e.g. "10.0.0.2/32"
+    dns = Column(String(300), nullable=True, default='')
+    # AmneziaWG-only obfuscation params (junk packet count/min/max size) -
+    # meaningless for plain "wireguard", only read by the amneziawg branch.
+    jc = Column(Integer, nullable=True)
+    jmin = Column(Integer, nullable=True)
+    jmax = Column(Integer, nullable=True)
     comment = Column(String(300), nullable=True, default='')
     # Advanced escape hatch: raw JSON merged on top of the generated
     # outbound dict (e.g. {"streamSettings": {"grpcSettings": {...}}}).
     extra_json = Column(Text, nullable=True, default='{}')
+
+    @property
+    def amneziawg_interface(self) -> str:
+        """Linux interface name for this row's AmneziaWG tunnel - derived
+        from the row id (not the tag) so it's always short enough
+        (IFNAMSIZ) regardless of what the admin names the tag, and stable
+        across tag renames."""
+        return f"awg{self.id}"
+
+    def render_amneziawg_conf(self) -> str:
+        """The actual AmneziaWG [Interface]/[Peer] .conf content for this
+        row - written to /etc/amnezia/amneziawg/{interface}.conf and loaded
+        by awg-quick@{interface}.service. Only meaningful for protocol ==
+        amneziawg."""
+        lines = [
+            "[Interface]",
+            f"PrivateKey = {self.uuid_or_password or ''}",
+        ]
+        if self.local_address:
+            lines.append(f"Address = {self.local_address}")
+        if self.dns:
+            lines.append(f"DNS = {self.dns}")
+        if self.jc:
+            lines.append(f"Jc = {self.jc}")
+        if self.jmin:
+            lines.append(f"Jmin = {self.jmin}")
+        if self.jmax:
+            lines.append(f"Jmax = {self.jmax}")
+        lines += [
+            "",
+            "[Peer]",
+            f"PublicKey = {self.peer_public_key or ''}",
+        ]
+        if self.preshared_key:
+            lines.append(f"PresharedKey = {self.preshared_key}")
+        lines += [
+            "AllowedIPs = 0.0.0.0/0, ::/0",
+            f"Endpoint = {self.address or ''}:{self.port or ''}",
+            "PersistentKeepalive = 25",
+        ]
+        return "\n".join(lines) + "\n"
 
     def to_xray_dict(self) -> dict:
         import json
@@ -80,10 +135,11 @@ class CustomOutbound(db.Model):  # type: ignore
         if self.protocol == OutboundProtocol.amneziawg:
             # xray has no native AmneziaWG support either (same as
             # sing-box) - this binds a plain "freedom" outbound to the
-            # already-connected other/amneziawg/ interface via sockopt,
-            # xray-core's Linux SO_BINDTODEVICE equivalent to sing-box's
-            # bind_interface. No address/port/uuid/network/security apply.
-            return {"tag": self.tag, "protocol": "freedom", "settings": {}, "streamSettings": {"sockopt": {"interface": "hiddify0"}}}
+            # per-row AmneziaWG interface other/amneziawg/ brings up from
+            # this row's own fields (see render_amneziawg_conf()), xray-
+            # core's Linux SO_BINDTODEVICE equivalent to sing-box's
+            # bind_interface. No network/security apply.
+            return {"tag": self.tag, "protocol": "freedom", "settings": {}, "streamSettings": {"sockopt": {"interface": self.amneziawg_interface}}}
 
         settings: dict = {}
         stream: dict = {}
@@ -162,7 +218,11 @@ class CustomOutbound(db.Model):  # type: ignore
         import json
 
         if self.protocol == OutboundProtocol.amneziawg:
-            return {"tag": self.tag, "type": "direct", "bind_interface": "hiddify0"}
+            # Same reasoning as to_xray_dict() - bind to this row's own
+            # AmneziaWG interface (other/amneziawg/run.sh.j2 brings it up
+            # from render_amneziawg_conf()), sing-box itself never dials
+            # AmneziaWG's obfuscated protocol directly.
+            return {"tag": self.tag, "type": "direct", "bind_interface": self.amneziawg_interface}
 
         out: dict = {"tag": self.tag}
 
@@ -173,8 +233,8 @@ class CustomOutbound(db.Model):  # type: ignore
             out["server"] = self.address or ""
             out["server_port"] = self.port or 51820
             out["private_key"] = self.uuid_or_password or ""
-            out["peer_public_key"] = self.sni or ""  # repurposed: no dedicated peer-pubkey field exists yet
-            out["local_address"] = ["10.0.0.2/32"]
+            out["peer_public_key"] = self.peer_public_key or ""
+            out["local_address"] = [self.local_address] if self.local_address else ["10.0.0.2/32"]
         else:
             type_map = {
                 OutboundProtocol.vless: "vless", OutboundProtocol.vmess: "vmess",
@@ -486,3 +546,16 @@ def build_custom_singbox_extra() -> dict:
         for r in CustomRoutingRule.query.filter_by(child_id=child_id, enable=True).order_by(CustomRoutingRule.priority.asc()).all()
     ]
     return {"outbounds": outbounds, "routing_rules": rules}
+
+
+def get_amneziawg_outbounds() -> list[dict]:
+    """Every enabled Outbound with Protocol=amneziawg, serialized for
+    other/amneziawg/run.sh.j2 (a Jinja template, same as other/wireguard/
+    run.sh.j2) to write one /etc/amnezia/amneziawg/{interface}.conf per row
+    and bring up its awg-quick@{interface} instance. Read via
+    all_configs_for_cli() -> current.json -> common/jinja.py, exactly like
+    `users`/`domains` already are for other templates."""
+    from hiddifypanel.models.child import Child
+    child_id = Child.current().id
+    rows = CustomOutbound.query.filter_by(child_id=child_id, protocol=OutboundProtocol.amneziawg, enable=True).all()
+    return [{"interface": o.amneziawg_interface, "conf": o.render_amneziawg_conf()} for o in rows]

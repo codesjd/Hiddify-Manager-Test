@@ -17,6 +17,16 @@ from loguru import logger
 MAX_DB_VERSION = 130
 
 
+def _v125(child_id):
+    add_column(CustomOutbound.peer_public_key)
+    add_column(CustomOutbound.preshared_key)
+    add_column(CustomOutbound.local_address)
+    add_column(CustomOutbound.dns)
+    add_column(CustomOutbound.jc)
+    add_column(CustomOutbound.jmin)
+    add_column(CustomOutbound.jmax)
+
+
 def _v124(child_id):
     add_config_if_not_exist(ConfigEnum.amneziawg_enable, False)
     add_config_if_not_exist(ConfigEnum.amneziawg_config, "")

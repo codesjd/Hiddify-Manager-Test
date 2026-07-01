@@ -79,7 +79,6 @@ class ConfigCategory(StrEnum):
     additional_configs=auto()
     dnstt=auto()
     webhook=auto()
-    amneziawg=auto()
 
 
 class ApplyMode(StrEnum):
@@ -139,19 +138,15 @@ class ConfigEnum(metaclass=FastEnum):
     warp_plus_code = _StrConfigDscr(ConfigCategory.warp, ApplyMode.apply_config, hide_in_virtual_child=True)
     warp_sites = _StrConfigDscr(ConfigCategory.warp, ApplyMode.apply_config, hide_in_virtual_child=True)
 
-    # AmneziaWG: sing-box itself has no native AmneziaWG (junk-packet
-    # obfuscation) support - verified directly against hiddify-sing-box's
-    # source, nothing there. So this runs as its own standalone interface
-    # (amneziawg-go/amneziawg-tools, other/amneziawg/) exactly the way WARP
-    # runs its own wg-quick@warp interface. Routing traffic to it is done via
-    # a normal Outbound (Protocol "amneziawg") + Routing Rule on the admin
-    # panel, not a fixed toggle here - this pair only controls whether the
-    # underlying network interface itself gets built/brought up.
-    amneziawg_enable = _BoolConfigDscr(ConfigCategory.amneziawg, ApplyMode.reinstall, hide_in_virtual_child=True)
-    # Paste a complete AmneziaWG [Interface]/[Peer] .conf here (same format
-    # as a plain WireGuard conf, plus Jc/Jmin/Jmax/S1/S2/H1-H4 under
-    # [Interface] if your peer uses them).
-    amneziawg_config = _StrConfigDscr(ConfigCategory.amneziawg, ApplyMode.apply_config, hide_in_virtual_child=True)
+    # AmneziaWG used to be a separate Settings section (toggle + one global
+    # pasted .conf) - moved into the Outbounds form instead (Protocol
+    # "amneziawg", one row per tunnel with its own PrivateKey/PublicKey/
+    # Jc/Jmin/Jmax fields, see CustomOutbound.render_amneziawg_conf()), so
+    # any number of AmneziaWG outbounds can exist and each gets torn down
+    # when its row is disabled/deleted. Kept here (hidden) instead of
+    # deleted outright so old DB rows from before this change don't error.
+    amneziawg_enable = _BoolConfigDscr(ConfigCategory.hidden, ApplyMode.reinstall, hide_in_virtual_child=True)  # removed
+    amneziawg_config = _StrConfigDscr(ConfigCategory.hidden, ApplyMode.apply_config, hide_in_virtual_child=True)  # removed
     dns_server = _StrConfigDscr(ConfigCategory.general, ApplyMode.apply_config, hide_in_virtual_child=True)
     reality_fallback_domain = _StrConfigDscr(ConfigCategory.hidden, ApplyMode.apply_config)  # removed
     reality_server_names = _StrConfigDscr(ConfigCategory.hidden, ApplyMode.apply_config)  # removed

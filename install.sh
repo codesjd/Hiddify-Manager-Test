@@ -145,7 +145,7 @@ function main() {
     install_run other/wireguard $(hconfig "wireguard_enable") &
 
     update_progress "${PROGRESS_ACTION}" "AmneziaWG" 90
-    install_run other/amneziawg $(hconfig "amneziawg_enable") &
+    install_run other/amneziawg $(hconfig "has_amneziawg_outbound") &
 
     update_progress "${PROGRESS_ACTION}" "Singbox" 95
     install_run singbox ${SINGBOX_ENABLE:-1} &

@@ -1,5 +1,65 @@
 # پچ‌های اعمال‌شده روی فورک Hiddify-Manager / Hiddify-Panel
 
+## 🆕 AmneziaWG کاملاً منتقل شد توی خودِ فرم Outbounds (۲۰۲۶-۰۷-۰۲) — ⚠️ بخشی تست نشده
+
+نسخه‌ی قبلی (پایین‌تر) هنوز یه Settings section جدا لازم داشت برای پیست
+کردن .conf - و تازه اون section هم اصلاً نبود چون migration اجرا نشده
+بود. کاملاً حق داشتی که گفتی این دقیقاً همون چیزی نیست که خواستی. الان
+واقعاً مثل wireguard هست: همه‌چیز مستقیم توی ردیف Outbound.
+
+**چی عوض شد:**
+1. **۷ فیلد جدید** به `CustomOutbound` اضافه شد: `peer_public_key`،
+   `preshared_key`، `local_address`، `dns`، `jc`، `jmin`، `jmax`. آدرس/
+   پورت موجود = Endpoint، و `uuid_or_password` موجود = PrivateKey (دقیقاً
+   همون قراردادی که wireguard از قبل استفاده می‌کرد). دیگه هیچ فیلدی از
+   Settings لازم نیست.
+2. **هر AmneziaWG Outbound یه interface مجزا داره** - نه یه `hiddify0`
+   ثابت، بلکه `awg{id}` (بر اساس id ردیف، نه tag، پس محدودیت طول اسم
+   interface لینوکس هیچوقت مشکل نمی‌شه). یعنی می‌تونی چندتا AmneziaWG
+   outbound مختلف بسازی، هرکدوم peer جدا.
+3. **`other/amneziawg/run.sh` شد `run.sh.j2`** - یه Jinja template
+   (دقیقاً مثل `other/wireguard/run.sh.j2`) که روی همه‌ی Outbound های
+   enable=true با Protocol=amneziawg لوپ می‌زنه، برای هرکدوم
+   `/etc/amnezia/amneziawg/awg{id}.conf` می‌سازه (از
+   `CustomOutbound.render_amneziawg_conf()`) و `awg-quick@awg{id}` رو
+   بالا میاره. اگه یه ردیف رو غیرفعال/حذف کنی، دفعه‌ی بعد که Apply
+   Config/Reinstall بزنی، interface اونم خاموش و پاک می‌شه (رندر شدنش
+   با jinja2 لوکال تست شد، هم حالت خالی هم با یه ردیف واقعی).
+4. **`amneziawg_enable`/`amneziawg_config` حذف شدن** از Settings (بردن
+   به category مخفی، نه واقعاً پاک شدن از کد - برای اینکه ردیف‌های قدیمی
+   دیتابیس روی نصب‌های قبلی خطا ندن). یه فلگ جدید محاسبه‌شده
+   `has_amneziawg_outbound` (توی `all_configs_for_cli()`) جای
+   `amneziawg_enable` رو گرفته تا `install.sh` بفهمه اصلاً باید
+   amneziawg-tools/amneziawg-go رو build کنه یا نه.
+5. **فرم Outbounds** فیلدهای جدید رو داره (label/description فارسی...
+   نه ببخشید انگلیسی چون کد انگلیسیه) و اسکریپت پولیش‌شده - براساس
+   Protocol انتخابی، هم برای wireguard هم amneziawg، فیلدهای درست رو
+   نشون می‌ده (مثلاً amneziawg همه‌ی Jc/Jmin/Jmax/DNS/Local Address/
+   Preshared Key رو نشون می‌ده، wireguard فقط Peer Public Key/Local
+   Address رو، بقیه پروتکل‌ها هیچ‌کدوم از این‌ها رو نشون نمی‌دن).
+
+**تست شده:** رندر `render_amneziawg_conf()` رو مستقیم با مقادیر توی
+اسکرین‌شاتت (PrivateKey/Address/DNS/PublicKey/PresharedKey/Endpoint واقعی
++ Jc=4/Jmin=40/Jmax=1000) اجرا کردم - خروجی دقیقاً همون فرمت .conf رو
+می‌ده. رندر `other/amneziawg/run.sh.j2` هم با jinja2 خالص تست شد (هم صفر
+outbound هم یه outbound واقعی) و bash معتبر تولید می‌کنه.
+
+**تست نشده:** خودِ `awg-quick@awg{id}.service` رو سرور واقعی run نکردم -
+اگه بعد از Reinstall بالا نیومد، `journalctl -u awg-quick@awg{id}` رو
+بفرست.
+
+**فایل‌های تغییریافته:** `models/routing.py` (فیلدهای جدید +
+`render_amneziawg_conf` + `amneziawg_interface` + `get_amneziawg_outbounds`)،
+`models/__init__.py`، `models/config_enum.py` (category مخفی)،
+`panel/admin/SettingAdmin.py` (حذف فیلد قدیمی)، `panel/admin/OutboundAdmin.py`
+(فیلدهای جدید + اسکریپت پولیش‌شده)، `panel/init_db.py` (migration `_v125`)،
+`panel/hiddify.py` (`amneziawg_outbounds` + `has_amneziawg_outbound` توی
+`all_configs_for_cli`)، `install.sh` (فلگ جدید)، `other/amneziawg/disable.sh`
+(حذف چندتا interface به‌جای یکی ثابت)، `other/amneziawg/run.sh` →
+`run.sh.j2`.
+
+---
+
 ## 🆕 AmneziaWG یکپارچه شد با فرم عمومی Outbounds/Routing Rules (۲۰۲۶-۰۷-۰۱) — ⚠️ بخشی تست نشده
 
 گفتی: "amnezia باید توی outbounds هم باشه! چندبار گفتم و توی settings هم

@@ -13,12 +13,13 @@
       "type": "direct",
       "bind_interface": "warp"
     },
-    // Add an outbound with Protocol "amneziawg" on the Outbounds admin page
-    // to bind to the interface other/amneziawg/ brings up (requires
-    // amneziawg_enable + a pasted config in Settings) - same as building a
-    // WARP-style bind_interface outbound above, just user-defined instead
-    // of hardcoded, so the tag/routing is fully under admin control instead
-    // of colliding with a fixed one here.
+    // Add an outbound with Protocol "amneziawg" (with its Peer/PrivateKey/
+    // Jc/Jmin/Jmax fields filled in) on the Outbounds admin page to bind to
+    // the per-row interface other/amneziawg/run.sh.j2 brings up for it -
+    // same as building a WARP-style bind_interface outbound above, just
+    // user-defined instead of hardcoded, so the tag/routing/interface are
+    // all fully under admin control instead of colliding with a fixed one
+    // here.
     {% set extra = hconfigs.get('additional_configs_singbox','') | from_json %}
     {% for ob in extra.get('outbounds', []) %}
     {{ ob | tojson }},

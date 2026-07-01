@@ -45,26 +45,33 @@ _PROTOCOL_FIELD_SCRIPT = """
   function wrapper(el) { return el ? (el.closest('.form-group') || el.parentElement) : null; }
 
   var ALL = ['address', 'port', 'uuid_or_password', 'network', 'security', 'sni',
-             'ws_path', 'host_header', 'fingerprint', 'flow', 'import_link'];
-  var HIDE_FOR = {
-    freedom: ALL,
-    amneziawg: ALL,
-    socks: ['network', 'security', 'sni', 'ws_path', 'host_header', 'fingerprint', 'flow', 'import_link'],
-    http: ['network', 'security', 'sni', 'ws_path', 'host_header', 'fingerprint', 'flow', 'import_link'],
-    wireguard: ['network', 'security', 'sni', 'ws_path', 'host_header', 'fingerprint', 'flow', 'import_link'],
-    vmess: ['flow', 'import_link'],
-    trojan: ['flow', 'import_link'],
-    shadowsocks: ['flow', 'import_link'],
-    vless: []
+             'ws_path', 'host_header', 'fingerprint', 'flow', 'import_link',
+             'peer_public_key', 'preshared_key', 'local_address', 'dns', 'jc', 'jmin', 'jmax'];
+
+  // Which of the fields above are actually meaningful for each Protocol -
+  // everything not listed here gets hidden. address/port double as the
+  // wireguard/amneziawg Endpoint, uuid_or_password as the PrivateKey (same
+  // convention the Python side uses in routing.py).
+  var SHOW_FOR = {
+    vless: ['address', 'port', 'uuid_or_password', 'network', 'security', 'sni',
+            'ws_path', 'host_header', 'fingerprint', 'flow', 'import_link'],
+    vmess: ['address', 'port', 'uuid_or_password', 'network', 'security', 'sni', 'ws_path', 'host_header', 'fingerprint'],
+    trojan: ['address', 'port', 'uuid_or_password', 'network', 'security', 'sni', 'ws_path', 'host_header', 'fingerprint'],
+    shadowsocks: ['address', 'port', 'uuid_or_password', 'network', 'security', 'sni', 'ws_path', 'host_header', 'fingerprint'],
+    socks: ['address', 'port', 'uuid_or_password'],
+    http: ['address', 'port', 'uuid_or_password'],
+    wireguard: ['address', 'port', 'uuid_or_password', 'peer_public_key', 'local_address'],
+    amneziawg: ['address', 'port', 'uuid_or_password', 'peer_public_key', 'preshared_key', 'local_address', 'dns', 'jc', 'jmin', 'jmax'],
+    freedom: []
   };
 
   function applyProtocol() {
     var sel = byName('protocol');
     if (!sel) return;
-    var hide = HIDE_FOR[sel.value] || [];
+    var show = SHOW_FOR[sel.value] || [];
     ALL.forEach(function(n) {
       var w = wrapper(byName(n));
-      if (w) w.style.display = hide.indexOf(n) === -1 ? '' : 'none';
+      if (w) w.style.display = show.indexOf(n) === -1 ? 'none' : '';
     });
   }
 
@@ -106,15 +113,23 @@ class OutboundAdmin(AdminLTEModelView):
     column_hide_backrefs = False
     column_list = ["tag", "protocol", "address", "port", "network", "security", "enable", "comment"]
     form_columns = ["enable", "tag", "import_link", "protocol", "address", "port", "uuid_or_password",
+                     "peer_public_key", "preshared_key", "local_address", "dns", "jc", "jmin", "jmax",
                      "network", "security", "sni", "ws_path", "host_header", "fingerprint", "flow",
                      "comment", "extra_json", "protocol_field_script"]
 
     column_labels = {
         "tag": _("Tag"),
         "protocol": _("Protocol"),
-        "address": _("Server Address"),
-        "port": _("Port"),
-        "uuid_or_password": _("UUID / Password"),
+        "address": _("Server Address / Endpoint Host"),
+        "port": _("Port / Endpoint Port"),
+        "uuid_or_password": _("UUID / Password / Private Key"),
+        "peer_public_key": _("Peer Public Key (wireguard/amneziawg)"),
+        "preshared_key": _("Preshared Key (amneziawg, optional)"),
+        "local_address": _("Local Address (wireguard/amneziawg, e.g. 10.0.0.2/32)"),
+        "dns": _("DNS (amneziawg, optional)"),
+        "jc": _("Jc (amneziawg junk packet count)"),
+        "jmin": _("Jmin (amneziawg junk packet min size)"),
+        "jmax": _("Jmax (amneziawg junk packet max size)"),
         "network": _("Network"),
         "security": _("Security"),
         "sni": _("SNI"),
@@ -128,8 +143,15 @@ class OutboundAdmin(AdminLTEModelView):
     }
     column_descriptions = dict(
         tag=_("Unique identifier for this outbound. Reference it as the Outbound Tag in a Routing Rule to send matching traffic here."),
-        address=_("The destination server's IP or domain - e.g. another one of your own servers, for chaining. Not used for freedom/amneziawg."),
-        uuid_or_password=_("UUID for vless/vmess, password for trojan/shadowsocks/wireguard private key, or user:pass for socks/http. Not used for freedom/amneziawg."),
+        address=_("The destination server's IP or domain - e.g. another one of your own servers, for chaining, or the wireguard/amneziawg peer's Endpoint host. Not used for freedom."),
+        uuid_or_password=_("UUID for vless/vmess, password for trojan/shadowsocks, user:pass for socks/http, or PrivateKey for wireguard/amneziawg. Not used for freedom."),
+        peer_public_key=_("The remote peer's PublicKey - same value as [Peer] PublicKey in a WireGuard/AmneziaWG .conf."),
+        preshared_key=_("The remote peer's PresharedKey, if it has one - same value as [Peer] PresharedKey in an AmneziaWG .conf. Leave blank if not used."),
+        local_address=_("This tunnel's own address, same as [Interface] Address in a WireGuard/AmneziaWG .conf, e.g. \"10.0.0.2/32\"."),
+        dns=_("Optional, same as [Interface] DNS in an AmneziaWG .conf."),
+        jc=_("AmneziaWG obfuscation - number of junk packets sent before the handshake. Leave blank for a plain (non-obfuscated) tunnel."),
+        jmin=_("AmneziaWG obfuscation - minimum junk packet size in bytes."),
+        jmax=_("AmneziaWG obfuscation - maximum junk packet size in bytes."),
         extra_json=_('Optional. Deep-merged on top of the generated outbound JSON for anything the form above can\'t express, '
                       'e.g. {"streamSettings": {"sockopt": {"dialerProxy": "another-tag"}}} to chain through yet another outbound.'),
     )

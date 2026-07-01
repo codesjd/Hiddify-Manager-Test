@@ -393,6 +393,20 @@ def all_configs_for_cli():
         configs['chconfigs'][0]['additional_configs_singbox'] = json.dumps(merged_sb)
     except Exception:
         logger.exception("Failed to merge custom singbox outbounds/routing rules (non-fatal, falling back to manual field only)")
+
+    # AmneziaWG outbounds need an actual system-level WireGuard-style
+    # interface brought up outside of xray/singbox (neither core speaks
+    # AmneziaWG's obfuscated protocol) - other/amneziawg/run.sh.j2 is a
+    # Jinja template (like other/wireguard/run.sh.j2) that reads this list
+    # to write one .conf + bring up one awg-quick@{interface} per row.
+    try:
+        amneziawg_outbounds = get_amneziawg_outbounds()
+        configs['amneziawg_outbounds'] = amneziawg_outbounds
+        configs['chconfigs'][0]['has_amneziawg_outbound'] = len(amneziawg_outbounds) > 0
+    except Exception:
+        logger.exception("Failed to collect AmneziaWG outbounds (non-fatal, other/amneziawg/ will just see an empty list)")
+        configs['amneziawg_outbounds'] = []
+        configs['chconfigs'][0]['has_amneziawg_outbound'] = False
     server_ip = hutils.network.get_ip_str(4)
     owner = AdminUser.get_super_admin()
     configs['api_key'] = owner.uuid

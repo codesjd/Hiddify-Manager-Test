@@ -1,0 +1,44 @@
+source /opt/hiddify-manager/common/utils.sh
+
+# Jinja-rendered (like other/wireguard/run.sh.j2) so it can loop over every
+# Outbound with Protocol=amneziawg from the panel - one .conf + one
+# awg-quick@{interface} systemd instance per row, interface name is
+# "awg{row id}" (CustomOutbound.amneziawg_interface). This is what actually
+# brings the tunnel(s) up; the Outbounds form itself only stores the config.
+
+mkdir -p /etc/amnezia/amneziawg
+
+# Tear down any interface from a previous render that no longer has a
+# matching enabled Outbound row - covers both disabling and deleting a row.
+for f in /etc/amnezia/amneziawg/awg*.conf; do
+    [ -e "$f" ] || continue
+    name=$(basename "$f" .conf)
+    keep=0
+    {% for ob in amneziawg_outbounds %}
+    [ "$name" == "{{ ob.interface }}" ] && keep=1
+    {% endfor %}
+    if [ "$keep" -eq 0 ]; then
+        systemctl disable --now "awg-quick@$name" >/dev/null 2>&1
+        rm -f "$f"
+    fi
+done
+
+{% for ob in amneziawg_outbounds %}
+cat >/etc/amnezia/amneziawg/{{ ob.interface }}.conf <<'HIDDIFY_AWG_EOF'
+{{ ob.conf }}
+HIDDIFY_AWG_EOF
+chmod 600 /etc/amnezia/amneziawg/{{ ob.interface }}.conf
+
+systemctl enable awg-quick@{{ ob.interface }} >/dev/null 2>&1
+systemctl restart awg-quick@{{ ob.interface }}
+sleep .3
+if systemctl is-active --quiet awg-quick@{{ ob.interface }}; then
+    success "AmneziaWG interface {{ ob.interface }} is up."
+else
+    warning "AmneziaWG interface {{ ob.interface }} failed to start - check: journalctl -u awg-quick@{{ ob.interface }}"
+fi
+{% endfor %}
+
+{% if amneziawg_outbounds|length == 0 %}
+echo "No AmneziaWG outbounds configured (Outbounds page, Protocol=amneziawg) - nothing to bring up."
+{% endif %}
