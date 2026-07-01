@@ -1,3 +1,5 @@
+import wtforms as wtf
+from wtforms.validators import ValidationError
 from flask_babel import lazy_gettext as _
 from .adminlte import AdminLTEModelView
 from hiddifypanel.auth import login_required
@@ -12,8 +14,9 @@ class OutboundAdmin(AdminLTEModelView):
     """
     column_hide_backrefs = False
     column_list = ["tag", "protocol", "address", "port", "network", "security", "enable", "comment"]
-    form_columns = ["enable", "tag", "protocol", "address", "port", "uuid_or_password",
-                     "network", "security", "sni", "ws_path", "comment", "extra_json"]
+    form_columns = ["enable", "tag", "import_link", "protocol", "address", "port", "uuid_or_password",
+                     "network", "security", "sni", "ws_path", "host_header", "fingerprint", "flow",
+                     "comment", "extra_json"]
 
     column_labels = {
         "tag": _("Tag"),
@@ -25,6 +28,9 @@ class OutboundAdmin(AdminLTEModelView):
         "security": _("Security"),
         "sni": _("SNI"),
         "ws_path": _("Path (WS/gRPC service name/HTTPUpgrade path)"),
+        "host_header": _("Host Header (WS/HTTPUpgrade/XHTTP)"),
+        "fingerprint": _("uTLS Fingerprint"),
+        "flow": _("Flow (vless xtls, e.g. xtls-rprx-vision)"),
         "comment": _("Comment"),
         "extra_json": _("Advanced Override (JSON)"),
         "enable": _("Enable"),
@@ -37,8 +43,17 @@ class OutboundAdmin(AdminLTEModelView):
                       'e.g. {"streamSettings": {"sockopt": {"dialerProxy": "another-tag"}}} to chain through yet another outbound.'),
     )
 
+    form_extra_fields = {
+        "import_link": wtf.TextAreaField(
+            _("Import Link (vless://...)"),
+            description=_('Paste a vless:// share link here and save - it fills in Address/Port/UUID/Network/Security/SNI/Path/Host/'
+                           'Fingerprint/Flow below from it (overwriting whatever was there). Leave blank to edit the fields manually instead.'),
+        ),
+    }
+
     form_widget_args = {
         'extra_json': {'rows': 4},
+        'import_link': {'rows': 3, 'style': 'font-family: monospace'},
     }
 
     can_export = False
@@ -51,6 +66,15 @@ class OutboundAdmin(AdminLTEModelView):
 
     def on_model_change(self, form, model, is_created):
         model.child_id = Child.current().id
+
+        raw_link = (form.import_link.data or '').strip()
+        if raw_link:
+            try:
+                parsed = parse_vless_link(raw_link)
+            except ValueError as e:
+                raise ValidationError(str(e))
+            for key, value in parsed.items():
+                setattr(model, key, value)
 
     def after_model_change(self, form, model, is_created):
         hutils.flask.flash_config_success(restart_mode=ApplyMode.apply_config, domain_changed=False)

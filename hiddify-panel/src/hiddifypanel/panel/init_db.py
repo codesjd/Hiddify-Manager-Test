@@ -17,6 +17,13 @@ from loguru import logger
 MAX_DB_VERSION = 130
 
 
+def _v123(child_id):
+    add_column(CustomOutbound.host_header)
+    add_column(CustomOutbound.fingerprint)
+    add_column(CustomOutbound.flow)
+    add_column(CustomRoutingRule.inbound_tags)
+
+
 def _v122(child_id):
     db.create_all()
 

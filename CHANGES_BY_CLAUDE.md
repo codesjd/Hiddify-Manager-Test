@@ -1,5 +1,48 @@
 # پچ‌های اعمال‌شده روی فورک Hiddify-Manager / Hiddify-Panel
 
+## ✅ ایمپورت لینک vless روی Outbounds + مسیریابی بر اساس Inbound (۲۰۲۶-۰۷-۰۲)
+
+### ۱. Outbounds: پیست کردن لینک `vless://`
+یه فیلد جدید "Import Link (vless://...)" به فرم Outbound اضافه شد. یه لینک
+بده (مثل چیزی که از یه پنل/پروایدر دیگه می‌گیری)، وقتی Save می‌کنی خودش
+uuid/host/port/network/security/sni/path/host-header/fingerprint/flow رو
+از توش استخراج می‌کنه و فیلدهای پایین رو پر می‌کنه (overwrite می‌کنه).
+اگه لینک نامعتبر باشه، خطای واضح می‌ده به‌جای اینکه بی‌صدا هیچی نسازه.
+
+سه تا فیلد جدید هم به مدل `CustomOutbound` اضافه شد چون خیلی رایج بودن و
+لایق فیلد اختصاصی بودن (به‌جای فقط از طریق `extra_json`): `host_header`
+(هدر Host برای ws/httpupgrade/xhttp)، `fingerprint` (uTLS برای tls/reality)،
+و `flow` (فقط vless، مثل `xtls-rprx-vision`).
+
+**فایل‌ها:** `hiddifypanel/models/routing.py` (تابع `parse_vless_link`)،
+`hiddifypanel/panel/admin/OutboundAdmin.py`، migration `_v123` توی
+`panel/init_db.py`.
+
+### ۲. Routing Rules: مسیریابی بر اساس Inbound
+یه فیلد چندانتخابی "Match Inbound(s)" اضافه شد که از inboundهای واقعی
+xray پر می‌شه (نه یه لیست هاردکد) - دقیقاً همون protocol_enable/*_enable
+هایی که خود تمپلیت‌ها چک می‌کنن رو می‌خونه، پس فقط چیزی که واقعاً تولید
+می‌شه رو نشون می‌ده.
+
+**⚠️ نکته‌ی مهم معماری - قبل از استفاده بخون:** مثالی که خواسته بودی
+("139.162.182.137 tls xhttp direct vmess dl=h2") دقیقاً همون اسم یه ردیف
+Proxy‌ه، ولی Hiddify به‌ازای هر ردیف Proxy یه inbound جدا نمی‌سازه.
+اکثر ترکیب‌های protocol+transport (v10-{{protocol}}-{{stream}}) یه
+inbound مشترک دارن که از هر دامنه/CDN-mode ای بیاد بهش می‌رسه (چون
+مسیریابی دامنه قبلش، توی HAProxy با SNI انجام می‌شه، نه توی خود xray). پس
+چیزی که واقعاً می‌تونی انتخاب کنی اینه: "هر ترافیک vless روی xhttp، از هر
+دامنه‌ای" - نه دقیقاً همون یه ردیف Proxy با اون دامنه‌ی خاص. تنها استثنا
+Reality‌ست: هر دامنه‌ی reality واقعاً یه inbound اختصاصی خودش داره
+(`realityin_{stream}_{port}`)، پس اونا رو per-domain لیست کردم.
+اگه لازمه محدودتر از این بشه (مثلاً فقط یه دامنه‌ی خاص با CDN مشخص)،
+باید فیلد Domains رو هم پر کنی کنارش.
+
+**فایل‌ها:** `hiddifypanel/models/routing.py` (تابع
+`get_available_inbound_tags`، ستون `CustomRoutingRule.inbound_tags`)،
+`hiddifypanel/panel/admin/RoutingRuleAdmin.py`.
+
+---
+
 ## 🚨 خودم یه باگ جدید ساختم با فیکس قبلی - همین الان فیکس شد (۲۰۲۶-۰۷-۰۲)
 
 فیکس قبلی (`timeout 240 acme.sh ...`) یه رگرسیون واقعی بود: `timeout`
