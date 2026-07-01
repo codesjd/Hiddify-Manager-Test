@@ -400,18 +400,19 @@ def _add_xhttp_details(ss: dict, proxy: dict):
         }
     }
     if proxy.get("download"):
-        dl = proxy['download']
-        # The download sub-object only carries domain-specific fields (sni,
-        # host, server, mode, alpn...) from sni_host_server_extractor() - it
-        # was never guaranteed to carry path/xhttp_mode/params too (shared.py
-        # sets those when it can, but e.g. a domain-level override replacing
-        # 'download' wholesale, or any other path that doesn't go through
-        # that exact fixup, leaves them missing). Recursing into
-        # _add_xhttp_details() below needs them, so fall back to the parent
-        # proxy's values rather than crashing with KeyError.
-        dl.setdefault('path', proxy.get('path'))
-        dl.setdefault('xhttp_mode', proxy.get('xhttp_mode', 'auto'))
-        dl.setdefault('params', proxy.get('params', {}))
+        # The download sub-object is only guaranteed to carry WHATEVER
+        # sni_host_server_extractor()/shared.py happened to set on it for
+        # this particular domain/proto/transport combo - which fields those
+        # are varies (a previous fix here added path/xhttp_mode/params
+        # fallbacks one at a time and still missed 'host' - same class of
+        # bug). Recursing into _add_xhttp_details()/_add_security() below
+        # needs a bunch of these keys, so build dl by merging proxy's own
+        # values as a base UNDER whatever download actually defines: any
+        # field download doesn't set falls back to the parent's, and any
+        # field it does set (sni/host/server/mode/alpn, the whole point of
+        # having a separate download domain) still wins.
+        dl = {**proxy, **proxy['download']}
+        dl.pop('download', None)
 
         dlsettings = {
             "address": dl.get("server"),

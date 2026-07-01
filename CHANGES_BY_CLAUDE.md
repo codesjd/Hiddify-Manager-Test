@@ -1,5 +1,24 @@
 # پچ‌های اعمال‌شده روی فورک Hiddify-Manager / Hiddify-Panel
 
+## 🚨 همون باگ xhttp/download، این‌بار روی کلید 'host' (۲۰۲۶-۰۷-۰۲)
+
+فیکس قبلی‌م برای `KeyError: 'path'` توی `_add_xhttp_details()` رو با
+`setdefault` تک‌تک برای `path`/`xhttp_mode`/`params` انجام دادم - ولی
+`'host'` رو جا انداختم، و لاگ جدیدت دقیقاً همون کلاس باگ رو نشون داد،
+فقط این‌بار `KeyError: 'host'`.
+
+**فیکس درست‌تر:** به‌جای اضافه کردن fallback تک‌تک برای هر کلید (که هر بار
+یکی جا می‌مونه)، حالا `dl` با merge کردن کل `proxy` به‌عنوان پایه، زیر
+هرچی خودِ `download` واقعاً تعریف کرده، ساخته می‌شه: `dl = {**proxy,
+**proxy['download']}`. یعنی هر کلیدی که download خودش نداشته باشه از
+proxy اصلی میاد، و هر کلیدی که واقعاً تعریف کرده (sni/host/server/mode/
+alpn - دقیقاً چیزی که یه دامنه‌ی download جدا براش وجود داره) بازم برنده
+می‌مونه. این کلاس کامل باگ رو می‌بنده، نه فقط یه کلید خاص.
+
+**فایل:** `hiddify-panel/src/hiddifypanel/hutils/proxy/xrayjson.py`
+
+---
+
 ## ✅ ایمپورت لینک vless روی Outbounds + مسیریابی بر اساس Inbound (۲۰۲۶-۰۷-۰۲)
 
 ### ۱. Outbounds: پیست کردن لینک `vless://`
