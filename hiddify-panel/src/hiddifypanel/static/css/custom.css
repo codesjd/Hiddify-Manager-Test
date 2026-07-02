@@ -87,31 +87,8 @@ fieldset fieldset legend {
   max-width: 550px;
 }
 
-.wrapper {
-  display: none;
-}
 
-#splash_screen {
-  display: flex;
-  /* Displays the element as a flex container */
-  justify-content: center;
-  /* Centers child elements horizontally */
-  align-items: center;
-  /* Centers child elements vertically */
-  height: 100vh;
-  /* Sets the height of the element to 100% of the viewport height */
-  margin: 0;
-  /* Removes margin */
-}
 
-#splash_screen img {
-  max-height: 30%;
-  /* Sets the maximum height of the image to 30% of the container */
-  max-width: 30%;
-  /* Sets the maximum width of the image to 30% of the container */
-  display: block;
-  /* Makes the element a block-level element */
-  margin: 0 auto;
   /* Centers the element horizontally */
 }
 
