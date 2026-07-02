@@ -1,4 +1,5 @@
 import wtforms as wtf
+from markupsafe import Markup
 from flask_babel import lazy_gettext as _
 from .adminlte import AdminLTEModelView
 from hiddifypanel.auth import login_required
@@ -13,6 +14,7 @@ class RoutingRuleAdmin(AdminLTEModelView):
     first), always before Hiddify's own built-in catch-all rule.
     """
     column_hide_backrefs = False
+    list_template = 'model/routingrule_list.html'
     column_list = ["priority", "outbound_tag", "inbound_tags", "domains", "ips", "port", "network", "enable", "comment"]
     form_columns = ["enable", "priority", "outbound_tag", "inbound_tags", "domains", "ips", "port", "network", "comment"]
 
@@ -53,6 +55,13 @@ class RoutingRuleAdmin(AdminLTEModelView):
     can_export = False
     column_sortable_list = ["priority", "outbound_tag", "enable"]
     column_default_sort = "priority"
+
+    def _enable_formatter(view, context, model, name):
+        return Markup(hutils.flask.hf_status_circle(bool(model.enable)))
+
+    column_formatters = {
+        "enable": _enable_formatter,
+    }
 
     def is_accessible(self):
         if login_required(roles={Role.super_admin}, permissions={Permission.manage_settings})(lambda: True)() != True:

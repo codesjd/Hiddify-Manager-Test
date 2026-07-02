@@ -131,15 +131,12 @@ class DomainAdmin(AdminLTEModelView):
     
     def _domain_admin_link(view, context, model, name):
         if hiddify.is_fake_domain(model):
-            return Markup(f"<span class='badge'>{model.domain}</span>")
-        d = model.domain
-        if "*" in d:
-            d = d.replace("*", hutils.random.get_random_string(5, 15))
-        admin_link = hiddify.get_account_panel_link(g.account, d)
+            return Markup(hutils.flask.hf_chip(model.domain))
+        resolve_url = hurl_for('admin.Actions:get_domain_ip', domain=model.domain)
+        resolve_title = _("Resolve IP")
         return Markup(
-            f'<div class="btn-group"><a href="{admin_link}" class="btn btn-xs btn-secondary">' + _("admin link") +
-            f'</a><a href="{admin_link}" class="btn btn-xs btn-info ltr" target="_blank">{model.domain}</a></div>'+
-            f'<a href="{hurl_for('admin.Actions:get_domain_ip',domain=model.domain)}"><i class="fa-solid fa-dharmachakra"></i></a>')
+            hutils.flask.hf_chip(model.domain) +
+            f' <a href="{resolve_url}" title="{resolve_title}"><i class="fa-solid fa-dharmachakra"></i></a>')
 
     def _domain_ip(view, context, model, name):
         dips = hutils.network.get_domain_ips_cached(model.domain)

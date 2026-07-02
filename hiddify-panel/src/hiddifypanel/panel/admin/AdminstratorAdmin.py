@@ -135,61 +135,42 @@ class AdminstratorAdmin(AdminLTEModelView):
         last_day = datetime.datetime.now() - datetime.timedelta(days=1)
         u = model.recursive_users_query().filter(User.last_online > last_day).count()
         t = model.recursive_users_query().count()
-        # actives=[u for u in model.recursive_users_query().all() if u.is_active]
-        # allusers=model.recursive_users_query().count()
-        # onlines=[p for p in  users  if p.last_online and p.last_online>last_day]
-        # return Markup(f"<a class='btn btn-xs btn-default' href='{hurl_for('flask.user.index_view',admin_id=model.id)}'> {_('Online')}: {onlines}</a>")
         rate = round(u * 100 / (t + 0.000001))
-        state = "danger" if u >= t else ('warning' if rate > 80 else 'success')
-        color = "#ff7e7e" if u >= t else ('#ffc107' if rate > 80 else '#9ee150')
-        return Markup(f"""
-        <div class="progress progress-lg position-relative" style="min-width: 100px;">
-          <div class="progress-bar progress-bar-striped" role="progressbar" style="width: {rate}%;background-color: {color};" aria-valuenow="{rate}" aria-valuemin="0" aria-valuemax="100"></div>
-              <span class='badge position-absolute' style="left:auto;right:auto;width: 100%;font-size:1em">{u} {_('user.home.usage.from')} {t}</span>
-
-        </div>
-        """)
+        return Markup(hutils.flask.hf_usage_bar(str(u), f"/ {t}", rate))
 
     def _max_users_formatter(view, context, model, name):
         u = model.recursive_users_query().count()
         if model.mode == AdminMode.super_admin:
-            return f"{u} / ∞"
+            return Markup(hutils.flask.hf_usage_bar(str(u), "/ ∞", 0))
         t = model.max_users
         rate = round(u * 100 / (t + 0.000001))
-        state = "danger" if u >= t else ('warning' if rate > 80 else 'success')
-        color = "#ff7e7e" if u >= t else ('#ffc107' if rate > 80 else '#9ee150')
-        return Markup(f"""
-        <div class="progress progress-lg position-relative" style="min-width: 100px;">
-          <div class="progress-bar progress-bar-striped" role="progressbar" style="width: {rate}%;background-color: {color};" aria-valuenow="{rate}" aria-valuemin="0" aria-valuemax="100"></div>
-              <span class='badge position-absolute' style="left:auto;right:auto;width: 100%;font-size:1em">{u} {_('user.home.usage.from')} {t}</span>
-
-        </div>
-        """)
+        return Markup(hutils.flask.hf_usage_bar(str(u), f"/ {t}", rate))
 
     def _max_active_users_formatter(view, context, model, name):
         # `User.is_active` is a python property, not a SQL column.
         # So we must evaluate it on model instances instead of using query.filter.
         active_count = sum(1 for user in model.recursive_users_query().all() if user.is_active)
         if model.mode == AdminMode.super_admin:
-            return f"{active_count} / ∞"
+            return Markup(hutils.flask.hf_usage_bar(str(active_count), "/ ∞", 0))
         t = model.max_active_users
         rate = round(active_count * 100 / (t + 0.000001))
-        color = "#ff7e7e" if active_count >= t else ('#ffc107' if rate > 80 else '#9ee150')
-        
-        return Markup(f"""
-        <div class="progress progress-lg position-relative" style="min-width: 100px;">
-          <div class="progress-bar progress-bar-striped" role="progressbar" style="width: {rate}%;background-color: {color};" aria-valuenow="{rate}" aria-valuemin="0" aria-valuemax="100"></div>
-              <span class='badge position-absolute' style="left:auto;right:auto;width: 100%;font-size:1em">{active_count} {_('user.home.usage.from')} {t}</span>
+        return Markup(hutils.flask.hf_usage_bar(str(active_count), f"/ {t}", rate))
 
-        </div>
-        """)
+    def _mode_formatter(view, context, model, name):
+        color_var = {'super_admin': '--accent-purple', 'admin': '--accent-blue'}.get(model.mode, '--text-secondary')
+        return Markup(hutils.flask.hf_pill(model.mode, color_var))
+
+    def _can_add_admin_formatter(view, context, model, name):
+        return Markup(hutils.flask.hf_status_circle(bool(model.can_add_admin)))
 
     column_formatters = {
         'name': _name_formatter,
         'online_users': _online_users_formatter,
         'max_users': _max_users_formatter,
         'max_active_users': _max_active_users_formatter,
-        'UserLinks': _ul_formatter
+        'UserLinks': _ul_formatter,
+        'mode': _mode_formatter,
+        'can_add_admin': _can_add_admin_formatter,
 
     }
 

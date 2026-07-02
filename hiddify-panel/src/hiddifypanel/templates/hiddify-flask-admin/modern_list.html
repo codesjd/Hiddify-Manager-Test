@@ -1,0 +1,50 @@
+{#
+  Shared base list template for the modern design system: same toolbar
+  (Create + optional contextual button + stretched search) and card/table
+  chrome across Users, Admins, Domains, Outbounds, Routing Rules and
+  Inbound Overrides. Reuses every real flask-admin macro/URL (create_view,
+  search_form, filters, actions, pagination) unchanged - only the toolbar
+  layout and the "Count: N" badge are touched here. Cell content (chips,
+  pills, status circles, usage bars) comes from each model's own
+  column_formatters in Python, not from this template.
+#}
+{% extends 'hiddify-flask-admin/list.html' %}
+
+{% block model_menu_bar %}
+{% if admin_view.can_create %}
+{%- if admin_view.create_modal -%}
+{{ lib.add_modal_button(url=get_url('.create_view', url=return_url, modal=True),
+title=_gettext('Create New Record'), content='+ ' + _gettext('Create'), btn_class='btn btn-primary btn-sm')
+}}
+{% else %}
+<a href="{{ get_url('.create_view', url=return_url) }}" title="{{ _gettext('Create New Record') }}"
+    class="btn btn-primary btn-sm">
+    + {{ _gettext('Create') }}
+</a>
+{%- endif -%}
+{% endif %}
+
+{% block modern_toolbar_extra %}{% endblock %}
+
+{% if admin_view.can_export %}
+{{ model_layout.export_options() }}
+{% endif %}
+
+{% block model_menu_bar_before_filters %}{% endblock %}
+
+{% if filters %}
+{{ model_layout.filter_options() }}
+{% endif %}
+
+{% if can_set_page_size %}
+{{ model_layout.page_size_form(page_size_url) }}
+{% endif %}
+
+{% if actions %}
+{{ actionlib.dropdown(actions) }}
+{% endif %}
+{% if search_supported %}
+{{ model_layout.search_form() }}
+{% endif %}
+{% block model_menu_bar_after_filters %}{% endblock %}
+{% endblock %}

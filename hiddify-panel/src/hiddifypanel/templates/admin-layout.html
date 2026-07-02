@@ -41,6 +41,8 @@
   --accent-orange: oklch(0.68 0.15 55);
   --accent-teal: oklch(0.6 0.15 200);
   --accent-magenta: oklch(0.62 0.16 320);
+  --accent-purple: oklch(0.56 0.16 290);
+  --accent-red: oklch(0.6 0.2 25);
 }
 
 /* Remove old splash screen immediately */
@@ -502,12 +504,13 @@ body {
 .table th {
   border-top: none !important;
   border-bottom: 2px solid var(--border) !important;
-  color: var(--text-secondary) !important;
+  color: var(--accent) !important;
   font-weight: 800 !important;
   font-size: 11.5px !important;
   text-transform: uppercase !important;
   letter-spacing: 0.05em !important;
   padding: 10px 12px !important;
+  text-align: center !important;
 }
 .table td {
   border-top: 1px solid var(--border) !important;
@@ -516,13 +519,136 @@ body {
   font-size: 13px !important;
   padding: 10px 12px !important;
   vertical-align: middle !important;
+  text-align: center !important;
 }
 .table th a {
-  color: var(--text-secondary) !important;
+  color: var(--accent) !important;
   font-weight: 800 !important;
 }
 .table th a:hover {
-  color: var(--accent) !important;
+  color: var(--accent-blue) !important;
+}
+
+/* List-page card: table goes edge-to-edge (padding:0 on the card itself,
+   toolbar/header keep their own inset), matching the design's bordered
+   table-card component instead of the default uniform card padding. */
+.card:has(.table-responsive) {
+  padding: 0 !important;
+  overflow: hidden !important;
+}
+.card:has(.table-responsive) > .card-header {
+  padding: 16px 20px !important;
+  margin-bottom: 0 !important;
+}
+.card:has(.table-responsive) .table th,
+.card:has(.table-responsive) .table td {
+  padding: 14px 20px !important;
+}
+.card:has(.table-responsive) .table-responsive {
+  padding: 0 0 4px 0;
+}
+
+/* Toolbar (Create + contextual button + search) - reuses the flask-admin
+   card-header, already display:flex from the generic .card-header rule
+   above; just let the search form stretch to fill remaining space. */
+.card-header form[role="search"] {
+  flex: 1 1 auto !important;
+  width: auto !important;
+  max-width: none !important;
+}
+.card-header form[role="search"] .input-group {
+  width: 100% !important;
+}
+
+/* Action buttons column: circular icon-only buttons (green edit / red
+   delete), matching the design's 26px rounded-7 action chip. */
+.list-buttons-column {
+  text-align: center !important;
+  white-space: nowrap;
+}
+.list-buttons-column .btn {
+  width: 26px !important;
+  height: 26px !important;
+  padding: 0 !important;
+  border-radius: 7px !important;
+  font-size: 12px !important;
+}
+
+/* Reusable cell-content classes for table column_formatters output */
+.hf-chip {
+  display: inline-flex;
+  align-items: center;
+  background: var(--accent-blue);
+  color: white;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11.5px;
+  padding: 3px 8px;
+  border-radius: 6px;
+  white-space: nowrap;
+}
+.hf-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 9px;
+  border-radius: 6px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11.5px;
+  font-weight: 600;
+  border: 1px solid currentColor;
+  white-space: nowrap;
+}
+.hf-pill-filled {
+  color: white !important;
+  border-color: transparent !important;
+}
+.hf-status-circle {
+  display: inline-flex;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  align-items: center;
+  justify-content: center;
+  color: white;
+}
+.hf-status-circle.on { background: var(--accent-green); }
+.hf-status-circle.off { background: var(--accent-blue); }
+.hf-usage {
+  width: 100%;
+  min-width: 120px;
+  text-align: left;
+}
+.hf-usage-labels {
+  display: flex;
+  justify-content: space-between;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  color: var(--text-secondary);
+  margin-bottom: 4px;
+}
+.hf-usage-labels .value { color: var(--text-primary); font-weight: 600; }
+.hf-track {
+  width: 100%;
+  height: 7px;
+  border-radius: 5px;
+  background: var(--track);
+  overflow: hidden;
+}
+.hf-track.thin { height: 5px; }
+.hf-track-fill {
+  height: 100%;
+  border-radius: 5px;
+  background: var(--accent-blue);
+}
+.hf-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  justify-content: center;
+}
+.hf-chips .hf-chip {
+  color: white;
+  font-weight: 700;
+  padding: 3px 7px;
 }
 .table-striped tbody tr:nth-of-type(odd) {
   background-color: rgba(0,0,0,0.01) !important;
@@ -572,13 +698,20 @@ body {
   color: var(--text-primary) !important;
 }
 
-.btn-primary, .btn-success {
+.btn-primary {
   background: var(--accent) !important;
   border-color: var(--accent) !important;
 }
-.btn-primary:hover, .btn-success:hover {
+.btn-primary:hover {
   background: var(--accent-blue) !important;
   border-color: var(--accent-blue) !important;
+}
+.btn-success {
+  background: var(--accent-green) !important;
+  border-color: var(--accent-green) !important;
+}
+.btn-success:hover {
+  opacity: 0.9 !important;
 }
 .btn-default, .btn-secondary, .btn-outline-secondary {
   background: var(--track) !important;
@@ -588,8 +721,8 @@ body {
   background: var(--border) !important;
 }
 .btn-danger {
-  background: var(--accent-orange) !important;
-  border-color: var(--accent-orange) !important;
+  background: var(--accent-red) !important;
+  border-color: var(--accent-red) !important;
 }
 .btn-danger:hover {
   opacity: 0.9 !important;

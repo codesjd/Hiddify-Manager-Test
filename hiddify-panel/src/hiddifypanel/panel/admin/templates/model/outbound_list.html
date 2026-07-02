@@ -3,17 +3,3 @@
 {% block modern_toolbar_extra %}
 <a href="{{ hurl_for('admin.Actions:apply_configs') }}" class="btn btn-secondary btn-sm form_post">⚡ {{ _('Apply Configs') }}</a>
 {% endblock %}
-
-{% block body %}
-{{super()}}
-
-<style>
-    .table td {
-        vertical-align: middle;
-    }
-
-    td.col-domain {
-        /* direction:ltr; */
-    }
-</style>
-{% endblock %}

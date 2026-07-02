@@ -1,8 +1,12 @@
-{% extends 'hiddify-flask-admin/list.html' %}
+{% extends 'hiddify-flask-admin/modern_list.html' %}
+
+{% block modern_toolbar_extra %}
+<a href="{{ hurl_for('admin.Actions:update_usage') }}" class="btn btn-secondary btn-sm">↻ {{ _('Update Usage') }}</a>
+{% endblock %}
 
 {% block body %}
 {% if hconfig(ConfigEnum.telegram_bot_token) and g.bot %}
-<div class="callout callout-success">
+<div class="card">
     <details>
         <summary>
             {{_("Send Message to User's Telegram")}}
@@ -39,10 +43,6 @@
 {% endif %}
 {{super()}}
 
-<div class="callout callout-success">
-    {{_('adminuser.force_update_usage',link=hurl_for("admin.Actions:update_usage"))}}
-
-</div>
 <style>
     .table td {
         vertical-align: middle;
@@ -56,14 +56,10 @@
         white-space: nowrap;
     }
 
-    td.col-domain {
-        /* direction:ltr */
-    }
-
     .col-UserLinks a {
         text-overflow: ellipsis;
         white-space: nowrap;
-        max-width: 100px;
+        max-width: 140px;
         overflow: hidden;
     }
 
@@ -73,10 +69,6 @@
         width: 80px;
         overflow: hidden;
         display: inline-block;
-    }
-
-    .table td {
-        text-align: start;
     }
 </style>
 {% endblock %}

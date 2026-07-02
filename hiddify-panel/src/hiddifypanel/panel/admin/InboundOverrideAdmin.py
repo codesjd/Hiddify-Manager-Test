@@ -1,11 +1,25 @@
 import json
 from flask_babel import lazy_gettext as _
 import wtforms as wtf
+from markupsafe import Markup
 from wtforms.validators import ValidationError
 from .adminlte import AdminLTEModelView
 from hiddifypanel.auth import login_required
 from hiddifypanel.models import *
 from hiddifypanel import hutils
+
+# Color-code each space-separated segment of Proxy.name (e.g. "tls_h2 xhttp
+# direct vless dl=h1") by what kind of setting it is, matching the design's
+# layer3=blue / transport=green / mode=purple / protocol=orange convention -
+# same categories DomainAdmin/OutboundAdmin/RoutingRuleAdmin already color
+# their own chips/pills with.
+_NAME_CHIP_COLORS = {
+    'tls_h2': '--accent-blue', 'tls_h1': '--accent-blue', 'http': '--accent-blue', 'h3_quic': '--accent-blue', 'quic': '--accent-blue',
+    'xhttp': '--accent-green', 'tcp': '--accent-green', 'grpc': '--accent-green', 'ws': '--accent-green', 'httpupgrade': '--accent-green',
+    'direct': '--accent-purple', 'reality': '--accent-purple', 'relay': '--accent-purple',
+    'vless': '--accent-orange', 'vmess': '--accent-orange', 'trojan': '--accent-orange', 'shadowsocks': '--accent-orange',
+    'hysteria2': '--accent-orange', 'tuic': '--accent-orange',
+}
 
 
 # Keys managed by the explicit form fields below. Anything else already
@@ -47,6 +61,7 @@ class InboundOverrideAdmin(AdminLTEModelView):
     wasn't actually applied anywhere until now.
     """
     column_hide_backrefs = False
+    list_template = 'model/inboundoverride_list.html'
     column_list = ["name", "proto", "transport", "cdn", "l3", "enable"]
     # Must list every field that should actually render on the edit form,
     # including the form_extra_fields below and the disabled context
@@ -96,6 +111,23 @@ class InboundOverrideAdmin(AdminLTEModelView):
     can_delete = False
     can_export = False
     column_sortable_list = ["name", "proto", "enable"]
+
+    def _name_formatter(view, context, model, name):
+        chips = []
+        for part in (model.name or "").split():
+            key = part.split("=")[0]
+            color_var = _NAME_CHIP_COLORS.get(key, "--text-secondary")
+            chips.append(f'<span class="hf-chip" style="background:var({color_var});">{part}</span>')
+        return Markup(f'<div class="hf-chips">{"".join(chips)}</div>')
+
+    # "enable" is intentionally NOT given a column_formatter here: it's in
+    # column_editable_list below (inline checkbox, no modal round-trip
+    # needed just to flip one flag on a 150+ row table) - flask-admin
+    # renders the edit-form field directly for inline-editable columns and
+    # never calls a formatter for them, so one here would just be dead code.
+    column_formatters = {
+        "name": _name_formatter,
+    }
 
     def get_query(self):
         return super().get_query().filter(Proxy.child_id == Child.current().id)

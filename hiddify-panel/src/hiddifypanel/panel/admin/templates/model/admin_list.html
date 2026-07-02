@@ -1,4 +1,4 @@
-{% extends 'hiddify-flask-admin/list.html' %}
+{% extends 'hiddify-flask-admin/modern_list.html' %}
 
 {% block body %}
     {{super()}}
@@ -10,17 +10,10 @@
         .col-name{
             white-space: nowrap;
         }
-    .col-expiry_time{
-        white-space: nowrap;
-    }
-    
-    td.col-domain{
-        /* direction:ltr */
-    }
     .col-UserLinks a{
         text-overflow: ellipsis;
     white-space: nowrap;
-    max-width: 100px;
+    max-width: 140px;
     overflow: hidden;
     }
     .col-uuid span{
@@ -29,9 +22,6 @@
     width: 80px;
     overflow: hidden;
     display: inline-block;
-    }
-    .table td{
-        text-align: start;
     }
     </style>
 {% endblock %}

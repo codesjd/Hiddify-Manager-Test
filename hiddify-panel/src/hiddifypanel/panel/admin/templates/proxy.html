@@ -78,10 +78,14 @@
         padding: 14px 44px 14px 16px;
     }
 
-    #submit_global {
-        display: block;
+    .global-form .form-group:has(#submit_global) {
         grid-column: 1 / -1;
-        margin-top: 4px;
+        display: flex;
+        justify-content: center;
+        margin-top: 12px !important;
+        background: transparent !important;
+        border: none !important;
+        padding: 0 !important;
     }
 </style>
 {% endblock %}
