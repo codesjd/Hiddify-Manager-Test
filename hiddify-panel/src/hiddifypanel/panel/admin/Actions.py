@@ -79,13 +79,14 @@ class Actions(FlaskView):
             udp_ports.add(d.internal_port_hysteria2)
 
         def to_int(ports):
-            r={}
+            r=set()
             for p in ports:
                 try:
                     if ip:=int(p):
                         r.add(ip)
                 except:
                     pass
+            return list(r)
         return {"tcp":to_int(tcp_ports),"udp":to_int(udp_ports)}
     
 
@@ -168,6 +169,7 @@ class Actions(FlaskView):
     def update(self):
         return self.update2()
 
+    @login_required(roles={Role.super_admin})
     def update2(self):
         # hiddify.add_temporary_access()
         # run update.sh
@@ -182,6 +184,7 @@ class Actions(FlaskView):
                                log_file="update.log",
                                domains=get_domains())
 
+    @login_required(roles={Role.super_admin})
     def get_some_random_reality_friendly_domain(self):
         test_domain = request.args.get("test_domain")
         import ping3

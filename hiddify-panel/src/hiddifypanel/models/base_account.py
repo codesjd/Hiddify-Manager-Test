@@ -6,6 +6,8 @@ from sqlalchemy import Column, String, BigInteger, Enum
 from flask_login import UserMixin as FlaskLoginUserMixin
 from hiddifypanel.models import Lang
 from hiddifypanel.database import db
+from werkzeug.security import generate_password_hash, check_password_hash
+import hmac
 
 
 
@@ -42,7 +44,7 @@ class BaseAccount(db.Model, FlaskLoginUserMixin):  # type: ignore
             'lang': self.lang
         }
     def update_password(self,new_password):
-        self.password=new_password
+        self.password = generate_password_hash(new_password)
         db.session.commit()
 
     @classmethod
@@ -61,7 +63,19 @@ class BaseAccount(db.Model, FlaskLoginUserMixin):  # type: ignore
 
     @classmethod
     def by_username_password(cls, username: str, password: str):
-        return cls.query.filter(cls.username == username, cls.password == password).first()
+        account = cls.query.filter(cls.username == username).first()
+        if not account or not account.password:
+            return None
+        
+        if account.password.startswith("scrypt:") or account.password.startswith("pbkdf2:"):
+            if check_password_hash(account.password, password):
+                return account
+        else:
+            # Fallback for legacy plaintext passwords - migrate to hash on successful login
+            if hmac.compare_digest(account.password, password):
+                account.update_password(password)
+                return account
+        return None
 
     @classmethod
     def add_or_update(cls, commit: bool = True, old_uuid=None, **data):

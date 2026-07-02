@@ -26,7 +26,18 @@ def init_app(app):
         )
         
 
-        app.secret_key="asdsad"
+        secret_file = '/opt/hiddify-manager/hiddify-panel/secret.key'
+        try:
+            with open(secret_file, 'r') as f:
+                app.secret_key = f.read().strip()
+        except FileNotFoundError:
+            app.secret_key = os.urandom(32).hex()
+            try:
+                with open(secret_file, 'w') as f:
+                    f.write(app.secret_key)
+            except Exception:
+                pass
+
         app.servers = {
             'name': 'current',
             'url': '',

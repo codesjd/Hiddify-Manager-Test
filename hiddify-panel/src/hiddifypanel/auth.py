@@ -151,10 +151,19 @@ def get_account_by_uuid(uuid, is_admin):
 
 def login_by_uuid(uuid,password:str, is_admin: bool)->bool:
     account = get_account_by_uuid(uuid, is_admin)
-    if not account:
+    if not account or not account.password:
         return False
-    if account.password!=password:
-        return False
+    
+    from werkzeug.security import check_password_hash
+    if account.password.startswith("scrypt:") or account.password.startswith("pbkdf2:"):
+        if not check_password_hash(account.password, password):
+            return False
+    else:
+        import hmac
+        if not hmac.compare_digest(account.password, password):
+            return False
+        account.update_password(password)
+
     return login_user(account, force=True)
 
 
@@ -168,17 +177,12 @@ def auth_before_request():
     is_admin_path = hutils.flask.is_admin_proxy_path()
     next_url = None
 
-    if g.uuid:
+    if g.uuid and not is_admin_path:
         # print("uuid", g.uuid, is_admin_path)
         account = get_account_by_uuid(g.uuid, is_admin_path)
         # print(account)
         if not account or account.password!="":
             return logout_redirect()
-        if is_admin_path:
-            next_url = request.url
-            next_url = next_url.replace(f'/{g.uuid}/', '/admin/')
-            next_url = next_url.replace("/admin/admin/", '/admin/')
-            next_url = next_url.replace("http://", "https://")
 
     elif apikey := request.headers.get("Hiddify-API-Key"):
         account = get_account_by_api_key(apikey, is_admin_path)
