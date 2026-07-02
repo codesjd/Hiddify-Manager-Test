@@ -5,18 +5,14 @@
 {% block body %}
 {{super()}}
 
-
-
 <div class="card">
-    <div class="card-header">{{_("admin.proxy.global_config")}}</div>
+    <div class="card-header">
+        {{_("admin.proxy.global_config")}}
+        <a class="btn btn-secondary btn-xs" href="{{hurl_for('flask.proxy.index_view')}}" style="margin-{{ 'right' if get_locale()=='fa' else 'left' }}:auto;">{{_("Edit Proxy Names")}}</a>
+    </div>
     <div class="card-body">
-        {% if 1 or hconfig(ConfigEnum.license) %}
-        <a class="btn btn-info" href="{{hurl_for('flask.proxy.index_view')}}">{{_("Edit Proxy Names")}}</a>
-        {% endif %}
-        <div class="row">
-            <div class="col-12 global-form">
-                {{render_form(global_config_form,extra_classes="card-columns")}}
-            </div>
+        <div class="global-form">
+            {{render_form(global_config_form,extra_classes="toggle-grid")}}
         </div>
     </div>
 </div>
@@ -49,10 +45,6 @@
         margin: 0px;
     }
 
-    /* legend+div>label {
-        display: none;
-    } */
-
     @media (min-width: 576px) {
         .card-columns {
             column-count: 1;
@@ -65,12 +57,29 @@
         }
     }
 
-    .global-form .custom-switch {
-        display: inline-block;
+    /* Global config toggles as a 2-col grid of toggle-row cards, matching
+       the new design's Proxies page - the switches themselves are still
+       plain WTForms SwitchField output (.custom-control-input/-label),
+       just re-laid-out via the shared .toggle-grid/.toggle-row CSS in
+       admin-layout.html instead of a hand-rolled markup rebuild. */
+    .global-form .toggle-grid {
+        display: grid;
+    }
+    .global-form .form-group.custom-switch {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 14px 16px 14px 44px;
+        margin-bottom: 0 !important;
+    }
+    [dir="rtl"] .global-form .form-group.custom-switch {
+        padding: 14px 44px 14px 16px;
     }
 
     #submit_global {
         display: block;
+        grid-column: 1 / -1;
+        margin-top: 4px;
     }
 </style>
 {% endblock %}

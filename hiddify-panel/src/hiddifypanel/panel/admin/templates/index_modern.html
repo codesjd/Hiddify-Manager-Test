@@ -1,114 +1,32 @@
-<!--
-  Modern dashboard redesign ("Orbit Admin" design handoff).
+{% extends 'admin-layout.html' %}
+{#
+  Modern dashboard redesign ("Orbit Admin" / HiddifyV2 design handoff).
 
-  Deliberately standalone - does NOT extend admin-layout.html. The design
-  brief calls for a from-scratch visual system (custom sidebar/topbar,
-  card-based layout, light/dark palette) that would fight AdminLTE's
-  existing Bootstrap theme if nested inside it. This page owns its own
-  <html>/<head>/CSS/JS; every other admin page is untouched and keeps
-  using admin-layout.html as before. Scope is exactly what the design
-  brief covers: the single Dashboard screen, standard (non-parent) mode.
+  Extends admin-layout.html like every other admin page now (it used to be
+  a fully standalone <html> document with its own copy of the
+  sidebar/topbar/theme CSS, but once admin-layout.html grew the same
+  sidebar/topbar for every other page, keeping a second copy here just
+  meant two navs to keep in sync - dropped in favor of one shared layout).
+  Only the dashboard-specific cards/gauges/JS below are unique to this page.
+#}
 
-  Dark/light mode reuses the SAME server-side toggle already used by
-  admin-layout.html (?darkmode=true/false -> session['darkmode'] ->
-  g.darkmode), so switching it here also affects every other admin page
-  and vice versa - one theme setting, not a second independent one.
--->
-<!DOCTYPE html>
-<html lang="{{ get_locale() }}" dir="{{ 'rtl' if get_locale()=='fa' else 'ltr' }}">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{{ _("Dashboard") }} | {{ _("admin.menu.home") }} | Hiddify</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+{% block title %}{{ _('admin.menu.home') }}{% endblock %}
+
+{% block body %}
+{{ super() }}
 <style>
-:root {
-  {% if g.darkmode %}
-  --bg: oklch(0.19 0.018 265);
-  --surface: oklch(0.245 0.02 265);
-  --sidebar-bg: oklch(0.16 0.02 265);
-  --border: oklch(0.33 0.02 265);
-  --text-primary: oklch(0.96 0.005 265);
-  --text-secondary: oklch(0.68 0.015 265);
-  --track: oklch(0.32 0.02 265);
-  --card-shadow: 0 1px 0 rgba(255,255,255,0.02);
-  --live-glow: oklch(0.64 0.14 150 / 0.25);
-  {% else %}
-  --bg: oklch(0.965 0.006 265);
-  --surface: oklch(0.995 0.003 265);
-  --sidebar-bg: oklch(0.995 0.004 265);
-  --border: oklch(0.91 0.006 265);
-  --text-primary: oklch(0.22 0.02 265);
-  --text-secondary: oklch(0.52 0.015 265);
-  --track: oklch(0.93 0.006 265);
-  --card-shadow: 0 1px 2px rgba(20,20,40,0.04);
-  --live-glow: oklch(0.64 0.14 150 / 0.18);
-  {% endif %}
-  --accent: oklch(0.56 0.16 250);
-  --accent-blue: oklch(0.6 0.15 250);
-  --accent-green: oklch(0.64 0.14 150);
-  --accent-orange: oklch(0.68 0.15 55);
-  --accent-teal: oklch(0.6 0.15 200);
-  --accent-magenta: oklch(0.62 0.16 320);
-}
-* { box-sizing: border-box; }
-body { margin: 0; background: var(--bg); font-family: 'Manrope', sans-serif; color: var(--text-primary); }
-::-webkit-scrollbar { width: 8px; height: 8px; }
-::-webkit-scrollbar-thumb { background: var(--border); border-radius: 8px; }
-a { text-decoration: none; color: inherit; }
+.row3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; margin-bottom: 18px; }
+.row3-eq { grid-auto-rows: 1fr; }
+@media (max-width: 1100px) { .row3 { grid-template-columns: 1fr; } }
 
-.page { display: flex; min-height: 100vh; width: 100%; }
-
-/* Sidebar */
-.sidebar { width: 230px; flex-shrink: 0; background: var(--sidebar-bg); border-{{ 'left' if get_locale()=='fa' else 'right' }}: 1px solid var(--border); display: flex; flex-direction: column; }
-.sidebar-header { display: flex; align-items: center; gap: 10px; padding: 22px 20px 18px 20px; }
-.logo-mark { width: 30px; height: 30px; border-radius: 9px; background: var(--accent); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
-.wordmark { font-weight: 800; font-size: 16px; letter-spacing: -0.01em; white-space: nowrap; }
-.wordmark span { color: var(--accent); }
-.nav-list { display: flex; flex-direction: column; gap: 2px; padding: 6px 12px; flex: 1; }
-.nav-item { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 10px; cursor: pointer; transition: background 0.15s; }
-.nav-item:hover { background: var(--track); }
-.nav-item.active { background: var(--accent); color: white; }
-.nav-item.active:hover { background: var(--accent); }
-.nav-item .nav-icon { width: 20px; height: 20px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
-.nav-item .nav-label { font-size: 13.5px; font-weight: 600; flex: 1; }
-.nav-item .chevron { opacity: 0.6; display: flex; transition: transform 0.15s; }
-.nav-item[aria-expanded="true"] .chevron { transform: rotate(90deg); }
-.nav-children { display: flex; flex-direction: column; gap: 2px; }
-.nav-children.collapsed { display: none; }
-.nav-child { display: flex; align-items: center; padding: 8px 12px 8px 30px; border-radius: 10px; cursor: pointer; color: var(--text-secondary); font-size: 13px; transition: background 0.15s; }
-[dir="rtl"] .nav-child { padding: 8px 30px 8px 12px; }
-.nav-child:hover { background: var(--track); }
-.sidebar-footer { padding: 16px 20px 20px 20px; border-top: 1px solid var(--border); margin-top: 8px; font-size: 11.5px; color: var(--text-secondary); white-space: nowrap; }
-
-/* Main */
-.main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
-.topbar { display: flex; align-items: center; justify-content: space-between; padding: 20px 32px; border-bottom: 1px solid var(--border); background: var(--surface); }
-.topbar-title { font-weight: 800; font-size: 22px; letter-spacing: -0.01em; }
-.topbar-subtitle { font-size: 12.5px; color: var(--text-secondary); margin-top: 2px; }
-.topbar-right { display: flex; align-items: center; gap: 14px; }
-.live-badge { display: flex; align-items: center; gap: 7px; padding: 6px 12px; border-radius: 20px; background: var(--track); }
-.live-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent-green); box-shadow: 0 0 0 3px var(--live-glow); }
-.live-label { font-family: 'JetBrains Mono', monospace; font-size: 11.5px; font-weight: 600; }
-.theme-toggle { width: 44px; height: 26px; border-radius: 14px; background: var(--track); display: flex; align-items: center; padding: 3px; cursor: pointer; justify-content: {{ 'flex-end' if g.darkmode else 'flex-start' }}; }
-.theme-knob { width: 20px; height: 20px; border-radius: 50%; background: var(--surface); display: flex; align-items: center; justify-content: center; box-shadow: 0 1px 2px rgba(0,0,0,0.25); }
-.avatar { width: 34px; height: 34px; border-radius: 50%; background: var(--accent); color: white; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 13px; }
-
-.content { flex: 1; overflow: auto; padding: 28px 32px 40px 32px; }
-.row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; margin-bottom: 18px; }
-.row-eq { grid-auto-rows: 1fr; }
-@media (max-width: 1100px) { .row { grid-template-columns: 1fr; } }
-
-.card { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 20px 22px; box-shadow: var(--card-shadow); }
-.card-head { display: flex; align-items: center; justify-content: space-between; }
-.card-head-left { display: flex; align-items: center; gap: 10px; }
 .chip { width: 30px; height: 30px; border-radius: 9px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
 .chip-accent { background: var(--accent); }
 .chip-blue { background: var(--accent-blue); }
 .chip-green { background: var(--accent-green); }
 .chip-teal { background: var(--accent-teal); }
 .chip-magenta { background: var(--accent-magenta); }
+.card-head { display: flex; align-items: center; justify-content: space-between; }
+.card-head-left { display: flex; align-items: center; gap: 10px; }
 .card-label { font-size: 13px; font-weight: 700; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.04em; }
 .delta { font-family: 'JetBrains Mono', monospace; font-size: 12px; font-weight: 600; }
 .delta-up { color: var(--accent-green); }
@@ -137,272 +55,156 @@ a { text-decoration: none; color: inherit; }
 .res-bar-track { width: 100%; height: 5px; border-radius: 4px; background: var(--track); overflow: hidden; }
 .res-bar-fill { height: 100%; border-radius: 4px; }
 
-.flash-stack { display: flex; flex-direction: column; gap: 10px; margin-bottom: 18px; }
-.flash-item { background: var(--surface); border: 1px solid var(--border); border-{{ 'right' if get_locale()=='fa' else 'left' }}: 3px solid var(--flash-color, var(--accent)); border-radius: 10px; padding: 12px 16px; font-size: 13px; }
-.flash-item.cat-danger { --flash-color: var(--accent-orange); }
-.flash-item.cat-warning { --flash-color: var(--accent-orange); }
-.flash-item.cat-success { --flash-color: var(--accent-green); }
-.flash-item.cat-secondary, .flash-item.cat-info { --flash-color: var(--accent-blue); }
+.dash-actions-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 18px; flex-wrap: wrap; }
+.dash-actions-row .btn-group-right { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.dash-secondary-btn, .dash-danger-btn {
+  font-family: 'Manrope', sans-serif; font-size: 13px; font-weight: 700;
+  padding: 9px 16px; border-radius: 9px; cursor: pointer;
+  display: inline-flex; align-items: center; gap: 6px; width: fit-content;
+  white-space: nowrap; border: none; text-decoration: none !important;
+}
+.dash-secondary-btn { background: var(--track); color: var(--text-primary) !important; }
+.dash-secondary-btn:hover { background: var(--border); }
+.dash-danger-btn { background: {{ 'oklch(0.32 0.1 25)' if g.darkmode else 'oklch(0.94 0.05 25)' }}; color: oklch(0.55 0.2 25) !important; }
+.dash-danger-btn:hover { opacity: 0.85; }
+.dash-viewlogs-link { font-size: 12.5px; color: var(--text-secondary) !important; text-decoration: none !important; font-weight: 600; }
+.dash-viewlogs-link:hover { color: var(--text-primary) !important; }
 </style>
-</head>
-<body>
-<div class="page">
 
-  <!-- Sidebar -->
-  <div class="sidebar">
-    <div class="sidebar-header">
-      <div class="logo-mark">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M4 18 L4 10 M12 18 L12 5 M20 18 L20 13" stroke="white" stroke-width="2.6" stroke-linecap="round"/></svg>
+<div class="dash-actions-row">
+  <a class="dash-viewlogs-link" href="{{ hurl_for('admin.Actions:viewlogs') }}">{{ _('admin.actions.viewlogs') }}</a>
+  {% if g.account.mode == 'super_admin' %}
+  <div class="btn-group-right">
+    <a class="dash-secondary-btn form_post" href="{{ hurl_for('admin.Actions:update') }}">⬆ {{ _('admin.actions.update') }}</a>
+    <a class="dash-secondary-btn form_post" href="{{ hurl_for('admin.Actions:reinstall') }}">⟳ {{ _('admin.actions.reinstall') }}</a>
+    <a class="dash-danger-btn form_post" href="{{ hurl_for('admin.Actions:reset') }}">⏻ {{ _('admin.actions.reset') }}</a>
+  </div>
+  {% endif %}
+</div>
+
+<!-- Row 1: usage over time -->
+<div class="row3">
+  {% for card in usage_cards %}
+  <div class="card">
+    <div class="card-head">
+      <div class="card-head-left">
+        <div class="chip chip-{{ card.color }}"><svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M4 4v16h16" stroke="white" stroke-width="2" stroke-linecap="round"/><path d="M7 15l4-4 3 3 5-6" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+        <span class="card-label">{{ card.label }}</span>
       </div>
-      <div class="wordmark">Hiddify<span>V2</span></div>
+      {% if card.delta is not none %}
+      <span class="delta {{ 'delta-up' if card.delta >= 0 else 'delta-down' }}">{{ '%+d'|format(card.delta) }}%</span>
+      {% endif %}
     </div>
+    <div class="card-value">{{ '%.1f'|format(card.value) }} GB</div>
+    <div class="card-caption">{{ _('Online users') }}: {{ card.online }} / {{ total_users }}</div>
+    <svg width="100%" height="40" viewBox="0 0 200 40" preserveAspectRatio="none">
+      <polyline points="{{ card.spark.line }}" fill="none" stroke="var(--{{ 'accent' if card.color=='accent' else 'accent-'+card.color }})" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+      <polygon points="{{ card.spark.fill }}" fill="var(--{{ 'accent' if card.color=='accent' else 'accent-'+card.color }})" opacity="0.12"/>
+    </svg>
+  </div>
+  {% endfor %}
+</div>
 
-    <div class="nav-list">
-      <a class="nav-item active" href="{{ hurl_for('admin.Dashboard:index') }}">
-        <span class="nav-icon"><svg width="18" height="18" viewBox="0 0 24 24"><path d="M4 4h7v7H4V4zm9 0h7v4h-7V4zm0 7h7v9h-7v-9zM4 14h7v6H4v-6z" fill="currentColor"/></svg></span>
-        <span class="nav-label">{{ _('admin.menu.home') }}</span>
-      </a>
-      <a class="nav-item" href="{{ hurl_for('flask.user.index_view') }}">
-        <span class="nav-icon"><svg width="18" height="18" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.3" fill="currentColor"/><path d="M2.8 20c0-3.9 2.8-6.8 6.2-6.8s6.2 2.9 6.2 6.8" fill="currentColor"/><circle cx="17.5" cy="9" r="2.4" fill="currentColor"/><path d="M14.8 13.6c2.8.4 4.9 2.7 4.9 6.4" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round"/></svg></span>
-        <span class="nav-label">{{ _('admin.menu.user') }}</span>
-      </a>
-      <a class="nav-item" href="{{ hurl_for('flask.adminuser.index_view') }}">
-        <span class="nav-icon"><svg width="18" height="18" viewBox="0 0 24 24"><path d="M12 2l7 3v6c0 5-3.2 8.5-7 10-3.8-1.5-7-5-7-10V5l7-3z" fill="currentColor"/></svg></span>
-        <span class="nav-label">{{ _('Admins') }}</span>
-      </a>
-
-      {% if g.account.mode != "agent" %}
-      <div class="nav-item" id="nav-settings" aria-expanded="true" onclick="toggleSection('settings')">
-        <span class="nav-icon"><svg width="18" height="18" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 3v2.4M12 18.6V21M21 12h-2.4M5.4 12H3M18.1 5.9l-1.7 1.7M7.6 16.4l-1.7 1.7M18.1 18.1l-1.7-1.7M7.6 7.6L5.9 5.9" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></span>
-        <span class="nav-label">{{ _('admin.menu.config') }}</span>
-        <span class="chevron"><svg width="14" height="14" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6" stroke="currentColor" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
-      </div>
-      <div class="nav-children" id="section-settings">
-        <a class="nav-child" href="{{ hurl_for('flask.domain.index_view') }}">{{ _('admin.menu.domain') }}</a>
-        <a class="nav-child" href="{{ hurl_for('admin.ProxyAdmin:index') }}">{{ _('admin.menu.proxy') }}</a>
-        {% if g.account.mode == 'super_admin' %}
-        <a class="nav-child" href="{{ hurl_for('admin.SettingAdmin:index') }}">{{ _('admin.menu.config') }}</a>
-        <a class="nav-child" href="{{ hurl_for('admin.Backup:index') }}">{{ _('Backup') }}</a>
-        <a class="nav-child" href="{{ hurl_for('flask.customoutbound.index_view') }}">{{ _('Outbounds') }}</a>
-        <a class="nav-child" href="{{ hurl_for('flask.customroutingrule.index_view') }}">{{ _('Routing Rules') }}</a>
-        <a class="nav-child" href="{{ hurl_for('flask.inbound_override.index_view') }}">{{ _('Inbound Overrides') }}</a>
-        <a class="nav-child" href="{{ hurl_for('openapi.docs') }}">{{ _('admin.menu.api') }}</a>
-        <a class="nav-child" href="{{ proxy_stats_url() }}">{{ _('admin.menu.proxy_stats') }}</a>
+<!-- Row 2: total / online / network -->
+<div class="row3 row3-eq">
+  <div class="card">
+    <div class="card-head-left" style="margin-bottom:16px;">
+      <div class="chip chip-accent"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M12 3v9l6 3" stroke="white" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="12" cy="12" r="9" stroke="white" stroke-width="2.2"/></svg></div>
+      <span class="card-label">{{ _('Total Usage') }}</span>
+    </div>
+    <div class="gauge-ring-wrap">
+      <svg width="96" height="96" viewBox="0 0 96 96">
+        <circle cx="48" cy="48" r="40" fill="none" stroke="var(--track)" stroke-width="10"/>
+        <circle cx="48" cy="48" r="40" fill="none" stroke="var(--accent)" stroke-width="10" stroke-linecap="round" stroke-dasharray="{{ total_dash }}" transform="rotate(-90 48 48)"/>
+      </svg>
+      <div>
+        <div class="gauge-value">{{ '%.1f'|format(total_usage_gb) }} GB</div>
+        {% if total_quota_gb %}
+        <div class="gauge-sub">{{ _('of %(quota)s GB quota', quota='%.0f'|format(total_quota_gb)) }}</div>
+        {% else %}
+        <div class="gauge-sub">{{ _('No quota set') }}</div>
         {% endif %}
+        <div class="gauge-sub2">{{ _('Online users') }}: {{ usage_history['m5']['online'] }} / {{ total_users }}</div>
       </div>
-      {% endif %}
-
-      {% if g.account.mode == "super_admin" %}
-      <div class="nav-item" id="nav-actions" aria-expanded="false" onclick="toggleSection('actions')">
-        <span class="nav-icon"><svg width="18" height="18" viewBox="0 0 24 24"><path d="M13 2L4 14h6l-1 8 9-12h-6l1-8z" fill="currentColor"/></svg></span>
-        <span class="nav-label">{{ _('admin.actions.title') }}</span>
-        <span class="chevron"><svg width="14" height="14" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6" stroke="currentColor" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
-      </div>
-      <div class="nav-children collapsed" id="section-actions">
-        <a class="nav-child" href="{{ hurl_for('admin.Actions:status') }}">{{ _('admin.actions.status') }}</a>
-        <a class="nav-child" href="{{ hurl_for('admin.Actions:viewlogs') }}">{{ _('admin.actions.viewlogs') }}</a>
-        <a class="nav-child form-post" href="{{ hurl_for('admin.Actions:apply_configs') }}">{{ _('admin.actions.apply_configs') }}</a>
-        <a class="nav-child form-post" href="{{ hurl_for('admin.Actions:update') }}">{{ _('admin.actions.update') }}</a>
-        <a class="nav-child form-post" href="{{ hurl_for('admin.Actions:reinstall') }}">{{ _('admin.actions.reinstall') }}</a>
-        <a class="nav-child form-post" href="{{ hurl_for('admin.Actions:reset') }}">{{ _('admin.actions.reset') }}</a>
-      </div>
-      {% endif %}
     </div>
-
-    <div class="sidebar-footer">&copy; {{ now_year }} Hiddify V2</div>
   </div>
 
-  <!-- Main -->
-  <div class="main">
-    <div class="topbar">
-      <div>
-        <div class="topbar-title">{{ _('admin.menu.home') }}</div>
-        <div class="topbar-subtitle">{{ _('Server health & usage overview') }}</div>
-      </div>
-      <div class="topbar-right">
-        <div class="live-badge">
-          <div class="live-dot"></div>
-          <span class="live-label">LIVE</span>
-        </div>
-        <a class="theme-toggle" href="?darkmode={{ 'false' if g.darkmode else 'true' }}" title="{{ _('Toggle dark mode') }}">
-          <div class="theme-knob">
-            {% if g.darkmode %}
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none"><path d="M21 12.8A9 9 0 1111.2 3 7 7 0 0021 12.8z" fill="var(--accent)"/></svg>
-            {% else %}
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="5" fill="var(--accent-orange)"/><path d="M12 2v3M12 19v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2 12h3M19 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1" stroke="var(--accent-orange)" stroke-width="1.8" stroke-linecap="round"/></svg>
-            {% endif %}
-          </div>
-        </a>
-        <div class="avatar">{{ (g.account.name[0] if g.account.name else 'A')|upper }}</div>
-      </div>
+  <div class="card">
+    <div class="card-head-left" style="margin-bottom:16px;">
+      <div class="chip chip-blue"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><circle cx="9" cy="9" r="3.2" stroke="white" stroke-width="2"/><circle cx="17" cy="10" r="2.4" stroke="white" stroke-width="2"/><path d="M3.5 19c0-3.3 2.5-6 6-6 2.4 0 4.4 1.3 5.4 3.3M14.5 13.6c2.6.3 4.5 2.3 4.5 5.4" stroke="white" stroke-width="2" stroke-linecap="round"/></svg></div>
+      <span class="card-label">{{ _('Online Users') }}</span>
     </div>
+    <div class="card-value" id="online-value" style="margin-top:0;">{{ usage_history['m5']['online'] }} <span style="font-size:16px; color:var(--text-secondary); font-weight:600;">/ {{ total_users }}</span></div>
+    <div class="card-caption" style="margin-top:6px;">{{ _('Refreshed every 5 minutes') }}</div>
+    <div class="progress-track">
+      <div class="progress-fill" id="online-progress" style="width: {{ online_pct }}%;"></div>
+    </div>
+  </div>
 
-    <div class="content">
-
-      {% set flashes = get_flashed_messages(with_categories=true) %}
-      {% if flashes %}
-      <div class="flash-stack">
-        {% for cat, msg in flashes %}
-        <div class="flash-item cat-{{ cat }}">{{ msg|safe }}</div>
-        {% endfor %}
+  <div class="card">
+    <div class="card-head" style="margin-bottom:16px;">
+      <div class="card-head-left">
+        <div class="chip chip-green"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M4 17V9M9 17V5M14 17v-6M19 17v-3" stroke="white" stroke-width="2.2" stroke-linecap="round"/></svg></div>
+        <span class="card-label">{{ _('Network') }}</span>
       </div>
-      {% endif %}
-
-      <!-- Row 1: usage over time -->
-      <div class="row">
-        {% for card in usage_cards %}
-        <div class="card">
-          <div class="card-head">
-            <div class="card-head-left">
-              <div class="chip chip-{{ card.color }}"><svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M4 4v16h16" stroke="white" stroke-width="2" stroke-linecap="round"/><path d="M7 15l4-4 3 3 5-6" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
-              <span class="card-label">{{ card.label }}</span>
-            </div>
-            {% if card.delta is not none %}
-            <span class="delta {{ 'delta-up' if card.delta >= 0 else 'delta-down' }}">{{ '%+d'|format(card.delta) }}%</span>
-            {% endif %}
-          </div>
-          <div class="card-value">{{ '%.1f'|format(card.value) }} GB</div>
-          <div class="card-caption">{{ _('Online users') }}: {{ card.online }} / {{ total_users }}</div>
-          <svg width="100%" height="40" viewBox="0 0 200 40" preserveAspectRatio="none">
-            <polyline points="{{ card.spark.line }}" fill="none" stroke="var(--{{ 'accent' if card.color=='accent' else 'accent-'+card.color }})" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
-            <polygon points="{{ card.spark.fill }}" fill="var(--{{ 'accent' if card.color=='accent' else 'accent-'+card.color }})" opacity="0.12"/>
-          </svg>
+      <span style="font-size:11.5px; color:var(--text-secondary);">{{ '%.1f'|format(stats.system.net_total_cumulative_GB) }} GB {{ _('From Last Restart') }}</span>
+    </div>
+    <div class="net-cols">
+      <div class="net-col">
+        <div class="net-val-row">
+          <span style="color:var(--accent-green); font-size:14px;">&uarr;</span>
+          <span class="net-val" id="net-up-val">0.000</span>
+          <span class="net-unit">Mb/s {{ _('up') }}</span>
         </div>
-        {% endfor %}
+        <svg width="100%" height="34" viewBox="0 0 100 34" preserveAspectRatio="none" style="margin-top:8px;">
+          <polyline id="net-up-line" points="3,17 97,17" fill="none" stroke="var(--accent-green)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
       </div>
-
-      <!-- Row 2: total / online / network -->
-      <div class="row row-eq">
-        <div class="card">
-          <div class="card-head-left" style="margin-bottom:16px;">
-            <div class="chip chip-accent"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M12 3v9l6 3" stroke="white" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="12" cy="12" r="9" stroke="white" stroke-width="2.2"/></svg></div>
-            <span class="card-label">{{ _('Total Usage') }}</span>
-          </div>
-          <div class="gauge-ring-wrap">
-            <svg width="96" height="96" viewBox="0 0 96 96">
-              <circle cx="48" cy="48" r="40" fill="none" stroke="var(--track)" stroke-width="10"/>
-              <circle cx="48" cy="48" r="40" fill="none" stroke="var(--accent)" stroke-width="10" stroke-linecap="round" stroke-dasharray="{{ total_dash }}" transform="rotate(-90 48 48)"/>
-            </svg>
-            <div>
-              <div class="gauge-value">{{ '%.1f'|format(total_usage_gb) }} GB</div>
-              {% if total_quota_gb %}
-              <div class="gauge-sub">{{ _('of %(quota)s GB quota', quota='%.0f'|format(total_quota_gb)) }}</div>
-              {% else %}
-              <div class="gauge-sub">{{ _('No quota set') }}</div>
-              {% endif %}
-              <div class="gauge-sub2">{{ _('Online users') }}: {{ usage_history['m5']['online'] }} / {{ total_users }}</div>
-            </div>
-          </div>
+      <div class="net-col">
+        <div class="net-val-row">
+          <span style="color:var(--accent-orange); font-size:14px;">&darr;</span>
+          <span class="net-val" id="net-down-val">0.000</span>
+          <span class="net-unit">Mb/s {{ _('down') }}</span>
         </div>
-
-        <div class="card">
-          <div class="card-head-left" style="margin-bottom:16px;">
-            <div class="chip chip-blue"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><circle cx="9" cy="9" r="3.2" stroke="white" stroke-width="2"/><circle cx="17" cy="10" r="2.4" stroke="white" stroke-width="2"/><path d="M3.5 19c0-3.3 2.5-6 6-6 2.4 0 4.4 1.3 5.4 3.3M14.5 13.6c2.6.3 4.5 2.3 4.5 5.4" stroke="white" stroke-width="2" stroke-linecap="round"/></svg></div>
-            <span class="card-label">{{ _('Online Users') }}</span>
-          </div>
-          <div class="card-value" id="online-value" style="margin-top:0;">{{ usage_history['m5']['online'] }} <span style="font-size:16px; color:var(--text-secondary); font-weight:600;">/ {{ total_users }}</span></div>
-          <div class="card-caption" style="margin-top:6px;">{{ _('Refreshed every 5 minutes') }}</div>
-          <div class="progress-track">
-            <div class="progress-fill" id="online-progress" style="width: {{ online_pct }}%;"></div>
-          </div>
-        </div>
-
-        <div class="card">
-          <div class="card-head" style="margin-bottom:16px;">
-            <div class="card-head-left">
-              <div class="chip chip-green"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M4 17V9M9 17V5M14 17v-6M19 17v-3" stroke="white" stroke-width="2.2" stroke-linecap="round"/></svg></div>
-              <span class="card-label">{{ _('Network') }}</span>
-            </div>
-            <span style="font-size:11.5px; color:var(--text-secondary);">{{ '%.1f'|format(stats.system.net_total_cumulative_GB) }} GB {{ _('From Last Restart') }}</span>
-          </div>
-          <div class="net-cols">
-            <div class="net-col">
-              <div class="net-val-row">
-                <span style="color:var(--accent-green); font-size:14px;">&uarr;</span>
-                <span class="net-val" id="net-up-val">0.000</span>
-                <span class="net-unit">Mb/s {{ _('up') }}</span>
-              </div>
-              <svg width="100%" height="34" viewBox="0 0 100 34" preserveAspectRatio="none" style="margin-top:8px;">
-                <polyline id="net-up-line" points="3,17 97,17" fill="none" stroke="var(--accent-green)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
-              </svg>
-            </div>
-            <div class="net-col">
-              <div class="net-val-row">
-                <span style="color:var(--accent-orange); font-size:14px;">&darr;</span>
-                <span class="net-val" id="net-down-val">0.000</span>
-                <span class="net-unit">Mb/s {{ _('down') }}</span>
-              </div>
-              <svg width="100%" height="34" viewBox="0 0 100 34" preserveAspectRatio="none" style="margin-top:8px;">
-                <polyline id="net-down-line" points="3,17 97,17" fill="none" stroke="var(--accent-orange)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
-              </svg>
-            </div>
-          </div>
-        </div>
+        <svg width="100%" height="34" viewBox="0 0 100 34" preserveAspectRatio="none" style="margin-top:8px;">
+          <polyline id="net-down-line" points="3,17 97,17" fill="none" stroke="var(--accent-orange)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
       </div>
-
-      <!-- Row 3: resource gauges -->
-      <div class="row" style="margin-bottom:0;">
-        {% for g_ in gauges %}
-        <div class="card">
-          <div class="card-head" style="margin-bottom:14px;">
-            <span class="card-label">{{ g_.label }}</span>
-            <span style="font-size:11.5px; color:var(--text-secondary);">{{ g_.sub }}</span>
-          </div>
-          <div style="display:flex; align-items:center; gap:20px;">
-            <svg width="84" height="84" viewBox="0 0 84 84" style="flex-shrink:0;" id="gauge-{{ g_.label|lower }}">
-              <circle cx="42" cy="42" r="34" fill="none" stroke="var(--track)" stroke-width="9"/>
-              <circle cx="42" cy="42" r="34" fill="none" stroke="var(--accent-{{ g_.color }})" stroke-width="9" stroke-linecap="round" stroke-dasharray="{{ g_.dash }}" transform="rotate(-90 42 42)" class="gauge-arc"/>
-              <text x="42" y="47" text-anchor="middle" font-family="JetBrains Mono, monospace" font-weight="700" font-size="18" fill="var(--text-primary)" class="gauge-text">{{ g_.pct }}%</text>
-            </svg>
-            <div class="res-breakdown">
-              {% for b in g_.breakdown %}
-              <div>
-                <div class="res-row-label"><span>{{ b.name }}</span><span class="res-row-val">{{ b.pct }}%</span></div>
-                <div class="res-bar-track"><div class="res-bar-fill" style="width:{{ b.pct }}%; background:var(--accent-{{ g_.color }});"></div></div>
-              </div>
-              {% endfor %}
-            </div>
-          </div>
-        </div>
-        {% endfor %}
-      </div>
-
     </div>
   </div>
 </div>
 
-<form id="action_form" method="post"></form>
+<!-- Row 3: resource gauges -->
+<div class="row3" style="margin-bottom:0;">
+  {% for g_ in gauges %}
+  <div class="card">
+    <div class="card-head" style="margin-bottom:14px;">
+      <span class="card-label">{{ g_.label }}</span>
+      <span style="font-size:11.5px; color:var(--text-secondary);">{{ g_.sub }}</span>
+    </div>
+    <div style="display:flex; align-items:center; gap:20px;">
+      <svg width="84" height="84" viewBox="0 0 84 84" style="flex-shrink:0;" id="gauge-{{ g_.label|lower }}">
+        <circle cx="42" cy="42" r="34" fill="none" stroke="var(--track)" stroke-width="9"/>
+        <circle cx="42" cy="42" r="34" fill="none" stroke="var(--accent-{{ g_.color }})" stroke-width="9" stroke-linecap="round" stroke-dasharray="{{ g_.dash }}" transform="rotate(-90 42 42)" class="gauge-arc"/>
+        <text x="42" y="47" text-anchor="middle" font-family="JetBrains Mono, monospace" font-weight="700" font-size="18" fill="var(--text-primary)" class="gauge-text">{{ g_.pct }}%</text>
+      </svg>
+      <div class="res-breakdown">
+        {% for b in g_.breakdown %}
+        <div>
+          <div class="res-row-label"><span>{{ b.name }}</span><span class="res-row-val">{{ b.pct }}%</span></div>
+          <div class="res-bar-track"><div class="res-bar-fill" style="width:{{ b.pct }}%; background:var(--accent-{{ g_.color }});"></div></div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% endblock %}
+
+{% block tail_js %}
+{{ super() }}
 <script>
-function toggleSection(key) {
-  var section = document.getElementById('section-' + key);
-  var nav = document.getElementById('nav-' + key);
-  var open = section.classList.toggle('collapsed');
-  nav.setAttribute('aria-expanded', open ? 'false' : 'true');
-  try { localStorage.setItem('hiddify_nav_' + key, open ? '0' : '1'); } catch (e) {}
-}
-(function restoreSections() {
-  ['settings', 'actions'].forEach(function (key) {
-    var saved;
-    try { saved = localStorage.getItem('hiddify_nav_' + key); } catch (e) { saved = null; }
-    if (saved === null) return;
-    var section = document.getElementById('section-' + key);
-    var nav = document.getElementById('nav-' + key);
-    if (!section || !nav) return;
-    if (saved === '1') { section.classList.remove('collapsed'); nav.setAttribute('aria-expanded', 'true'); }
-    else { section.classList.add('collapsed'); nav.setAttribute('aria-expanded', 'false'); }
-  });
-})();
-
-document.querySelectorAll('.nav-child.form-post').forEach(function (el) {
-  el.addEventListener('click', function (e) {
-    e.preventDefault();
-    if (confirm({{ _("Are you sure you want to do this action?")|tojson }})) {
-      document.getElementById('action_form').setAttribute('action', el.getAttribute('href'));
-      document.getElementById('action_form').submit();
-    }
-  });
-});
-
 // Live refresh: reuses the existing AdminServerStatusApi endpoint (same one
 // the classic dashboard polls) - CPU/RAM/disk gauges, online users, and a
 // client-built rolling network sparkline (there's no server-side network
@@ -476,5 +278,4 @@ document.querySelectorAll('.nav-child.form-post').forEach(function (el) {
   setInterval(poll, refreshMs);
 })();
 </script>
-</body>
-</html>
+{% endblock %}

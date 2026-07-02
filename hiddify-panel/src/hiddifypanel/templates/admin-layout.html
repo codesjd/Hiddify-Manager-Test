@@ -300,6 +300,59 @@ body {
   justify-content: center;
   font-weight: 700;
   font-size: 13px;
+  cursor: pointer;
+}
+.api-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 20px;
+  background: var(--track);
+  color: var(--text-primary);
+  cursor: pointer;
+  font-family: 'Manrope', sans-serif;
+  font-size: 12px;
+  font-weight: 700;
+  text-decoration: none !important;
+}
+.api-btn:hover {
+  background: var(--border);
+}
+.avatar-menu-wrap {
+  position: relative;
+}
+.avatar-menu {
+  position: absolute;
+  {{ 'left' if get_locale()=='fa' else 'right' }}: 0;
+  top: calc(100% + 8px);
+  min-width: 190px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.18);
+  padding: 6px;
+  display: none;
+  z-index: 1040;
+}
+.avatar-menu-wrap:hover .avatar-menu,
+.avatar-menu-wrap.open .avatar-menu {
+  display: block;
+}
+.avatar-menu a {
+  display: block;
+  padding: 9px 12px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary) !important;
+  text-decoration: none !important;
+}
+.avatar-menu a:hover {
+  background: var(--track);
+}
+.avatar-menu a.danger {
+  color: oklch(0.58 0.2 25) !important;
 }
 
 /* Callouts Styling */
@@ -659,6 +712,95 @@ label, .control-label {
   color: oklch(0.75 0.1 240) !important;
 }
 
+/* Toggle switches (flask_bootstrap SwitchField renders Bootstrap4 custom-switch) */
+.custom-switch {
+  padding-{{ 'right' if get_locale()=='fa' else 'left' }}: 2.5rem !important;
+  min-height: 1.5rem !important;
+}
+.custom-control-input {
+  width: 2.25rem !important;
+  height: 1.25rem !important;
+  opacity: 0 !important;
+  position: absolute !important;
+}
+.custom-control-label {
+  color: var(--text-primary) !important;
+  font-weight: 600 !important;
+  font-size: 13.5px !important;
+  cursor: pointer;
+}
+.custom-control-label::before {
+  content: '' !important;
+  position: absolute !important;
+  top: 0.15rem !important;
+  {{ 'right' if get_locale()=='fa' else 'left' }}: -2.5rem !important;
+  width: 2.25rem !important;
+  height: 1.25rem !important;
+  border-radius: 1rem !important;
+  background: var(--track) !important;
+  border: 1px solid var(--border) !important;
+  box-shadow: none !important;
+  transition: background 0.15s !important;
+}
+.custom-control-label::after {
+  content: '' !important;
+  position: absolute !important;
+  top: 0.28rem !important;
+  {{ 'right' if get_locale()=='fa' else 'left' }}: -2.35rem !important;
+  width: 0.95rem !important;
+  height: 0.95rem !important;
+  border-radius: 50% !important;
+  background: var(--surface) !important;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.25) !important;
+  transition: transform 0.15s !important;
+}
+.custom-control-input:checked ~ .custom-control-label::before {
+  background: var(--accent) !important;
+  border-color: var(--accent) !important;
+}
+.custom-control-input:checked ~ .custom-control-label::after {
+  transform: translateX({{ '-1rem' if get_locale()=='fa' else '1rem' }}) !important;
+}
+
+/* Settings/proxies card grid - a 2-col grid of clickable "+"-style cards,
+   used to reskin the existing category fieldsets (config.html) and toggle
+   rows (proxy.html) without touching the real WTForms rendering/validation
+   underneath. */
+.settings-grid, .toggle-grid {
+  display: grid !important;
+  grid-template-columns: repeat(2, 1fr) !important;
+  gap: 12px !important;
+}
+@media (max-width: 900px) {
+  .settings-grid, .toggle-grid {
+    grid-template-columns: 1fr !important;
+  }
+}
+.settings-search {
+  width: 100% !important;
+  max-width: 360px !important;
+}
+.toggle-row {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 12px !important;
+  background: var(--surface) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: 12px !important;
+  padding: 14px 16px !important;
+}
+.toggle-row .toggle-row-label {
+  font-weight: 700 !important;
+  font-size: 13.5px !important;
+  color: var(--text-primary) !important;
+}
+.toggle-row .toggle-row-desc {
+  font-size: 12px !important;
+  color: var(--text-secondary) !important;
+  margin-top: 2px !important;
+}
+
 /* Align search forms and filters */
 .form-inline {
   display: flex !important;
@@ -714,26 +856,7 @@ label, .control-label {
         <a class="nav-child {% if 'customoutbound' in request.endpoint %}active-child{% endif %}" href="{{ hurl_for('flask.customoutbound.index_view') }}">{{ _('Outbounds') }}</a>
         <a class="nav-child {% if 'customroutingrule' in request.endpoint %}active-child{% endif %}" href="{{ hurl_for('flask.customroutingrule.index_view') }}">{{ _('Routing Rules') }}</a>
         <a class="nav-child {% if 'inbound_override' in request.endpoint %}active-child{% endif %}" href="{{ hurl_for('flask.inbound_override.index_view') }}">{{ _('Inbound Overrides') }}</a>
-        <a class="nav-child {% if 'openapi' in request.endpoint %}active-child{% endif %}" href="{{ hurl_for('openapi.docs') }}">{{ _('admin.menu.api') }}</a>
-        <a class="nav-child" href="{{ proxy_stats_url() }}">{{ _('admin.menu.proxy_stats') }}</a>
         {% endif %}
-      </div>
-      {% endif %}
-
-      {% if g.account.mode == "super_admin" %}
-      {% set action_active = True if request.endpoint and "Actions:" in request.endpoint else False %}
-      <div class="nav-item {% if action_active %}section-active{% endif %}" id="nav-actions" aria-expanded="{{ 'true' if action_active else 'false' }}" onclick="toggleSection('actions')">
-        <span class="nav-icon"><svg width="18" height="18" viewBox="0 0 24 24"><path d="M13 2L4 14h6l-1 8 9-12h-6l1-8z" fill="currentColor"/></svg></span>
-        <span class="nav-label">{{ _('admin.actions.title') }}</span>
-        <span class="chevron"><svg width="14" height="14" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6" stroke="currentColor" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
-      </div>
-      <div class="nav-children {% if not action_active %}collapsed{% endif %}" id="section-actions">
-        <a class="nav-child {% if 'Actions:status' in request.endpoint %}active-child{% endif %}" href="{{ hurl_for('admin.Actions:status') }}">{{ _('admin.actions.status') }}</a>
-        <a class="nav-child {% if 'Actions:viewlogs' in request.endpoint %}active-child{% endif %}" href="{{ hurl_for('admin.Actions:viewlogs') }}">{{ _('admin.actions.viewlogs') }}</a>
-        <a class="nav-child form_post" href="{{ hurl_for('admin.Actions:apply_configs') }}">{{ _('admin.actions.apply_configs') }}</a>
-        <a class="nav-child form_post" href="{{ hurl_for('admin.Actions:update') }}">{{ _('admin.actions.update') }}</a>
-        <a class="nav-child form_post" href="{{ hurl_for('admin.Actions:reinstall') }}">{{ _('admin.actions.reinstall') }}</a>
-        <a class="nav-child form_post" href="{{ hurl_for('admin.Actions:reset') }}">{{ _('admin.actions.reset') }}</a>
       </div>
       {% endif %}
     </div>
@@ -791,6 +914,12 @@ $(document).ready(function () {
         <div class="topbar-subtitle">{{ _('HiddifyV2') }}</div>
       </div>
       <div class="topbar-right">
+        {% if g.account.mode == 'super_admin' %}
+        <a class="api-btn" href="{{ hurl_for('openapi.docs') }}" title="{{ _('admin.menu.api') }}">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M8 4l-5 8 5 8M16 4l5 8-5 8" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          {{ _('admin.menu.api') }}
+        </a>
+        {% endif %}
         <a class="theme-toggle" href="?darkmode={{ 'false' if g.darkmode else 'true' }}" title="{{ _('Toggle dark mode') }}">
           <div class="theme-knob">
             {% if g.darkmode %}
@@ -800,11 +929,25 @@ $(document).ready(function () {
             {% endif %}
           </div>
         </a>
-        <div class="avatar">${"{{ (g.account.name[0] if g.account.name else 'A')|upper }}"}</div>
+        <div class="avatar-menu-wrap" id="avatar-menu-wrap">
+          <div class="avatar">${"{{ (g.account.name[0] if g.account.name else 'A')|upper }}"}</div>
+          <div class="avatar-menu">
+            <a href="{{ hurl_for('flask.adminuser.edit_view', id=g.account.id) }}">{{ _('Account Settings') }}</a>
+            <a href="{{ hurl_for('flask.adminuser.edit_view', id=g.account.id) }}">{{ _('Change Password') }}</a>
+            <a class="danger" href="{{ hurl_for('common_bp.LoginView:logout') }}">{{ _('Sign Out') }}</a>
+          </div>
+        </div>
       </div>
     </div>
   `;
   $('.content-wrapper').prepend(topbarHtml);
+  $('#avatar-menu-wrap .avatar').on('click', function (e) {
+    e.stopPropagation();
+    $('#avatar-menu-wrap').toggleClass('open');
+  });
+  $(document).on('click', function () {
+    $('#avatar-menu-wrap').removeClass('open');
+  });
 
   // Hook Actions forms
   $('.form_post').off('click').click(function (e) {

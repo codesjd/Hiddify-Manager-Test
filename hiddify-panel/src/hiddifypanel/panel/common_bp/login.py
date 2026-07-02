@@ -130,6 +130,11 @@ class LoginView(FlaskView):
 
     #     return redirect(f"/{proxy_path}/{path}")
 
+    @ route('/logout')
+    def logout(self):
+        logout_user()
+        return redirect(hurl_for('common_bp.LoginView:index'))
+
     @ route('/<secret_uuid>/manifest.webmanifest')
     def create_pwa_manifest(self):
         domain = request.host

@@ -26,55 +26,52 @@
 
 
 <div class="card">
-    <div class="card-header"><input id="search_settings" type="text" class="form-control" placeholder="{{_(" Search
-            Settings")}}">
+    <div class="card-header">
+        <input id="search_settings" class="form-control settings-search" type="text" placeholder="{{_(' Search Settings')}}">
     </div>
     <div class="card-body">
-        <div class="row">
-            <div class="col-12 global-form">
-                {{render_form(form,form_type="",extra_classes="card-columns")}}
-            </div>
+        <div class="global-form">
+            {{render_form(form,form_type="",extra_classes="settings-grid")}}
         </div>
     </div>
 </div>
 
 <style>
+    /* Each ConfigCategory renders as <fieldset><legend>+ Label</legend>
+       fields...</fieldset> (see SettingAdmin.get_config_form()) - restyled
+       here as a clickable card in a 2-col grid, matching the new design's
+       Settings index card grid. The existing search/expand JS below still
+       targets fieldset/legend/.form-group directly and needs no changes. */
+    .global-form .settings-grid {
+        display: grid;
+    }
     fieldset {
-        background-color: initial;
-        background-clip: border-box;
-        border: 1 solid rgba(0, 0, 0, 0.125);
-        border-radius: 0.25rem;
-        box-shadow: 0 0 1px rgb(0 0 0 / 13%), 0 1px 3px rgb(0 0 0 / 20%);
-        margin-bottom: 1rem;
-        padding: 10px;
-        display: inline-block;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 16px;
+        box-shadow: var(--card-shadow);
+        margin-bottom: 0;
+        padding: 16px;
+        min-width: 0;
+    }
+    legend {
+        background: transparent;
+        margin: 0;
+        font-weight: 700;
+        font-size: 13.5px;
+        color: var(--text-primary);
+        cursor: pointer;
         width: 100%;
     }
-
-    legend {
-        background-color: initial;
-        margin: 0px;
+    legend .fa-plus {
+        color: var(--accent);
+        margin-{{ 'left' if get_locale()=='fa' else 'right' }}: 8px;
     }
-
-    legend+div>label {
+    legend + div > label {
         display: none;
     }
-
-    @media (min-width: 576px) {
-        .card-columns {
-            column-count: 1;
-        }
-    }
-
-    @media (min-width: 768px) {
-        .card-columns {
-            column-count: 2;
-        }
-    }
-
-    fieldset {
-        box-shadow: none;
-        margin-bottom: 0px;
+    #submit {
+        grid-column: 1 / -1;
     }
 </style>
 

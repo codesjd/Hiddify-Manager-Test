@@ -75,6 +75,14 @@ def init_app(app):
                 g.locale = auth.current_account.lang or hconfig(ConfigEnum.lang) or 'en'
             return g.locale
         app.jinja_env.globals['get_locale'] = get_locale
+
+        @app.context_processor
+        def inject_now_year():
+            # admin-layout.html's sidebar footer shows this on every admin
+            # page, not just the Dashboard (which passes it explicitly) -
+            # a context processor avoids every other view needing to
+            # remember to pass it in too.
+            return {'now_year': datetime.datetime.now().year}
         babel = Babel(app, locale_selector=get_locale)
         
         app.config['SESSION_TYPE'] = 'redis'
