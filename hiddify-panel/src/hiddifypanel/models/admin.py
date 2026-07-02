@@ -195,9 +195,10 @@ class AdminUser(BaseAccount):
     def get_super_admin() -> "AdminUser":
         admin = AdminUser.by_id(1)
         if not admin:
-            db.session.add(AdminUser(id=1, uuid=str(uuid4()), name="Owner", mode=AdminMode.super_admin, comment=""))
+            from uuid import uuid4
+            from werkzeug.security import generate_password_hash
+            db.session.add(AdminUser(id=1, uuid=str(uuid4()), username="admin", password=generate_password_hash("admin"), name="Owner", mode=AdminMode.super_admin, comment=""))
             db.session.commit()
-
             db_execute("update admin_user set id=1 where name='Owner'", commit=True)
             admin = AdminUser.by_id(1)
 

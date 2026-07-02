@@ -16,8 +16,8 @@ import re
 
 
 class LoginForm(FlaskForm):
-    secret_textbox = wtf.fields.StringField(_('Username or UUID'), default='',
-        description=_('Enter your username or UUID'), render_kw={'required': ""})
+    secret_textbox = wtf.fields.StringField(_('Username'), default='',
+        description=_('Enter your username'), render_kw={'required': ""})
 
     password_textbox = wtf.fields.PasswordField(_(f'login.password.label'), default='',
         description=_(f'login.password.description'), render_kw={    })

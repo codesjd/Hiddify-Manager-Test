@@ -242,7 +242,8 @@ class AdminstratorAdmin(AdminLTEModelView):
         if not model.new_password and is_created:
             raise ValidationError("Password for new admin is needed.")
         if model.new_password:
-            model.password=model.new_password
+            from werkzeug.security import generate_password_hash
+            model.password = generate_password_hash(model.new_password)
 
 
     def on_model_delete(self, model):
