@@ -142,7 +142,10 @@ def init_app(app):
         return "success"
     @app.cli.command()
     def reset_owner_password():
-        AdminUser.get_super_admin().update_password("")
+        admin = AdminUser.get_super_admin()
+        admin.username = "admin"
+        admin.update_password("admin")
+        print("Admin credentials reset to username: 'admin' and password: 'admin'")
     @ app.cli.command()
     @ click.option("--config", "-c")
     def import_config(config):
