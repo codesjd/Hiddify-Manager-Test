@@ -14,10 +14,11 @@ class OutboundProtocol(StrEnum):
     http = auto()
     wireguard = auto()
     freedom = auto()
-    # Not a real dialed protocol - binds outbound traffic to the standalone
-    # AmneziaWG interface other/amneziawg/ brings up (hiddify0), the same
-    # way the built-in WARP outbound binds to the "warp" interface. No
-    # address/port/uuid needed; see CustomOutbound.to_xray_dict()/
+    # Not a real dialed protocol - binds outbound traffic to a standalone
+    # per-row AmneziaWG interface (awg{id}) that other/amneziawg/ brings up,
+    # the same way the built-in WARP outbound binds to the "warp" interface.
+    # The address/port/uuid/peer fields describe that tunnel's [Interface]/
+    # [Peer]; see CustomOutbound.render_amneziawg_conf()/to_xray_dict()/
     # to_singbox_dict().
     amneziawg = auto()
 
@@ -178,7 +179,23 @@ class CustomOutbound(db.Model):  # type: ignore
                 server["users"] = [{"user": user, "pass": pw}]
             settings = {"servers": [server]}
         elif self.protocol == OutboundProtocol.wireguard:
-            settings = {"secretKey": self.uuid_or_password or "", "address": [self.address] if self.address else [], "peers": []}
+            # xray wireguard outbound: secretKey is the local private key,
+            # "address" is this side's tunnel address (local_address, NOT
+            # the endpoint host), and the peer carries the remote endpoint/
+            # public key. An empty peers list here would produce a config
+            # that can never connect.
+            peer: dict = {
+                "publicKey": self.peer_public_key or "",
+                "endpoint": f"{self.address or ''}:{self.port or 51820}",
+                "allowedIPs": ["0.0.0.0/0", "::/0"],
+            }
+            if self.preshared_key:
+                peer["preSharedKey"] = self.preshared_key
+            settings = {
+                "secretKey": self.uuid_or_password or "",
+                "address": [self.local_address] if self.local_address else ["10.0.0.2/32"],
+                "peers": [peer],
+            }
         elif self.protocol == OutboundProtocol.freedom:
             settings = {}
 
@@ -248,6 +265,8 @@ class CustomOutbound(db.Model):  # type: ignore
             out["server_port"] = self.port or 51820
             out["private_key"] = self.uuid_or_password or ""
             out["peer_public_key"] = self.peer_public_key or ""
+            if self.preshared_key:
+                out["pre_shared_key"] = self.preshared_key
             out["local_address"] = [self.local_address] if self.local_address else ["10.0.0.2/32"]
         else:
             type_map = {
