@@ -20,6 +20,8 @@
   --track: oklch(0.32 0.02 265);
   --card-shadow: 0 1px 0 rgba(255,255,255,0.02);
   --live-glow: oklch(0.64 0.14 150 / 0.25);
+  --callout-bg: oklch(0.24 0.02 265);
+  --progress-badge-color: oklch(0.96 0.005 265);
   {% else %}
   --bg: oklch(0.965 0.006 265);
   --surface: oklch(0.995 0.003 265);
@@ -30,6 +32,8 @@
   --track: oklch(0.93 0.006 265);
   --card-shadow: 0 1px 2px rgba(20,20,40,0.04);
   --live-glow: oklch(0.64 0.14 150 / 0.18);
+  --callout-bg: oklch(0.98 0.01 265);
+  --progress-badge-color: oklch(0.22 0.02 265);
   {% endif %}
   --accent: oklch(0.56 0.16 250);
   --accent-blue: oklch(0.6 0.15 250);
@@ -260,23 +264,50 @@ body {
   font-size: 13px;
 }
 
-/* Cards & forms transformation */
+/* Callouts Styling */
+.callout {
+  background: var(--callout-bg) !important;
+  border: 1px solid var(--border) !important;
+  border-left: 4px solid var(--accent) !important;
+  border-radius: 12px !important;
+  padding: 16px 20px !important;
+  margin-bottom: 24px !important;
+  color: var(--text-primary) !important;
+  box-shadow: var(--card-shadow) !important;
+}
+[dir="rtl"] .callout {
+  border-left: none !important;
+  border-right: 4px solid var(--accent) !important;
+}
+.callout-success {
+  border-left-color: var(--accent-green) !important;
+}
+[dir="rtl"] .callout-success {
+  border-right-color: var(--accent-green) !important;
+}
+
+/* Cards & containers transformation */
 .card, .box, .panel, .thumbnail {
   background: var(--surface) !important;
   border: 1px solid var(--border) !important;
   border-radius: 16px !important;
   box-shadow: var(--card-shadow) !important;
   color: var(--text-primary) !important;
-  padding: 20px 22px !important;
-  margin-bottom: 20px !important;
+  padding: 24px !important;
+  margin-bottom: 24px !important;
 }
 .card-header, .box-header {
   background: transparent !important;
   border-bottom: 1px solid var(--border) !important;
-  padding: 0 0 12px 0 !important;
-  margin-bottom: 16px !important;
+  padding: 0 0 16px 0 !important;
+  margin-bottom: 18px !important;
   color: var(--text-primary) !important;
   font-weight: 700 !important;
+  display: flex !important;
+  flex-wrap: wrap !important;
+  gap: 12px !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
 }
 
 /* Tables transformation */
@@ -287,16 +318,18 @@ body {
   background: transparent !important;
   color: var(--text-primary) !important;
   border-collapse: collapse !important;
+  width: 100% !important;
+  margin-bottom: 0 !important;
 }
 .table th {
   border-top: none !important;
   border-bottom: 2px solid var(--border) !important;
   color: var(--text-secondary) !important;
-  font-weight: 700 !important;
-  font-size: 12.5px !important;
+  font-weight: 800 !important;
+  font-size: 11.5px !important;
   text-transform: uppercase !important;
-  letter-spacing: 0.04em !important;
-  padding: 12px 16px !important;
+  letter-spacing: 0.05em !important;
+  padding: 14px 16px !important;
 }
 .table td {
   border-top: 1px solid var(--border) !important;
@@ -306,6 +339,13 @@ body {
   padding: 14px 16px !important;
   vertical-align: middle !important;
 }
+.table th a {
+  color: var(--text-secondary) !important;
+  font-weight: 800 !important;
+}
+.table th a:hover {
+  color: var(--accent) !important;
+}
 .table-striped tbody tr:nth-of-type(odd) {
   background-color: rgba(0,0,0,0.01) !important;
 }
@@ -313,14 +353,29 @@ body {
   background-color: var(--track) !important;
 }
 
+/* Link formats inside table */
+.table td a {
+  color: var(--accent) !important;
+  font-weight: 600 !important;
+  transition: opacity 0.15s;
+}
+.table td a:hover {
+  opacity: 0.8;
+  text-decoration: underline !important;
+}
+
 /* Button stylings */
 .btn {
   border-radius: 10px !important;
-  font-weight: 600 !important;
+  font-weight: 700 !important;
   font-size: 13px !important;
   padding: 8px 16px !important;
   transition: all 0.15s ease-in-out !important;
   box-shadow: none !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+  justify-content: center !important;
 }
 .btn-primary, .btn-success {
   background: var(--accent) !important;
@@ -347,6 +402,11 @@ body {
 }
 .btn-danger:hover {
   opacity: 0.9 !important;
+}
+.btn-xs {
+  padding: 4px 8px !important;
+  font-size: 11px !important;
+  border-radius: 6px !important;
 }
 
 /* Forms input fields */
@@ -409,6 +469,7 @@ label, .control-label {
 /* Pagination overrides */
 .pagination {
   gap: 4px !important;
+  margin: 16px 0 0 0 !important;
 }
 .page-item .page-link {
   background: var(--surface) !important;
@@ -434,10 +495,13 @@ label, .control-label {
   border: 1px solid var(--border) !important;
   border-radius: 10px !important;
   box-shadow: 0 4px 12px rgba(0,0,0,0.1) !important;
+  padding: 6px !important;
 }
 .dropdown-item {
   color: var(--text-primary) !important;
   font-size: 13.5px !important;
+  border-radius: 6px !important;
+  padding: 8px 12px !important;
 }
 .dropdown-item:hover {
   background: var(--track) !important;
@@ -467,6 +531,91 @@ label, .control-label {
 .alert-info {
   background: oklch(0.9 0.05 240) !important;
   color: oklch(0.3 0.1 240) !important;
+}
+
+/* User Progress Bar override */
+.progress {
+  height: 20px !important;
+  border-radius: 20px !important;
+  background: var(--track) !important;
+  box-shadow: none !important;
+  position: relative !important;
+}
+.progress-bar {
+  border-radius: 20px !important;
+  box-shadow: none !important;
+}
+.progress span.badge {
+  color: var(--progress-badge-color) !important;
+  font-weight: 700 !important;
+  font-size: 11px !important;
+  text-shadow: none !important;
+  line-height: 20px !important;
+  background: transparent !important;
+  position: absolute !important;
+  left: 0 !important;
+  right: 0 !important;
+  top: 0 !important;
+  bottom: 0 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 0 !important;
+}
+
+/* Badges transformation */
+.badge {
+  border-radius: 20px !important;
+  padding: 6px 12px !important;
+  font-size: 11px !important;
+  font-weight: 800 !important;
+  letter-spacing: 0.02em !important;
+}
+.badge-success {
+  background-color: oklch(0.88 0.1 140) !important;
+  color: oklch(0.28 0.08 140) !important;
+}
+.dark-mode .badge-success {
+  background-color: oklch(0.3 0.1 140 / 0.25) !important;
+  color: oklch(0.75 0.1 140) !important;
+}
+.badge-danger {
+  background-color: oklch(0.88 0.1 30) !important;
+  color: oklch(0.28 0.08 30) !important;
+}
+.dark-mode .badge-danger {
+  background-color: oklch(0.3 0.1 30 / 0.25) !important;
+  color: oklch(0.75 0.1 30) !important;
+}
+.badge-warning {
+  background-color: oklch(0.88 0.1 70) !important;
+  color: oklch(0.28 0.08 70) !important;
+}
+.dark-mode .badge-warning {
+  background-color: oklch(0.3 0.1 70 / 0.25) !important;
+  color: oklch(0.75 0.1 70) !important;
+}
+.badge-info {
+  background-color: oklch(0.88 0.1 240) !important;
+  color: oklch(0.28 0.08 240) !important;
+}
+.dark-mode .badge-info {
+  background-color: oklch(0.3 0.1 240 / 0.25) !important;
+  color: oklch(0.75 0.1 240) !important;
+}
+
+/* Align search forms and filters */
+.form-inline {
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  flex-wrap: wrap !important;
+}
+.form-inline .form-group {
+  margin-bottom: 0 !important;
+}
+.filter-val {
+  min-width: 140px !important;
 }
 </style>
 
