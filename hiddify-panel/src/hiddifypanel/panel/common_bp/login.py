@@ -1,6 +1,6 @@
 from flask_classful import FlaskView, route
 from hiddifypanel import hutils
-from hiddifypanel.auth import login_required, current_account, login_user, logout_user, login_by_uuid
+from hiddifypanel.auth import login_required, current_account, login_user, logout_user, login_by_username_or_uuid
 from flask import redirect, request, g, render_template, flash, jsonify
 from hiddifypanel.hutils.flask import hurl_for
 from flask import current_app as app
@@ -16,13 +16,8 @@ import re
 
 
 class LoginForm(FlaskForm):
-    secret_textbox = wtf.fields.StringField(_(f'login.secret.label'), [wtf.validators.Regexp(
-        "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$", re.IGNORECASE, _('config.invalid_uuid'))], default='',
-        description=_(f'login.secret.description'), render_kw={
-        'required': "",
-        'pattern': "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
-        'message': _('config.invalid_uuid')
-    })
+    secret_textbox = wtf.fields.StringField(_('Username or UUID'), default='',
+        description=_('Enter your username or UUID'), render_kw={'required': ""})
 
     password_textbox = wtf.fields.PasswordField(_(f'login.password.label'), default='',
         description=_(f'login.password.description'), render_kw={    })
@@ -57,9 +52,9 @@ class LoginView(FlaskView):
         form = LoginForm()
         if form.validate_on_submit():
             uuid = form.secret_textbox.data.strip()
-            if login_by_uuid(uuid,form.password_textbox.data, hutils.flask.is_admin_proxy_path()):
+            if login_by_username_or_uuid(uuid,form.password_textbox.data, hutils.flask.is_admin_proxy_path()):
                 return redirect(f'/{g.proxy_path}/')
-        hutils.flask.flash(_('config.invalid_uuid'), 'danger')  # type: ignore
+        hutils.flask.flash(_('config.invalid_username_or_password'), 'danger')  # type: ignore
         return render_template('login.html', form=LoginForm())
 
     @ route("/l/<path:path>/")

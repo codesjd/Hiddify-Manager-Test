@@ -149,8 +149,12 @@ def get_account_by_uuid(uuid, is_admin):
     return AdminUser.by_uuid(f'{uuid}') if is_admin else User.by_uuid(f'{uuid}')
 
 
-def login_by_uuid(uuid,password:str, is_admin: bool)->bool:
-    account = get_account_by_uuid(uuid, is_admin)
+def login_by_username_or_uuid(uname_or_uuid, password:str, is_admin: bool)->bool:
+    account = AdminUser.by_username_password(uname_or_uuid, password) if is_admin else User.by_username_password(uname_or_uuid, password)
+    if account:
+        return login_user(account, force=True)
+
+    account = get_account_by_uuid(uname_or_uuid, is_admin)
     if not account:
         return False
 
@@ -161,10 +165,7 @@ def login_by_uuid(uuid,password:str, is_admin: bool)->bool:
     else:
         # Covers both legacy plaintext passwords and the fresh-install
         # default of an empty password (accounts start with password=""
-        # until a real one is set) - `not account.password` used to
-        # short-circuit this whole function to False, which meant nobody
-        # could ever log into a brand-new install since there was no way
-        # to submit a password matching an unset one.
+        # until a real one is set)
         import hmac
         if not hmac.compare_digest(account.password or "", password or ""):
             return False
