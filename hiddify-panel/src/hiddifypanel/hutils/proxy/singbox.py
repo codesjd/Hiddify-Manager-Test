@@ -37,7 +37,11 @@ def configs_as_json(domains: list[Domain], **kwargs) -> dict:
     smart = {
         "type": "urltest",
         "tag": "Auto",
-        "outbounds": [p['tag'] for p in allp if 'shadowtls-out' not in p],
+        # Match the Select group above: filter on the tag string, not the
+        # dict itself ('shadowtls-out' not in p checked dict keys and always
+        # passed, leaking the internal shadowtls detour outbound into the
+        # Auto url-test group).
+        "outbounds": [p['tag'] for p in allp if 'shadowtls-out' not in p['tag']],
         "url": "https://www.gstatic.com/generate_204",
         "interval": "10m",
         "tolerance": 200
@@ -473,8 +477,12 @@ def add_tuic(base: dict, proxy: dict):
 
 
 def add_hysteria(base: dict, proxy: dict):
-    base['up_mbps'] = proxy.get(ConfigEnum.hysteria_up_mbps)
-    base['down_mbps'] = proxy.get(ConfigEnum.hysteria_down_mbps)
+    # make_proxy() stores these under string keys ('hysteria_up_mbps' /
+    # 'hysteria_down_mbps'); reading them with the ConfigEnum member as the
+    # key (which is a FastEnum, not str-equal to the key) silently returned
+    # None, so sing-box/Hiddify-app clients never got the configured speeds.
+    base['up_mbps'] = proxy.get('hysteria_up_mbps')
+    base['down_mbps'] = proxy.get('hysteria_down_mbps')
     # TODO: check the obfs should be empty or not exists at all
     if proxy.get('hysteria_obfs_enable'):
         base['obfs'] = {

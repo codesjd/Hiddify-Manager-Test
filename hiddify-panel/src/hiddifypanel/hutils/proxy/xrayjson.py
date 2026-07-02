@@ -81,9 +81,13 @@ def configs_as_json(domains: list[Domain], user: User, expire_days: int, remarks
                 # else:
                 all_configs.append(base)
 
-        else:  # single outbound
+        elif len(outbounds) == 1:  # single outbound
             base_config['outbounds'].insert(0, outbounds[0])
             all_configs = [base_config]
+        # len(outbounds) == 0 (active user, but every proxy was filtered out
+        # or unsupported by this client) falls through to the empty-return
+        # below - the old `else` ran outbounds[0] here and raised IndexError,
+        # surfacing as a 500 on the subscription endpoint.
 
     if not all_configs:
         return []
@@ -241,7 +245,10 @@ def _add_security(base_dict, proxy, tls_info=None):
         ss['tlsSettings'] = {
             'serverName': tls_info['sni'],
             'fingerprint': proxy.get('fingerprint'),
-            'alpn': [tls_info['alpn']],
+            # alpn can be multi-valued ("h2,http/1.1" for the tls_h2_h1 L3);
+            # wrapping the raw string in a list produced one bogus ALPN entry
+            # "h2,http/1.1" instead of two. Split like singbox.py does.
+            'alpn': tls_info['alpn'].split(','),
             # 'minVersion': '1.2',
             # 'disableSystemRoot': '',
             # 'enableSessionResumption': '',

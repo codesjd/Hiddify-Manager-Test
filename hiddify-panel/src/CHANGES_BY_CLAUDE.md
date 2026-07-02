@@ -1,5 +1,59 @@
 # پچ‌های اعمال‌شده روی فورک Hiddify-Manager / Hiddify-Panel
 
+## 🐞 اسکن عمیق زیرسیستم subscription (hutils/proxy) - ۵ باگ واقعی (۲۰۲۶-۰۷-۰۲)
+
+گفتی عمیق‌تر برو چون فیچرهای قدیمی باگ مخفی زیاد دارن. رفتم سراغ مسیر
+تولید subscription (`hutils/proxy/`) - همون‌جا که باگ pcs بود. ۵ تا باگ
+واقعی پیدا و فیکس شد:
+
+1. **کرش IndexError روی subscription خالی (xrayjson.py):** توی
+   `configs_as_json`، شاخه‌ی `else` هم حالت «یک outbound» و هم «صفر
+   outbound» رو می‌گرفت، و روی صفر `outbounds[0]` → IndexError → ۵۰۰.
+   این وقتی اتفاق می‌افته که کاربر active باشه ولی همه‌ی پروکسی‌هاش
+   فیلتر/unsupported بشن (مثلاً v2rayNG با کانفیگی که فقط
+   hysteria/tuic/ssh/wireguard داره). شد `elif len==1` و حالت صفر می‌افته
+   روی `return []`. این دقیقاً از همون خانواده‌ی ۵۰۰های subscription که
+   چند بار خوردی.
+
+2. **obfs هیستریا فقط سمت سرور شرطی بود (xray.py + clash.py):** سرور
+   فقط وقتی `hysteria_obfs_enable` روشنه obfs=salamander می‌ذاره، و
+   singbox.py هم درست همین رو چک می‌کرد - ولی لینک‌ساز xray (که v2rayN
+   ازش استفاده می‌کنه) و clash **همیشه** obfs=salamander می‌ذاشتن. یعنی
+   اگه obfs رو خاموش کنی، هیستریا روی این کلاینت‌ها بی‌صدا می‌شکنه. حالا
+   هر دو روی همون فلگ شرطی شدن. (پیش‌فرض obfs روشنه پس out-of-the-box
+   کار می‌کرد، ولی هر کسی خاموشش می‌کرد به این باگ می‌خورد.)
+
+3. **up/down mbps هیستریا همیشه None بود (singbox.py):** توی
+   `add_hysteria`، مقادیر با کلید ConfigEnum خونده می‌شدن
+   (`proxy.get(ConfigEnum.hysteria_up_mbps)`) ولی make_proxy اون‌ها رو با
+   کلید رشته‌ای (`'hysteria_up_mbps'`) ذخیره کرده - و ConfigEnum یه
+   FastEnum ه، نه str، پس lookup همیشه None برمی‌گردوند. یعنی کلاینت‌های
+   sing-box/اپ Hiddify هیچ‌وقت سرعت up/down تنظیم‌شده رو نمی‌گرفتن. شد
+   کلید رشته‌ای درست.
+
+4. **outbound داخلی shadowtls توی گروه Auto نشت می‌کرد (singbox.py):**
+   گروه `select` درست `'shadowtls-out' not in p['tag']` چک می‌کرد ولی
+   گروه `urltest`/Auto نوشته بود `'shadowtls-out' not in p` (روی خودِ
+   dict، نه tag!) که همیشه True بود. نتیجه: outbound داخلیِ detour
+   shadowtls وارد گروه Auto url-test می‌شد. شد `p['tag']`.
+
+5. **alpn توی xray JSON split نمی‌شد (xrayjson.py):** برای L3 نوع
+   `tls_h2_h1` که alpn اش "h2,http/1.1" ه، کد `[tls_info['alpn']]` یه
+   لیست تک‌عضوی با رشته‌ی "h2,http/1.1" می‌ساخت به‌جای دو عضو جدا -
+   یعنی xray یه ALPN بی‌معنی "h2,http/1.1" می‌دید. شد
+   `.split(',')` دقیقاً مثل singbox.py.
+
+**یه مورد کاسمتیک که فیکس نکردم (عمداً):** توی `make_v2ray_configs`،
+برای کاربر بدون محدودیت، خط‌های "#No Usage Limit"/"#No Time Limit"
+به‌جای اضافه شدن به اسم، به‌عنوان خط جدا به لیست کانفیگ append می‌شن -
+ولی چون خط `#...` رو کلاینت‌ها به‌عنوان کامنت نادیده می‌گیرن، فقط
+کاسمتیکه و ریسک تغییر رفتار نمایش رو نمی‌ارزید.
+
+**فایل‌های تغییریافته:** `hutils/proxy/xrayjson.py`، `hutils/proxy/xray.py`،
+`hutils/proxy/clash.py`، `hutils/proxy/singbox.py`.
+
+---
+
 ## 🐞 اسکن باگ: outbound نوع wireguard کانفیگ غیرقابل‌اتصال می‌ساخت (۲۰۲۶-۰۷-۰۲)
 
 گفتی کل پروژه رو برای باگ اسکن کن. تمرکزم روی کدی بود که خودم دست زدم و

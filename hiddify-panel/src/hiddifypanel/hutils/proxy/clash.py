@@ -127,8 +127,12 @@ def to_clash(proxy, meta_or_normal):
         base["sni"] = proxy["sni"]
     elif proxy["proto"] == "hysteria2":
         base["password"] = proxy["uuid"]
-        base["obfs"] = "salamander"
-        base["obfs-password"] = proxy.get('hysteria_obfs_password')
+        # Only advertise obfs when the server actually enabled it (see the
+        # hysteria_obfs_enable gate in the server inbound template) - a clash
+        # client sending salamander obfs to a server without it fails silently.
+        if proxy.get('hysteria_obfs_enable'):
+            base["obfs"] = "salamander"
+            base["obfs-password"] = proxy.get('hysteria_obfs_password')
         return base
     else:
         base["uuid"] = proxy["uuid"]

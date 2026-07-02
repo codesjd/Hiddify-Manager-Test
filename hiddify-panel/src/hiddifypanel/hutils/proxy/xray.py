@@ -135,7 +135,14 @@ def to_link(proxy: dict) -> str | dict:
                 baseurl += f"&pcs={proxy['pinned_cert_sha256']}"
         return f"{baseurl}#{name_link}"
     if proxy['proto'] == 'hysteria2':
-        baseurl = f'hysteria2://{proxy["uuid"]}@{proxy["server"]}:{proxy["port"]}?hiddify=1&obfs=salamander&obfs-password={proxy["hysteria_obfs_password"]}&sni={proxy["sni"]}'
+        baseurl = f'hysteria2://{proxy["uuid"]}@{proxy["server"]}:{proxy["port"]}?hiddify=1&sni={proxy["sni"]}'
+        # obfs is only configured on the server when hysteria_obfs_enable is
+        # on (see singbox/configs/05_inbounds_4100_hysteria.json.j2). Adding
+        # obfs=salamander unconditionally made xray-style clients (e.g.
+        # v2rayN) fail the handshake whenever obfs was disabled server-side;
+        # singbox.py already gates it on the same flag.
+        if proxy.get('hysteria_obfs_enable'):
+            baseurl += f'&obfs=salamander&obfs-password={proxy["hysteria_obfs_password"]}'
         if proxy['mode'] == 'Fake' or proxy['allow_insecure']:
             baseurl += "&insecure=1&allow_insecure=1"
             if proxy.get('pinned_cert_sha256'):
