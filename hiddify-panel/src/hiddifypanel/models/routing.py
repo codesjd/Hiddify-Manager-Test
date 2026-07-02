@@ -100,10 +100,24 @@ class CustomOutbound(db.Model):  # type: ignore
         """The actual AmneziaWG [Interface]/[Peer] .conf content for this
         row - written to /etc/amnezia/amneziawg/{interface}.conf and loaded
         by awg-quick@{interface}.service. Only meaningful for protocol ==
-        amneziawg."""
+        amneziawg.
+
+        Table = off is critical here: with AllowedIPs = 0.0.0.0/0, ::/0 (set
+        below), awg-quick/wg-quick's default behavior is to ALSO change the
+        *server's own* default route to go through this interface - not just
+        make it available for xray/singbox's bind_interface to opt into.
+        That took an entire test server offline (SSH included) the first
+        time this ran, because it isn't a client machine that wants all its
+        own traffic tunneled - only whichever proxy connections
+        bind_interface explicitly points at this interface should use it.
+        Table = off makes wg-quick/awg-quick create/address/bring up the
+        interface only, with no routing table changes - exactly the same
+        fix other/warp/wireguard/run.sh.j2 already applies to its own
+        interface for the identical reason."""
         lines = [
             "[Interface]",
             f"PrivateKey = {self.uuid_or_password or ''}",
+            "Table = off",
         ]
         if self.local_address:
             lines.append(f"Address = {self.local_address}")

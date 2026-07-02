@@ -1,5 +1,42 @@
 # پچ‌های اعمال‌شده روی فورک Hiddify-Manager / Hiddify-Panel
 
+## 🚨🚨 CRITICAL: AmneziaWG سرورت رو کامل قطع کرد - Table=off جا افتاده بود (۲۰۲۶-۰۷-۰۲)
+
+تست کردی، سرور کامل از دسترس خارج شد (SSH هم قطع شد). مقصر من بودم:
+`render_amneziawg_conf()` یه `[Interface]`/`[Peer]` می‌ساخت با
+`AllowedIPs = 0.0.0.0/0, ::/0` ولی بدون `Table = off`. رفتار پیش‌فرض
+`wg-quick`/`awg-quick` با این AllowedIPs اینه که routing table پیش‌فرض
+خودِ **سرور** رو عوض کنه بره روی این تونل - نه فقط این‌که interface رو
+در دسترسِ xray/singbox’s بذاره تا با `bind_interface` انتخابش کنن. یعنی
+کل ترافیک خروجی خودِ سرور (از جمله SSH) رفت روی تونل به یه peer که
+راهی به‌بیرون نداشت - سرور کامل قطع شد.
+
+این دقیقاً همون مشکلیه که راه‌حل WARP توی همین کدبیس از قبل باهاش
+مواجه شده بود: `other/warp/wireguard/run.sh.j2` صراحتاً
+`Table = off` رو به کانفیگش تزریق می‌کنه دقیقاً به همین دلیل. باید
+همون الگو رو این‌جا هم می‌ذاشتم و نذاشتم.
+
+**فیکس:** `Table = off` به `render_amneziawg_conf()` اضافه شد (بعد از
+`PrivateKey`، قبل از `Address`). با این خط، `awg-quick` فقط interface
+رو می‌سازه/بالا میاره و آدرس می‌ده، هیچ روتی به جدول کرنل اضافه نمی‌کنه؛
+مسیریابی ترافیک مشخص فقط از طریق `bind_interface`/`sockopt.interface`ی
+که خودِ xray/singbox صراحتاً روی این interface تنظیم می‌کنن انجام می‌شه
+- دقیقاً مثل WARP.
+
+**⚠️ اگه سروری داری که قبلاً این interface روش بالا اومده:**
+1. از کنسول وب هاستت (نه SSH - چون همون قطع شده) وارد شو.
+2. `systemctl stop awg-quick@awg{id}` و
+   `systemctl disable awg-quick@awg{id}` بزن (به‌جای `{id}` عدد واقعی
+   ردیف Outbound رو بذار، از اسم فایل توی
+   `/etc/amnezia/amneziawg/*.conf` می‌تونی پیدا کنی).
+3. `ip link delete awg{id}` بزن تا خودِ interface هم پاک بشه.
+4. بعد از این fix رو pull کن و Reinstall بزن تا `.conf` جدید (با
+   `Table = off`) دوباره نوشته بشه، و دوباره امتحان کن.
+
+**فایل تغییریافته:** `models/routing.py` (`render_amneziawg_conf`).
+
+---
+
 ## 🚨 هیچ کانفیگی وصل نمی‌شد: pinnedPeerCertSha256 با base64 به‌جای hex (۲۰۲۶-۰۷-۰۲)
 
 گفتی هیچ‌کدوم از کانفیگ‌ها وصل نمی‌شن (نه فقط amnezia). لاگ v2rayN رو
