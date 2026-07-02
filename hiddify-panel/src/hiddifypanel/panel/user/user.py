@@ -25,6 +25,9 @@ from hiddifypanel.cache import cache
 class UserView(FlaskView):
 
     def index(self):
+        if getattr(g, 'is_admin', False):
+            from flask import redirect
+            return redirect(hutils.flask.hurl_for("admin.Dashboard:index"))
         return self.auto_sub()
 
     @route('/ua')
@@ -34,6 +37,9 @@ class UserView(FlaskView):
         return ua
 
     def auto_sub(self):
+        if getattr(g, 'is_admin', False):
+            from flask import redirect
+            return redirect(hutils.flask.hurl_for("admin.Dashboard:index"))
         if g.user_agent['is_browser']:
             return self.new()
         return self.get_proper_config() or self.links_imp(base64=True)
