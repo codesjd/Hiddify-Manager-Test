@@ -70,17 +70,15 @@ body {
   display: none !important;
 }
 .content-wrapper {
-  flex: 1 !important;
-  min-width: 0 !important;
-  display: flex !important;
-  flex-direction: column !important;
+  flex: 1;
+  min-width: 0;
+  margin-left: 0 !important;
   background: var(--bg) !important;
-  margin-left: 230px !important;
-  margin-right: 0 !important;
+  display: flex;
+  flex-direction: column;
 }
 [dir="rtl"] .content-wrapper {
-  margin-left: 0 !important;
-  margin-right: 230px !important;
+  margin-right: 0 !important;
 }
 @media (max-width: 768px) {
   .sidebar {
@@ -111,6 +109,15 @@ body {
 }
 
 /* Sidebar styling - Fixed viewport stretching */
+.wrapper {
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: stretch !important;
+  min-height: 100vh !important;
+  overflow: visible !important;
+  transform: none !important;
+}
+
 .sidebar {
   width: 230px !important;
   flex-shrink: 0;
@@ -119,15 +126,11 @@ body {
   display: flex;
   flex-direction: column;
   height: 100vh !important;
-  position: fixed !important;
+  position: sticky !important;
   top: 0 !important;
-  left: 0 !important;
-  bottom: 0 !important;
   z-index: 1030 !important;
 }
 [dir="rtl"] .sidebar {
-  left: auto !important;
-  right: 0 !important;
   border-left: 1px solid var(--border) !important;
   border-right: none !important;
 }
@@ -460,16 +463,12 @@ body {
   border-radius: 10px !important;
   font-weight: 700 !important;
   font-size: 13px !important;
-  padding: 8px 16px !important;
   transition: all 0.15s ease-in-out !important;
   box-shadow: none !important;
   display: inline-flex !important;
   align-items: center !important;
   gap: 6px !important;
   justify-content: center !important;
-  white-space: nowrap !important;
-  width: auto !important;
-  height: auto !important;
 }
 
 /* Avoid link elements inside table/cards styled as buttons from inheriting table link colors */
@@ -478,8 +477,8 @@ body {
 }
 
 /* Force readable white text on primary/success/danger buttons, even inside tables */
-.btn-primary, .btn-primary *, .btn-success, .btn-success *, .btn-danger, .btn-danger *,
-.table td a.btn-primary, .table td a.btn-primary *, .table td a.btn-success, .table td a.btn-success *, .table td a.btn-danger, .table td a.btn-danger * {
+.btn-primary, .btn-primary *, .btn-success, .btn-success *, .btn-danger, .btn-danger *, .btn-info, .btn-info *, .btn-warning, .btn-warning *,
+.table td a.btn-primary, .table td a.btn-primary *, .table td a.btn-success, .table td a.btn-success *, .table td a.btn-danger, .table td a.btn-danger *, .table td a.btn-info, .table td a.btn-info *, .table td a.btn-warning, .table td a.btn-warning * {
   color: #ffffff !important;
 }
 
