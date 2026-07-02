@@ -1394,7 +1394,7 @@ msgid "config.dnstt.description"
 msgstr ""
 
 msgid "config.dnstt.label"
-msgstr "DNSTT (تونل DNS)"
+msgstr "Dnstt"
 
 msgid "config.dnstt_enable.description"
 msgstr ""

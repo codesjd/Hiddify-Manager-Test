@@ -1,4 +1,5 @@
 import wtforms as wtf
+import flask_admin
 from markupsafe import Markup
 from flask_babel import lazy_gettext as _
 from .adminlte import AdminLTEModelView
@@ -52,7 +53,7 @@ class RoutingRuleAdmin(AdminLTEModelView):
     }
     form_extra_fields = {
         "outbound_tag": wtf.SelectField(_("Outbound Tag")),
-        "inbound_tags": wtf.SelectMultipleField(_("Match Inbound(s)")),
+        "inbound_tags": wtf.SelectMultipleField(_("Match Inbound(s)"), widget=flask_admin.form.Select2Widget(multiple=True)),
     }
 
     can_export = False

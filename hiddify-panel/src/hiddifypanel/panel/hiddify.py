@@ -95,7 +95,7 @@ def get_html_user_link(model: BaseAccount, domain: Domain):
         color_cls = "success" if auto_cdn else 'warning'
         text = f'<span class="badge badge-secondary" >{"Auto" if auto_cdn else "CDN"}</span> ' + text
 
-    res += f"<a target='_blank' data-copy='{link}' href='{link}' class='btn btn-xs btn-{color_cls} ltr share-link' ><i class='fa-solid fa-arrow-up-right-from-square d-none'></i> {text}</a>"
+    res += f"<a target='_blank' data-copy='{link}' href='{link}' class='btn btn-xs btn-{color_cls} ltr' style='margin: 2px;'><i class='fa-solid fa-arrow-up-right-from-square d-none'></i> {text}</a>"
 
     return res
 
@@ -304,7 +304,10 @@ def get_account_panel_link(account: BaseAccount, host: str, is_https: bool = Tru
     if basic_auth:
         link += "l"
     else:
-        link += f'{account.uuid}/'
+        if is_admin:
+            link += "admin/"
+        else:
+            link += f'{account.uuid}/'
     return link
 
 

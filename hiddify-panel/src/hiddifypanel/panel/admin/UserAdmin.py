@@ -104,7 +104,7 @@ class UserAdmin(AdminLTEModelView):
     # can_set_page_size=True
 
     def search_placeholder(self):
-        return f"{_('search')} {_('user.UUID')} {_('user.name')}"
+        return f"{_('search')} {_('user.UUID')} / {_('user.name')}"
     # def get_column_name(self,field):
     #         return "x"
     #  return column_labels[field]

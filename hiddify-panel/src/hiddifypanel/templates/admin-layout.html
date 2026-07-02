@@ -411,6 +411,7 @@ body {
 .avatar-menu-owner {
   padding: 12px 14px;
   border-bottom: 1px solid var(--border);
+  text-align: center;
 }
 .avatar-menu-owner-name {
   font-size: 13px;
@@ -424,6 +425,7 @@ body {
 }
 .avatar-menu-items {
   padding: 6px;
+  text-align: center;
 }
 .avatar-menu-wrap.open .avatar-menu {
   display: block;
@@ -436,6 +438,7 @@ body {
   font-weight: 600;
   color: var(--text-primary) !important;
   text-decoration: none !important;
+  text-align: center;
 }
 .avatar-menu-items a:hover {
   background: var(--track);
@@ -497,7 +500,10 @@ body {
 .table {
   background: transparent !important;
   color: var(--text-primary) !important;
-  border-collapse: collapse !important;
+  border-collapse: separate !important;
+  border-spacing: 0 !important;
+  border-radius: 8px !important;
+  overflow: hidden !important;
   width: 100% !important;
   margin-bottom: 0 !important;
 }
@@ -628,10 +634,10 @@ body {
 }
 tr:hover .hf-usage-labels,
 tr:hover .hf-usage-labels .value {
-  color: white !important;
+  color: var(--text-primary) !important;
 }
 tr:hover .hf-track {
-  background: rgba(255, 255, 255, 0.2);
+  background: var(--surface) !important;
 }
 .hf-usage-labels .value { color: var(--text-primary); font-weight: 600; }
 .hf-track {
@@ -691,6 +697,10 @@ tr:hover .hf-track {
 
 /* Avoid link elements inside table/cards styled as buttons from inheriting table link colors */
 .table td a.btn, .table td a.btn *, .card a.btn, .card a.btn * {
+  text-decoration: none !important;
+}
+.table td a.hf-chip, .table td a.hf-chip * {
+  color: white !important;
   text-decoration: none !important;
 }
 

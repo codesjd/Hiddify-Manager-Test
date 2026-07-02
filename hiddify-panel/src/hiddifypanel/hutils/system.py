@@ -18,40 +18,38 @@ def get_folder_size(folder_path: str) -> int:
 
 
 def top_processes() -> dict:
-    # First pass to initialize cpu_percent for all processes
-    for p in psutil.process_iter():
+    processes = [p for p in psutil.process_iter(['name', 'username', 'memory_info']) if p.info['name'] != '']
+    for p in processes:
         try:
-            p.cpu_percent()
+            p.cpu_percent(interval=None)
         except psutil.Error:
             pass
+            
     import time
     time.sleep(0.1)
 
-    # Get the process information
-    processes = [p for p in psutil.process_iter(['pid', 'name', 'username', 'cpu_percent', 'memory_info']) if p.info['name'] != '']
-    num_cores = psutil.cpu_count()
-    # Calculate memory usage, RAM usage, and CPU usage for each process
+    num_cores = psutil.cpu_count() or 1
     memory_usage = {}
     ram_usage = {}
     cpu_usage = {}
     for p in processes:
-        name = p.info['name']
-        if p.info['username']=="hiddify-panel":
-            name = "Hiddify"
-        # mem_info = p.info['memory_full_info']
-        # if mem_info is None:
-        #     continue
-        # mem_usage = mem_info.uss
-        mem_usage = p.info['memory_info'].rss
-        cpu_percent = p.info['cpu_percent'] / num_cores
-        if name in memory_usage:
-            memory_usage[name] += mem_usage / (1024 ** 3)
-            ram_usage[name] += mem_usage / (1024 ** 3)
-            cpu_usage[name] += cpu_percent
-        else:
-            memory_usage[name] = mem_usage / (1024 ** 3)
-            ram_usage[name] = mem_usage / (1024 ** 3)
-            cpu_usage[name] = cpu_percent
+        try:
+            name = p.info['name']
+            if p.info['username'] == "hiddify-panel":
+                name = "Hiddify"
+            mem_usage = p.info['memory_info'].rss
+            cpu_percent = p.cpu_percent(interval=None) / num_cores
+            
+            if name in memory_usage:
+                memory_usage[name] += mem_usage / (1024 ** 3)
+                ram_usage[name] += mem_usage / (1024 ** 3)
+                cpu_usage[name] += cpu_percent
+            else:
+                memory_usage[name] = mem_usage / (1024 ** 3)
+                ram_usage[name] = mem_usage / (1024 ** 3)
+                cpu_usage[name] = cpu_percent
+        except psutil.Error:
+            pass
 
     while len(cpu_usage) < 5:
         cpu_usage[" " * len(cpu_usage)] = 0
@@ -59,6 +57,7 @@ def top_processes() -> dict:
         ram_usage[" " * len(ram_usage)] = 0
     while len(memory_usage) < 5:
         memory_usage[" " * len(memory_usage)] = 0
+        
     # Sort the processes by memory usage, RAM usage, and CPU usage
     top_memory = sorted(memory_usage.items(), key=lambda x: x[1], reverse=True)[:5]
     top_ram = sorted(ram_usage.items(), key=lambda x: x[1], reverse=True)[:5]

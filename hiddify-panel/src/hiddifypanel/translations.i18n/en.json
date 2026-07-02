@@ -496,7 +496,7 @@
     },
     "dnstt": {
       "description": "config.dnstt.description",
-      "label": "DNSTT (DNS Tunnel)"
+      "label": "Dnstt"
     },
     "dnstt_enable": {
       "description": "config.dnstt_enable.description",

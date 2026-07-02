@@ -1405,7 +1405,7 @@ msgid "config.dnstt.description"
 msgstr "config.dnstt.description"
 
 msgid "config.dnstt.label"
-msgstr "DNSTT (DNS Tunnel)"
+msgstr "Dnstt"
 
 msgid "config.dnstt_enable.description"
 msgstr "config.dnstt_enable.description"

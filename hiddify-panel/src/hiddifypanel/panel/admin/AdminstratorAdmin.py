@@ -73,7 +73,7 @@ class AdminstratorAdmin(AdminLTEModelView):
     }
     column_labels = {
         "Actions": _("actions"),
-        "UserLinks": _("user.user_links"),
+        "UserLinks": _("Admin Links"),
         "name": _("user.name"),
         "mode": _("Mode"),
         "username": _("Username"),
@@ -118,7 +118,7 @@ class AdminstratorAdmin(AdminLTEModelView):
         if d:
 
             href = hiddify.get_account_panel_link(model, d) + f'#{hutils.encode.url_encode(model.name)}'
-            link = f"<a target='_blank' class='share-link' data-copy='{href}' href='{href}'>{model.name} <i class='fa-solid fa-arrow-up-right-from-square'></i></a>"
+            link = f"<a target='_blank' data-copy='{href}' href='{href}' style='margin: 2px;'>{model.name} <i class='fa-solid fa-arrow-up-right-from-square'></i></a>"
             if model.parent_admin:
                 return Markup(model.parent_admin.name + "&rlm;&lrm; / &rlm;&lrm;" + link)
             return Markup(link)
@@ -169,7 +169,7 @@ class AdminstratorAdmin(AdminLTEModelView):
     }
 
     def search_placeholder(self):
-        return f"{_('search')} {_('Username')} {_('user.name')}"
+        return f"{_('search')} {_('Username')} / {_('user.name')}"
 
     # @login_required(roles={Role.super_admin, Role.admin})
     def is_accessible(self):
