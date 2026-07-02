@@ -76,14 +76,14 @@ class WireguardApi(DriverABS):
 
         
         uuid_map = self.__convert_pub_key_to_uuid(wg_usage.keys())
-        for wg_pub, wg_usage in wg_usage.items():
+        for wg_pub, usage_stats in wg_usage.items():
             uuid = uuid_map.get(wg_pub)
             
             if not local_usage.get(wg_pub):
-                local_usage[wg_pub] = {"uuid": uuid, "usage": wg_usage}
+                local_usage[wg_pub] = {"uuid": uuid, "usage": usage_stats}
                 continue
-            res[uuid] = self.calculate_reset(local_usage[wg_pub]['usage'], wg_usage)
-            local_usage[wg_pub] = {"uuid": uuid, "usage": wg_usage}
+            res[uuid] = self.calculate_reset(local_usage[wg_pub]['usage'], usage_stats)
+            local_usage[wg_pub] = {"uuid": uuid, "usage": usage_stats}
 
         self.get_redis_client().set(USERS_USAGE, json.dumps(local_usage))
 
@@ -111,7 +111,7 @@ class WireguardApi(DriverABS):
         enabled = {u['uuid']: 1 for u in old_usages.values()}
         not_included = new_wg_pubs - old_wg_pubs
         if not_included:
-            users = User.query.filter(User.wg_pub.in_(not_included).all())
+            users = User.query.filter(User.wg_pub.in_(not_included)).all()
             for u in users:
                 enabled[u.uuid] = 1
 

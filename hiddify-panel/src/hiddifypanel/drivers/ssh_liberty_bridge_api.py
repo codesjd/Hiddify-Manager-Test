@@ -27,7 +27,6 @@ class SSHLibertyBridgeApi(DriverABS):
         print(f'Adding SSH {user}')
         redis_client = self.get_ssh_redis_client()
         redis_client.sadd(USERS_SET, f'{user.uuid}::{user.ed25519_public_key}')
-        redis_client.save()
 
     def remove_client(self, user):
         redis_client = self.get_ssh_redis_client()
@@ -39,12 +38,16 @@ class SSHLibertyBridgeApi(DriverABS):
 
         redis_client.srem(USERS_SET, f'{user.uuid}::{user.ed25519_public_key}')
         redis_client.hdel(USERS_USAGE, f'{user.uuid}')
-        redis_client.save()
 
     def get_all_usage(self):
         redis_client = self.get_ssh_redis_client()
-        allusage = redis_client.hgetall(USERS_USAGE)
-        redis_client.delete(USERS_USAGE)
+        temp_key = f"{USERS_USAGE}_tmp"
+        try:
+            redis_client.rename(USERS_USAGE, temp_key)
+            allusage = redis_client.hgetall(temp_key)
+            redis_client.delete(temp_key)
+        except Exception:
+            allusage = {}
         return allusage
         # return {u: int(allusage.get(u.uuid) or 0) for u in users}
         # return {u: self.get_usage_imp(u.uuid) for u in users}
@@ -60,7 +63,6 @@ class SSHLibertyBridgeApi(DriverABS):
 
         if reset:
             redis_client.hincrby(USERS_USAGE, client_uuid, -value)
-            redis_client.save()
         if value:
             logger.debug(f'ssh usage {client_uuid} {value}')
         return value

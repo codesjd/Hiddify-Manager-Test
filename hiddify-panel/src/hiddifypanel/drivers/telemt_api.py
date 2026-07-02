@@ -98,14 +98,14 @@ class TelemtApi(DriverABS):
 
         
         uuid_map = self.__convert_tg_to_uuid(tg_usage.keys())
-        for tg_uuid, tg_usage in tg_usage.items():
+        for tg_uuid, usage_stats in tg_usage.items():
             uuid = uuid_map.get(tg_uuid)
             
             if not local_usage.get(tg_uuid):
-                local_usage[tg_uuid] = {"uuid": uuid, "usage": tg_usage}
+                local_usage[tg_uuid] = {"uuid": uuid, "usage": usage_stats}
                 continue
-            res[uuid] = self.calculate_reset(local_usage[tg_uuid]['usage'], tg_usage)
-            local_usage[tg_uuid] = {"uuid": uuid, "usage": tg_usage}
+            res[uuid] = self.calculate_reset(local_usage[tg_uuid]['usage'], usage_stats)
+            local_usage[tg_uuid] = {"uuid": uuid, "usage": usage_stats}
 
         self.get_redis_client().set(USERS_USAGE, json.dumps(local_usage))
 
@@ -133,7 +133,7 @@ class TelemtApi(DriverABS):
         enabled = {u['uuid']: 1 for u in old_usages.values()}
         not_included = new_wg_pubs - old_wg_pubs
         if not_included:
-            users = User.query.filter(User.wg_pub.in_(not_included).all())
+            users = User.query.filter(User.wg_pub.in_(not_included)).all()
             for u in users:
                 enabled[u.uuid] = 1
 
