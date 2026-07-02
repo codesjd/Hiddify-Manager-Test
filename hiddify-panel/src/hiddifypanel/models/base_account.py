@@ -16,7 +16,9 @@ class BaseAccount(db.Model, FlaskLoginUserMixin):  # type: ignore
     uuid = Column(String(36), default=lambda: str(uuid.uuid4()), nullable=False, unique=True, index=True)
     name = Column(String(512), nullable=False, default='')
     username = Column(String(100), nullable=True, default='', index=True)
-    password = Column(String(100), nullable=True, default='')
+    # werkzeug's default scrypt hash is a fixed 162 chars - 255 leaves
+    # headroom for other hash methods without another migration.
+    password = Column(String(255), nullable=True, default='')
     comment = Column(String(512), nullable=True, default='')
     telegram_id = Column(BigInteger, nullable=True, default=None, index=True)
     lang = Column(Enum(Lang), default=None)

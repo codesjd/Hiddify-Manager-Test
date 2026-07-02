@@ -284,6 +284,16 @@ def _v82(child_id):
     set_hconfig(ConfigEnum.h2_enable, True)
 
 
+def _v81(child_id):
+    # password now stores a werkzeug scrypt hash (a fixed 162 chars), not a
+    # plaintext password - the old VARCHAR(100) truncated/rejected every
+    # hash, which made it impossible to ever log into an account after its
+    # password was hashed (including a fresh install's first password set
+    # through Quick Setup).
+    execute("ALTER TABLE user MODIFY COLUMN password VARCHAR(255);")
+    execute("ALTER TABLE admin_user MODIFY COLUMN password VARCHAR(255);")
+
+
 def _v80(child_id):
     set_hconfig(ConfigEnum.parent_domain, '')
     set_hconfig(ConfigEnum.parent_admin_proxy_path, '')
