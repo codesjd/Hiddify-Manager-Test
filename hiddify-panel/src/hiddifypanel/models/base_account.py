@@ -64,16 +64,20 @@ class BaseAccount(db.Model, FlaskLoginUserMixin):  # type: ignore
     @classmethod
     def by_username_password(cls, username: str, password: str):
         account = cls.query.filter(cls.username == username).first()
-        if not account or not account.password:
+        if not account:
             return None
-        
-        if account.password.startswith("scrypt:") or account.password.startswith("pbkdf2:"):
+
+        if account.password and (account.password.startswith("scrypt:") or account.password.startswith("pbkdf2:")):
             if check_password_hash(account.password, password):
                 return account
         else:
-            # Fallback for legacy plaintext passwords - migrate to hash on successful login
-            if hmac.compare_digest(account.password, password):
-                account.update_password(password)
+            # Covers both legacy plaintext passwords and an unset (empty
+            # string) password - `not account.password` used to reject
+            # every account with no password yet set, with no way to ever
+            # satisfy it since a blank submission still failed the guard.
+            if hmac.compare_digest(account.password or "", password or ""):
+                if password:
+                    account.update_password(password)
                 return account
         return None
 

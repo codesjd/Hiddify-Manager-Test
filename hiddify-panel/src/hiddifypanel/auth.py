@@ -151,18 +151,25 @@ def get_account_by_uuid(uuid, is_admin):
 
 def login_by_uuid(uuid,password:str, is_admin: bool)->bool:
     account = get_account_by_uuid(uuid, is_admin)
-    if not account or not account.password:
+    if not account:
         return False
-    
+
     from werkzeug.security import check_password_hash
-    if account.password.startswith("scrypt:") or account.password.startswith("pbkdf2:"):
+    if account.password and (account.password.startswith("scrypt:") or account.password.startswith("pbkdf2:")):
         if not check_password_hash(account.password, password):
             return False
     else:
+        # Covers both legacy plaintext passwords and the fresh-install
+        # default of an empty password (accounts start with password=""
+        # until a real one is set) - `not account.password` used to
+        # short-circuit this whole function to False, which meant nobody
+        # could ever log into a brand-new install since there was no way
+        # to submit a password matching an unset one.
         import hmac
-        if not hmac.compare_digest(account.password, password):
+        if not hmac.compare_digest(account.password or "", password or ""):
             return False
-        account.update_password(password)
+        if password:
+            account.update_password(password)
 
     return login_user(account, force=True)
 
