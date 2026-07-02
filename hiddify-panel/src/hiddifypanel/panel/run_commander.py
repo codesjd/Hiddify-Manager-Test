@@ -6,7 +6,10 @@ import os
 import re
 
 def is_safe_arg(arg: str) -> bool:
-    return bool(re.match(r'^[a-zA-Z0-9_.\-/:?=&#]+$', arg))
+    # % included for percent-encoded URLs (temporary-short-link's `url` can
+    # legitimately contain them) - everything else stays a tight whitelist,
+    # no shell metacharacters.
+    return bool(re.match(r'^[a-zA-Z0-9_.\-/:?=&#%]+$', arg))
 
 
 class Command(StrEnum):
