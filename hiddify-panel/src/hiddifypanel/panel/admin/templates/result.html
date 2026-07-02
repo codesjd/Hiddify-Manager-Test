@@ -5,9 +5,11 @@
 {% block body %}
 
 
-<div class="callout callout-{{out_type}}" role="alert">
+<div class="card" role="alert">
   {{out_msg|safe}}
-
+  {% if redirect_url %}
+  <a href="{{ redirect_url }}" class="btn btn-primary" id="go-to-admin-btn" style="margin-top:12px; display:inline-flex;">{{ _('Go to Admin Panel') }}</a>
+  {% endif %}
 </div>
 
 
@@ -33,7 +35,7 @@ page."),temp_link(),show=False)}}
 #}
 
 {% if log_file and log_file != "status.log" and log_file != "restart.log"%}
-<div class="callout callout-success">
+<div class="card">
 
   {{_("Please wait ")}} <label style="display:none" id="count-down">300</label>
   <div class="row" style="direction: ltr;">
@@ -75,6 +77,7 @@ page."),temp_link(),show=False)}}
   var x = document.getElementById("ilog");
   var finished = false
   var seconds = 0
+  var redirectUrl = "{{ redirect_url or '' }}";
   raw_domains = '{{",".join(domains)}}'.split(",")
   log_urls = raw_domains.map(p => "https://" + p + "{{ log_file_url }}");
   log_urls.unshift("{{ log_file_url }}")
@@ -157,6 +160,9 @@ page."),temp_link(),show=False)}}
               message: '{{_("admin.action_done_sucess")}}',
               locale: '{{get_locale()}}',
             });
+            if (redirectUrl) {
+              setTimeout(function () { window.location.href = redirectUrl; }, 4000);
+            }
           }
         }
         setTimeout(get_log, 1000);

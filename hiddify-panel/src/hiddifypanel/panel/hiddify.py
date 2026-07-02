@@ -268,6 +268,20 @@ def get_ssh_client_version(user):
 def is_fake_domain(model:Domain):
         return model.mode in {DomainType.fake,DomainType.reality,DomainType.special_reality_tcp,DomainType.special_reality_grpc,DomainType.special_reality_xhttp}
 
+def get_admin_login_link(host: str, is_https: bool = True, child_id=None) -> str:
+    """Plain admin panel URL (no account UUID baked in) - lands on the
+    username/password login form rather than auto-authenticating via a
+    URL-embedded secret. Used anywhere we point an admin at "your panel"
+    (post-install, Quick Setup) now that username/password login is the
+    primary flow; get_account_panel_link's UUID-suffixed links are still
+    used for real per-account deep links (e.g. user subscription URLs)."""
+    if child_id is None:
+        child_id = Child.current().id
+    proxy_path = hconfig(ConfigEnum.proxy_path_admin, child_id)
+    scheme = "https://" if is_https else "http://"
+    return f"{scheme}{host}/{proxy_path}/"
+
+
 def get_account_panel_link(account: BaseAccount, host: str, is_https: bool = True, prefere_path_only: bool = False, child_id=None):
     if child_id is None:
         child_id = Child.current().id

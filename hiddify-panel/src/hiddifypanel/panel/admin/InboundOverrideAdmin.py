@@ -48,7 +48,15 @@ class InboundOverrideAdmin(AdminLTEModelView):
     """
     column_hide_backrefs = False
     column_list = ["name", "proto", "transport", "cdn", "l3", "enable"]
-    form_columns = ["name", "enable"]
+    # Must list every field that should actually render on the edit form,
+    # including the form_extra_fields below and the disabled context
+    # fields in form_widget_args - flask-admin silently drops any field
+    # not named here, which previously made on_form_prefill() reference
+    # form fields (form.sni, form.mode, ...) that didn't exist on the
+    # generated form at all, 500ing the edit-modal AJAX load so the pencil
+    # button appeared to do nothing.
+    form_columns = ["name", "proto", "transport", "cdn", "l3", "enable",
+                     "sni", "host", "path", "fingerprint", "alpn", "mode", "hysteria_obfs_password", "advanced_json"]
     column_editable_list = ["enable"]
 
     column_labels = {
@@ -71,7 +79,13 @@ class InboundOverrideAdmin(AdminLTEModelView):
         "path": wtf.StringField(_("Path"), description=_("Override the transport path (WS/httpupgrade/xhttp) or gRPC service name. Leave blank for the auto-generated one.")),
         "fingerprint": wtf.SelectField(_("uTLS Fingerprint"), choices=_FINGERPRINT_CHOICES, default=""),
         "alpn": wtf.SelectField(_("ALPN"), choices=_ALPN_CHOICES, default=""),
-        "mode": wtf.SelectField(_("XHTTP Mode"), choices=_XHTTP_MODE_CHOICES, default=""),
+        # render_kw id override: flaskadmin-layout.html's shared modal JS
+        # runs a Domain-page-specific handler on any field literally named
+        # #mode (hide_domain_elements, keyed off Domain.mode's enum
+        # values) after every modal load. This field means something
+        # unrelated (XHTTP mode) - give it a distinct id so it's not
+        # accidentally wired up by that global, name-based selector.
+        "mode": wtf.SelectField(_("XHTTP Mode"), choices=_XHTTP_MODE_CHOICES, default="", render_kw={"id": "inbound_override_mode"}),
         "hysteria_obfs_password": wtf.StringField(_("Hysteria2 Obfs Password"), description=_("Only applies to hysteria2 proxies. Leave blank to use the global obfuscation password.")),
         "advanced_json": wtf.TextAreaField(_("Advanced Override (JSON)"),
                                             description=_('Deep-merged on top of everything above, for anything the fields don\'t cover, e.g. {"mux_enable": true}. '

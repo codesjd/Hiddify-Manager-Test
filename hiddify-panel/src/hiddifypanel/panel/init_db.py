@@ -17,6 +17,29 @@ from loguru import logger
 MAX_DB_VERSION = 130
 
 
+def _v126(child_id):
+    """Backfill default admin/admin credentials onto the existing Owner
+    account for installs that predate username/password login. Only
+    touches fields that are genuinely unset - never overwrites a
+    username or password an admin has actually chosen."""
+    if child_id != 0:
+        return
+    admin = AdminUser.by_id(1)
+    if not admin:
+        return
+    from werkzeug.security import generate_password_hash
+    changed = False
+    if not admin.username:
+        if not AdminUser.query.filter(AdminUser.username == "admin", AdminUser.id != 1).first():
+            admin.username = "admin"
+            changed = True
+    if not admin.password:
+        admin.password = generate_password_hash("admin")
+        changed = True
+    if changed:
+        db.session.commit()
+
+
 def _v125(child_id):
     add_column(CustomOutbound.peer_public_key)
     add_column(CustomOutbound.preshared_key)

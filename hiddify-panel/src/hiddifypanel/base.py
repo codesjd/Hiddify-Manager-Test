@@ -44,9 +44,15 @@ def create_app(*args, app_mode="web", **config):
             "hiddifypanel.base_setup:init_app",
             "hiddifypanel.panel.common:init_app",
             "hiddifypanel.panel.common_bp:init_app",
+            # commercial must load before admin: admin:init_app fires the
+            # synchronous Events.admin_prehook.notify(...) that registers
+            # ProxyDetailsAdmin (endpoint "flask.proxy"); if commercial
+            # hasn't been imported yet, its admin_prehook subscriber isn't
+            # registered in time and the endpoint never exists, crashing
+            # every template that links to it (proxy.html, proxydetail_list.html).
+            "hiddifypanel.panel.commercial:init_app",
             "hiddifypanel.panel.admin:init_app",
             "hiddifypanel.panel.user:init_app",
-            "hiddifypanel.panel.commercial:init_app",
             "hiddifypanel.panel.node:init_app",
             "hiddifypanel.celery:init_app",
         ])

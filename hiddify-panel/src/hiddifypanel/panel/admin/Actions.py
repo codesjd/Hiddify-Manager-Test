@@ -1,4 +1,3 @@
-import urllib.request
 import json
 from flask_classful import FlaskView, route
 from flask import render_template, request, redirect, g
@@ -110,26 +109,14 @@ class Actions(FlaskView):
         # hutils.flask.flash(f'complete_install={complete_install} domain_changed={domain_changed} ', 'info')
         # return render_template("result.html")
         # hiddify.add_temporary_access()
-        file = "install.sh" if complete_install else "apply_configs.sh"
-        try:
-            server_ip = urllib.request.urlopen('https://v4.ident.me/').read().decode('utf8')
-        except BaseException:
-            server_ip = "server_ip"
-
-        admin_links = f"<h5 >{_('Admin Links')}</h5><ul>"
-
-        admin_links += f"<li><span class='badge badge-danger'>{_('Not Secure')}</span>: <a class='badge ltr share-link' href='{hiddify.get_account_panel_link(g.account, server_ip,is_https=False)}'>{hiddify.get_account_panel_link(g.account, server_ip,is_https=False)}</a></li>"
         domains = Domain.get_domains()
-        # domains=[*domains,f'{server_ip}.sslip.io']
-
-        for d in domains:
-            link = hiddify.get_account_panel_link(g.account, d)
-            admin_links += f"<li><a target='_blank' class='badge ltr' href='{link}'>{link}</a></li>"
+        redirect_host = domains[0] if domains else hutils.network.get_ip_str(4)
+        redirect_url = hiddify.get_admin_login_link(redirect_host)
 
         resp = render_template("result.html",
                                out_type="info",
-                               out_msg=_("admin.waiting_for_update") +
-                               admin_links,
+                               out_msg=_("admin.waiting_for_update"),
+                               redirect_url=redirect_url,
                                log_file_url=get_log_api_url(),
                                log_file="0-install.log",
                                show_success=True,
