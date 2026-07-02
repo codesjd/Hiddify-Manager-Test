@@ -43,6 +43,16 @@
   --accent-magenta: oklch(0.62 0.16 320);
 }
 
+/* Remove old splash screen immediately */
+#splash_screen {
+  display: none !important;
+}
+
+/* Hide donation dialogues */
+#modal-donation, #show-modal-donation {
+  display: none !important;
+}
+
 /* Styling overrides to transform standard elements to modern Orbit Admin */
 * { box-sizing: border-box; }
 body {
@@ -65,8 +75,21 @@ body {
   display: flex !important;
   flex-direction: column !important;
   background: var(--bg) !important;
-  margin-left: 0 !important;
+  margin-left: 230px !important;
   margin-right: 0 !important;
+}
+[dir="rtl"] .content-wrapper {
+  margin-left: 0 !important;
+  margin-right: 230px !important;
+}
+@media (max-width: 768px) {
+  .sidebar {
+    display: none !important;
+  }
+  .content-wrapper {
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+  }
 }
 .content {
   flex: 1 !important;
@@ -81,17 +104,26 @@ body {
   display: none !important;
 }
 
-/* Sidebar styling */
+/* Sidebar styling - Fixed viewport stretching */
 .sidebar {
-  width: 230px;
+  width: 230px !important;
   flex-shrink: 0;
   background: var(--sidebar-bg);
   border-{{ 'left' if get_locale()=='fa' else 'right' }}: 1px solid var(--border);
   display: flex;
   flex-direction: column;
-  height: 100vh;
-  position: sticky;
-  top: 0;
+  height: 100vh !important;
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  bottom: 0 !important;
+  z-index: 1030 !important;
+}
+[dir="rtl"] .sidebar {
+  left: auto !important;
+  right: 0 !important;
+  border-left: 1px solid var(--border) !important;
+  border-right: none !important;
 }
 .sidebar-header {
   display: flex;
@@ -364,8 +396,8 @@ body {
   text-decoration: underline !important;
 }
 
-/* Button stylings */
-.btn {
+/* Button stylings - Size adjustments & readable text colors */
+.btn, a.btn, button {
   border-radius: 10px !important;
   font-weight: 700 !important;
   font-size: 13px !important;
@@ -376,11 +408,17 @@ body {
   align-items: center !important;
   gap: 6px !important;
   justify-content: center !important;
+  white-space: nowrap !important;
+  width: auto !important;
+  height: auto !important;
+  color: var(--text-primary) !important;
+}
+.btn-primary, .btn-primary *, .btn-success, .btn-success *, .btn-danger, .btn-danger * {
+  color: white !important;
 }
 .btn-primary, .btn-success {
   background: var(--accent) !important;
   border-color: var(--accent) !important;
-  color: white !important;
 }
 .btn-primary:hover, .btn-success:hover {
   background: var(--accent-blue) !important;
@@ -389,16 +427,13 @@ body {
 .btn-default, .btn-secondary, .btn-outline-secondary {
   background: var(--track) !important;
   border: 1px solid var(--border) !important;
-  color: var(--text-primary) !important;
 }
 .btn-default:hover, .btn-secondary:hover, .btn-outline-secondary:hover {
   background: var(--border) !important;
-  color: var(--text-primary) !important;
 }
 .btn-danger {
   background: var(--accent-orange) !important;
   border-color: var(--accent-orange) !important;
-  color: white !important;
 }
 .btn-danger:hover {
   opacity: 0.9 !important;
@@ -619,8 +654,6 @@ label, .control-label {
 }
 </style>
 
-{% include "donation.html" %}
-
 <div class="wrapper">
   <!-- Modern Sidebar -->
   <div class="sidebar">
@@ -628,7 +661,7 @@ label, .control-label {
       <div class="logo-mark">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M4 18 L4 10 M12 18 L12 5 M20 18 L20 13" stroke="white" stroke-width="2.6" stroke-linecap="round"/></svg>
       </div>
-      <div class="wordmark">Hiddify<span>Admin</span></div>
+      <div class="wordmark">Hiddify<span>V2</span></div>
     </div>
 
     <div class="nav-list">
@@ -683,14 +716,9 @@ label, .control-label {
         <a class="nav-child form_post" href="{{ hurl_for('admin.Actions:reset') }}">{{ _('admin.actions.reset') }}</a>
       </div>
       {% endif %}
-
-      <a class="nav-item" role="button" data-toggle="modal" data-target="#modal-donation" style="cursor: pointer; margin-top: auto;">
-        <span class="nav-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" fill="currentColor"/></svg></span>
-        <span class="nav-label">{{ _('Donation.title') }}</span>
-      </a>
     </div>
 
-    <div class="sidebar-footer">&copy; {{ now_year }} Hiddify Admin</div>
+    <div class="sidebar-footer">&copy; {{ now_year }} Hiddify V2</div>
   </div>
 
   <!-- Content Wrapper -->
@@ -704,7 +732,7 @@ label, .control-label {
     </div>
 
     <footer style="padding: 16px 32px; border-top: 1px solid var(--border); font-size: 11.5px; color: var(--text-secondary); display: flex; justify-content: space-between; align-items: center; background: var(--surface); margin-top: auto;">
-      <div>&copy; {{ now_year }} Hiddify Admin</div>
+      <div>&copy; {{ now_year }} Hiddify V2</div>
       <div style="font-family: 'JetBrains Mono', monospace;">{{ version }}</div>
     </footer>
   </div>
@@ -779,10 +807,6 @@ $(document).ready(function () {
     });
     return false;
   });
-
-  if ($('#show-modal-donation').length) {
-    $("#modal-donation").modal()
-  }
 });
 </script>
 {% endblock %}
