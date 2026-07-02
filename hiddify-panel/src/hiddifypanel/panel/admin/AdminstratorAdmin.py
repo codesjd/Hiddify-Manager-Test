@@ -56,8 +56,8 @@ class PermissionsField(SelectMultipleField):
 
 class AdminstratorAdmin(AdminLTEModelView):
     column_hide_backrefs = False
-    column_list = ["name", 'UserLinks', 'mode', 'can_add_admin', 'max_active_users', 'max_users', 'online_users', 'comment',]
-    form_columns = ["name", 'mode', 'can_add_admin', 'permissions', 'max_active_users', 'max_users', 'comment', "uuid", "new_password"]
+    column_list = ["name", 'UserLinks', 'mode', 'can_add_admin', 'max_users', 'online_users', 'comment',]
+    form_columns = ["name", 'mode', 'can_add_admin', 'permissions', 'max_users', 'comment', "username", "new_password"]
     list_template = 'model/admin_list.html'
     # column_editable_list = ['name']
     # edit_modal = True
@@ -76,9 +76,8 @@ class AdminstratorAdmin(AdminLTEModelView):
         "UserLinks": _("user.user_links"),
         "name": _("user.name"),
         "mode": _("Mode"),
-        "uuid": _("user.UUID"),
+        "username": _("Username"),
         "comment": _("Note"),
-        'max_active_users': _("Max Active Users"),
         'max_users': _('Max Users'),
         "password":_("user.password.title"),
         "online_users": _("Online Users"),
@@ -86,12 +85,7 @@ class AdminstratorAdmin(AdminLTEModelView):
         'permissions': _("Restricted Permissions"),
 
     }
-    form_args = {
-        'uuid': {
-            'validators': [Regexp(r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$', message=__("Should be a valid uuid"))]
-            #     'label': 'First Name',
-            #     'validators': [required()]
-        }}
+    form_args = {}
 
     column_descriptions = dict(
         comment=_("Add some text that is only visible to super_admin."),
@@ -106,7 +100,7 @@ class AdminstratorAdmin(AdminLTEModelView):
     # column_editable_list=["domain"]
     # column_filters=["domain","mode"]
 
-    column_searchable_list = ["name", "uuid"]
+    column_searchable_list = ["name", "username"]
 
     # form_columns=['domain','sub_link_only','alias','mode','cdn_ip','show_domains']
 
@@ -175,7 +169,7 @@ class AdminstratorAdmin(AdminLTEModelView):
     }
 
     def search_placeholder(self):
-        return f"{_('search')} {_('user.UUID')} {_('user.name')}"
+        return f"{_('search')} {_('Username')} {_('user.name')}"
 
     # @login_required(roles={Role.super_admin, Role.admin})
     def is_accessible(self):

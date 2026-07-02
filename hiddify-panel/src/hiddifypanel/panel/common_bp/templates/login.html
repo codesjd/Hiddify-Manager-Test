@@ -1,44 +1,153 @@
-{% from 'bootstrap4/form.html' import render_form %}
 {% extends "master.html" %}
 {% block title %}{{hconfig(ConfigEnum.branding_title) or _('user.home.title')}}{% endblock %}
 
-{% block body_header %}
+{% block styles %}
+{{ super() }}
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+/* Premium Modern Login Redesign */
+body, .content-wrapper, .wrapper {
+    background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%) !important;
+    font-family: 'Inter', sans-serif !important;
+    color: #e2e8f0;
+}
 
+.main-footer {
+    background: transparent !important;
+    border-top: 1px solid rgba(255,255,255,0.05) !important;
+    color: #94a3b8 !important;
+}
 
+.login-wrapper {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 75vh;
+}
 
-{%endblock%}
+.login-card {
+    background: rgba(30, 41, 59, 0.7);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 24px;
+    padding: 3rem 2.5rem;
+    width: 100%;
+    max-width: 440px;
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+    animation: fadeIn 0.8s ease-out;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.login-title {
+    font-size: 2rem;
+    font-weight: 700;
+    text-align: center;
+    margin-bottom: 2rem;
+    background: linear-gradient(to right, #38bdf8, #818cf8);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
+.input-group-custom {
+    margin-bottom: 1.5rem;
+    width: 100%;
+}
+
+.input-group-custom label {
+    display: block;
+    margin-bottom: 0.5rem;
+    font-weight: 500;
+    color: #94a3b8;
+    font-size: 0.9rem;
+}
+
+.premium-input {
+    width: 100%;
+    padding: 0.875rem 1rem;
+    background: rgba(15, 23, 42, 0.6) !important;
+    border: 1px solid rgba(148, 163, 184, 0.2) !important;
+    border-radius: 12px !important;
+    color: #f8fafc !important;
+    font-size: 1rem;
+    transition: all 0.3s ease;
+}
+
+.premium-input:focus {
+    outline: none !important;
+    border-color: #38bdf8 !important;
+    box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.2) !important;
+    background: rgba(15, 23, 42, 0.8) !important;
+}
+
+.premium-button {
+    width: 100%;
+    padding: 1rem;
+    background: linear-gradient(135deg, #38bdf8 0%, #818cf8 100%);
+    border: none;
+    border-radius: 12px;
+    color: white;
+    font-size: 1.1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: transform 0.2s, box-shadow 0.2s;
+    margin-top: 1rem;
+}
+
+.premium-button:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 20px -10px rgba(56, 189, 248, 0.6);
+}
+
+.premium-button:active {
+    transform: translateY(0);
+}
+
+.form-text {
+    color: #64748b;
+    font-size: 0.8rem;
+    margin-top: 0.5rem;
+}
+</style>
+{% endblock %}
+
+{% block body_header %}{% endblock %}
 
 {% block body %}
-
-
-
-<div class="container col-12 col-md-6 offset-md-3">
-    <h1>{{hconfig(ConfigEnum.branding_title) or _('user.home.title')}}</h1>
-    <div class="card-group login-container">
-        <!-- Left Card: Login Form -->
-        <div class="card card-outline card-primary ">
-            <div class="card-header text-center">
-                Login
+<div class="login-wrapper">
+    <div class="login-card">
+        <h1 class="login-title">{{hconfig(ConfigEnum.branding_title) or _('user.home.title')}}</h1>
+        <form method="POST" action="">
+            {{ form.hidden_tag() }}
+            
+            <div class="input-group-custom">
+                <label for="secret_textbox">{{ _('Username') }}</label>
+                {{ form.secret_textbox(class="premium-input", placeholder=_("Enter your username")) }}
+                {% if form.secret_textbox.errors %}
+                    <span class="text-danger mt-1 d-block" style="font-size: 0.85rem;">{{ form.secret_textbox.errors[0] }}</span>
+                {% elif form.secret_textbox.description %}
+                    <div class="form-text">{{ form.secret_textbox.description }}</div>
+                {% endif %}
             </div>
-            <div class="card-body">
-                {{render_form(form)}}
+            
+            <div class="input-group-custom">
+                <label for="password_textbox">{{ _('login.password.label') }}</label>
+                {{ form.password_textbox(class="premium-input", placeholder=_("Enter your password")) }}
+                {% if form.password_textbox.errors %}
+                    <span class="text-danger mt-1 d-block" style="font-size: 0.85rem;">{{ form.password_textbox.errors[0] }}</span>
+                {% elif form.password_textbox.description %}
+                    <div class="form-text">{{ form.password_textbox.description }}</div>
+                {% endif %}
             </div>
-        </div>
-        {%if 0 and hconfig(ConfigEnum.proxy_path_client)==g.proxy_path %}
-        <!-- Right Card: Free Test Account -->
-        <div class="card card-outline card-secondary">
-            <div class="card-header text-center">
-                
-Free Test Account
+            
+            <div class="submit-group">
+                {{ form.submit(class="premium-button") }}
             </div>
-            <div class="card-body">
-                
-                <p class="card-text">Get a free test account with 200 MB and 7 days.</p>
-                <button type="button" class="btn btn-success btn-block">Get Free Test Account</button>
-            </div>
-        </div>
-        {%endif%}
+        </form>
     </div>
 </div>
-
 {% endblock %}

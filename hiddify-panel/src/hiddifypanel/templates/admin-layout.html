@@ -619,11 +619,19 @@ body {
 }
 .hf-usage-labels {
   display: flex;
-  justify-content: space-between;
+  justify-content: center;
+  gap: 8px;
   font-family: 'JetBrains Mono', monospace;
   font-size: 11px;
   color: var(--text-secondary);
   margin-bottom: 4px;
+}
+tr:hover .hf-usage-labels,
+tr:hover .hf-usage-labels .value {
+  color: white !important;
+}
+tr:hover .hf-track {
+  background: rgba(255, 255, 255, 0.2);
 }
 .hf-usage-labels .value { color: var(--text-primary); font-weight: 600; }
 .hf-track {

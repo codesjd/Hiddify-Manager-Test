@@ -550,3 +550,38 @@ td.col-uuid a {
 #qrcode img {
   max-width: 100%;
 }
+
+/* #10, #12, #16, #18, #20 Table top and bottom borders */
+table.table {
+    border-top: 1px solid var(--border) !important;
+    border-bottom: 1px solid var(--border) !important;
+}
+
+/* #11, #13, #17, #19 Center buttons in modal footer */
+.modal-footer {
+    justify-content: center !important;
+}
+
+/* #28 Current Domain chip text color */
+a.hf-chip {
+    color: white !important;
+}
+
+/* #26, #29 Gap for search bar with button */
+form[role="search"] .input-group,
+.modern-list-toolbar .input-group {
+    gap: 8px;
+}
+form[role="search"] .input-group-append,
+.modern-list-toolbar .input-group-append {
+    margin-left: 0;
+}
+form[role="search"] .input-group > .form-control,
+.modern-list-toolbar .input-group > .form-control {
+    border-top-right-radius: 4px !important;
+    border-bottom-right-radius: 4px !important;
+}
+form[role="search"] .input-group .btn,
+.modern-list-toolbar .input-group .btn {
+    border-radius: 4px !important;
+}

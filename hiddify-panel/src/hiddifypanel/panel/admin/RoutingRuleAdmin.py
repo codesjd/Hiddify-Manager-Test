@@ -47,8 +47,11 @@ class RoutingRuleAdmin(AdminLTEModelView):
     form_widget_args = {
         'domains': {'rows': 3},
         'ips': {'rows': 3},
+        'outbound_tag': {'class': 'select2'},
+        'inbound_tags': {'class': 'select2'},
     }
     form_extra_fields = {
+        "outbound_tag": wtf.SelectField(_("Outbound Tag")),
         "inbound_tags": wtf.SelectMultipleField(_("Match Inbound(s)")),
     }
 
@@ -71,6 +74,17 @@ class RoutingRuleAdmin(AdminLTEModelView):
     def create_form(self, obj=None):
         form = super().create_form(obj)
         form.inbound_tags.choices = get_available_inbound_tags()
+        
+        choices = [
+            ('freedom', 'freedom (Direct)'),
+            ('blackhole', 'blackhole (Block)'),
+            ('WARP', 'WARP'),
+            ('forbidden_sites', 'forbidden_sites')
+        ]
+        outbounds = CustomOutbound.query.filter_by(child_id=Child.current().id, enable=True).all()
+        for o in outbounds:
+            choices.append((o.tag, o.tag))
+        form.outbound_tag.choices = choices
         return form
 
     def edit_form(self, obj=None):
@@ -83,6 +97,17 @@ class RoutingRuleAdmin(AdminLTEModelView):
         # submitted with the old stored value.
         form = super().edit_form(obj)
         form.inbound_tags.choices = get_available_inbound_tags()
+
+        choices = [
+            ('freedom', 'freedom (Direct)'),
+            ('blackhole', 'blackhole (Block)'),
+            ('WARP', 'WARP'),
+            ('forbidden_sites', 'forbidden_sites')
+        ]
+        outbounds = CustomOutbound.query.filter_by(child_id=Child.current().id, enable=True).all()
+        for o in outbounds:
+            choices.append((o.tag, o.tag))
+        form.outbound_tag.choices = choices
         return form
 
     def on_form_prefill(self, form, id):

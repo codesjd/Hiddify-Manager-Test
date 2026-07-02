@@ -67,12 +67,10 @@
 .dash-secondary-btn:hover { background: var(--border); }
 .dash-danger-btn { background: {{ 'oklch(0.32 0.1 25)' if g.darkmode else 'oklch(0.94 0.05 25)' }}; color: oklch(0.55 0.2 25) !important; }
 .dash-danger-btn:hover { opacity: 0.85; }
-.dash-viewlogs-link { font-size: 12.5px; color: var(--text-secondary) !important; text-decoration: none !important; font-weight: 600; }
-.dash-viewlogs-link:hover { color: var(--text-primary) !important; }
+
 </style>
 
 <div class="dash-actions-row">
-  <a class="dash-viewlogs-link" href="{{ hurl_for('admin.Actions:viewlogs') }}">{{ _('admin.actions.viewlogs') }}</a>
   {% if g.account.mode == 'super_admin' %}
   <div class="btn-group-right">
     <a class="dash-secondary-btn form_post" href="{{ hurl_for('admin.Actions:update') }}">⬆ {{ _('admin.actions.update') }}</a>
@@ -116,6 +114,7 @@
       <svg width="96" height="96" viewBox="0 0 96 96">
         <circle cx="48" cy="48" r="40" fill="none" stroke="var(--track)" stroke-width="10"/>
         <circle cx="48" cy="48" r="40" fill="none" stroke="var(--accent)" stroke-width="10" stroke-linecap="round" stroke-dasharray="{{ total_dash }}" transform="rotate(-90 48 48)"/>
+        <text x="48" y="54" text-anchor="middle" font-family="JetBrains Mono, monospace" font-weight="700" font-size="18" fill="var(--text-primary)">{{ '%.0f'|format((total_usage_gb / total_quota_gb * 100) if total_quota_gb else 0) }}%</text>
       </svg>
       <div>
         <div class="gauge-value">{{ '%.1f'|format(total_usage_gb) }} GB</div>
@@ -179,7 +178,12 @@
   {% for g_ in gauges %}
   <div class="card">
     <div class="card-head" style="margin-bottom:14px;">
-      <span class="card-label">{{ g_.label }}</span>
+      <div class="card-head-left">
+        <div class="chip chip-accent">
+          <span style="color:white; font-weight:bold; font-size: 14px;">{{ g_.label[0] }}</span>
+        </div>
+        <span class="card-label">{{ g_.label }}</span>
+      </div>
       <span style="font-size:11.5px; color:var(--text-secondary);">{{ g_.sub }}</span>
     </div>
     <div style="display:flex; align-items:center; gap:20px;">

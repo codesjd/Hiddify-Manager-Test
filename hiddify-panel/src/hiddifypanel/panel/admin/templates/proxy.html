@@ -10,7 +10,6 @@
 <div class="card">
     <div class="card-header">
         {{_("admin.proxy.global_config")}}
-        <a class="btn btn-secondary btn-xs" href="{{hurl_for('flask.proxy.index_view')}}" style="margin-{{ 'right' if get_locale()=='fa' else 'left' }}:auto;">{{_("Edit Proxy Names")}}</a>
     </div>
     <div class="card-body">
         <div class="global-form">
@@ -18,16 +17,7 @@
         </div>
     </div>
 </div>
-<div class="card">
-    <div class="card-header">{{_("admin.proxy.detailed_config")}}</div>
-    <div class="card-body">
-        <div class="row">
-            <div class="col-12">
-                {{render_form(detailed_config_form,extra_classes="card-columns")}}
-            </div>
-        </div>
-    </div>
-</div>
+
 
 <style>
     fieldset {
@@ -71,21 +61,22 @@
         background: var(--surface);
         border: 1px solid var(--border);
         border-radius: 12px;
-        padding: 14px 16px 14px 44px;
+        padding: 14px 16px 14px 44px !important;
         margin-bottom: 0 !important;
     }
     [dir="rtl"] .global-form .form-group.custom-switch {
-        padding: 14px 44px 14px 16px;
+        padding: 14px 44px 14px 16px !important;
     }
 
     .global-form .form-group:has(#submit_global) {
         grid-column: 1 / -1;
-        display: flex;
-        justify-content: center;
         margin-top: 12px !important;
         background: transparent !important;
         border: none !important;
         padding: 0 !important;
+    }
+    #submit_global {
+        width: 100%;
     }
 </style>
 {% endblock %}

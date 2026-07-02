@@ -18,6 +18,15 @@ def get_folder_size(folder_path: str) -> int:
 
 
 def top_processes() -> dict:
+    # First pass to initialize cpu_percent for all processes
+    for p in psutil.process_iter():
+        try:
+            p.cpu_percent()
+        except psutil.Error:
+            pass
+    import time
+    time.sleep(0.1)
+
     # Get the process information
     processes = [p for p in psutil.process_iter(['pid', 'name', 'username', 'cpu_percent', 'memory_info']) if p.info['name'] != '']
     num_cores = psutil.cpu_count()
@@ -65,7 +74,7 @@ def top_processes() -> dict:
 
 def system_stats() -> dict:
     # CPU usage
-    cpu_percent = psutil.cpu_percent(interval=1)
+    cpu_percent = psutil.cpu_percent(interval=0.1)
 
     # RAM usage
     ram_stats = psutil.virtual_memory()
