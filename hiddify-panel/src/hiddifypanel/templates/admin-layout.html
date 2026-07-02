@@ -149,6 +149,9 @@ body {
   justify-content: center;
   padding: 22px 0 18px 0;
 }
+.sidebar.collapsed .sidebar-header .collapse-btn {
+  display: none;
+}
 .collapse-btn {
   width: 24px;
   height: 24px;
@@ -420,15 +423,6 @@ body {
 .avatar-menu-items {
   padding: 6px;
 }
-.avatar-menu::before {
-  content: "";
-  position: absolute;
-  top: -10px;
-  left: 0;
-  right: 0;
-  height: 10px;
-}
-.avatar-menu-wrap:hover .avatar-menu,
 .avatar-menu-wrap.open .avatar-menu {
   display: block;
 }
@@ -657,6 +651,14 @@ label, .control-label {
 .modal-footer {
   border-top: 1px solid var(--border) !important;
   padding: 16px 24px !important;
+}
+/* bootbox alert/confirm dialogs (e.g. the post-action "Success" popup):
+   center the footer buttons instead of Bootstrap4's default right-align. */
+.bootbox .modal-footer {
+  justify-content: center !important;
+}
+.bootbox .modal-footer .btn {
+  border-radius: 9px !important;
 }
 .close {
   color: var(--text-primary) !important;
@@ -912,7 +914,7 @@ label, .control-label {
     <div class="sidebar-header">
       <div style="display:flex; align-items:center; gap:10px; min-width:0;">
         <div class="logo-mark">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M4 18 L4 10 M12 18 L12 5 M20 18 L20 13" stroke="white" stroke-width="2.6" stroke-linecap="round"/></svg>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" fill="white"/></svg>
         </div>
         <div class="wordmark">Hiddify<span>V2</span></div>
       </div>
@@ -931,19 +933,19 @@ label, .control-label {
         <span class="nav-icon"><svg width="18" height="18" viewBox="0 0 24 24"><path d="M4 4h7v7H4V4zm9 0h7v4h-7V4zm0 7h7v9h-7v-9zM4 14h7v6H4v-6z" fill="currentColor"/></svg></span>
         <span class="nav-label">{{ _('admin.menu.home') }}</span>
       </a>
-      <a class="nav-item {% if 'user.' in request.endpoint or 'User' in request.endpoint %}active{% endif %}" href="{{ hurl_for('flask.user.index_view') }}">
+      <a class="nav-item {% if request.endpoint and request.endpoint.startswith('flask.user.') %}active{% endif %}" href="{{ hurl_for('flask.user.index_view') }}">
         <span class="nav-icon"><svg width="18" height="18" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.3" fill="currentColor"/><path d="M2.8 20c0-3.9 2.8-6.8 6.2-6.8s6.2 2.9 6.2 6.8" fill="currentColor"/><circle cx="17.5" cy="9" r="2.4" fill="currentColor"/><path d="M14.8 13.6c2.8.4 4.9 2.7 4.9 6.4" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round"/></svg></span>
         <span class="nav-label">{{ _('admin.menu.user') }}</span>
       </a>
-      <a class="nav-item {% if 'adminuser.' in request.endpoint or 'Adminstrator' in request.endpoint %}active{% endif %}" href="{{ hurl_for('flask.adminuser.index_view') }}">
-        <span class="nav-icon"><svg width="18" height="18" viewBox="0 0 24 24"><path d="M12 2l7 3v6c0 5-3.2 8.5-7 10-3.8-1.5-7-5-7-10V5l7-3z" fill="currentColor"/></svg></span>
+      <a class="nav-item {% if request.endpoint and request.endpoint.startswith('flask.adminuser.') %}active{% endif %}" href="{{ hurl_for('flask.adminuser.index_view') }}">
+        <span class="nav-icon"><svg width="18" height="18" viewBox="0 0 24 24"><path d="M12 3l6.5 2.5v5.3c0 4.6-2.8 7.9-6.5 9.2-3.7-1.3-6.5-4.6-6.5-9.2V5.5L12 3z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M8.7 12.3l2.3 2.3 4.4-4.9" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
         <span class="nav-label">{{ _('Admins') }}</span>
       </a>
 
       {% if g.account.mode != "agent" %}
       {% set settings_active = False if request.endpoint and ("user" in request.endpoint or "Actions:" in request.endpoint or "Dashboard" in request.endpoint) else True %}
       <div class="nav-item {% if settings_active %}section-active{% endif %}" id="nav-settings" aria-expanded="{{ 'true' if settings_active else 'false' }}" onclick="toggleSection('settings')">
-        <span class="nav-icon"><svg width="18" height="18" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 3v2.4M12 18.6V21M21 12h-2.4M5.4 12H3M18.1 5.9l-1.7 1.7M7.6 16.4l-1.7 1.7M18.1 18.1l-1.7-1.7M7.6 7.6L5.9 5.9" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></span>
+        <span class="nav-icon"><svg width="18" height="18" viewBox="0 0 24 24"><line x1="4" y1="6" x2="20" y2="6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="9" cy="6" r="2.3" fill="currentColor"/><line x1="4" y1="12" x2="20" y2="12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="16" cy="12" r="2.3" fill="currentColor"/><line x1="4" y1="18" x2="20" y2="18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="11" cy="18" r="2.3" fill="currentColor"/></svg></span>
         <span class="nav-label">{{ _('admin.menu.config') }}</span>
         <span class="chevron"><svg width="14" height="14" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6" stroke="currentColor" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
       </div>
@@ -1062,6 +1064,16 @@ $(document).ready(function () {
   });
   $(document).on('click', function () {
     $('#avatar-menu-wrap').removeClass('open');
+  });
+  // Hover-open the avatar menu with a short close delay so a slightly
+  // imprecise cursor path doesn't instantly dismiss it.
+  var avatarMenuCloseTimer = null;
+  $('#avatar-menu-wrap').on('mouseenter', function () {
+    clearTimeout(avatarMenuCloseTimer);
+    $(this).addClass('open');
+  }).on('mouseleave', function () {
+    var $wrap = $(this);
+    avatarMenuCloseTimer = setTimeout(function () { $wrap.removeClass('open'); }, 300);
   });
 
   // Hook Actions forms

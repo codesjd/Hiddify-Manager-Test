@@ -39,9 +39,9 @@ def init_app(app):
     def auto_route(proxy_path=None, user_secret=None):
         return redirect(request.url.replace("http://", "https://") + "/")
 
-    flaskadmin.add_view(UserAdmin(User, db.session))
-    flaskadmin.add_view(DomainAdmin(Domain, db.session))
-    flaskadmin.add_view(AdminstratorAdmin(AdminUser, db.session))
+    flaskadmin.add_view(UserAdmin(User, db.session, name=_("admin.menu.user")))
+    flaskadmin.add_view(DomainAdmin(Domain, db.session, name=_("admin.menu.domain")))
+    flaskadmin.add_view(AdminstratorAdmin(AdminUser, db.session, name=_("Admins")))
     from .NodeAdmin import NodeAdmin
     flaskadmin.add_view(NodeAdmin(Child, db.session))
     from .OutboundAdmin import OutboundAdmin

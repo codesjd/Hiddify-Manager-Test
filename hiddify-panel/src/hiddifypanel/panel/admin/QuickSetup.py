@@ -145,7 +145,20 @@ def get_proxy_form(empty=False):
 
             from .Actions import Actions
             return Actions().reinstall(domain_changed=True)
-    boolconfigs = BoolConfig.query.filter(BoolConfig.child_id == Child.current().id).all()
+    # Toggles we want pinned adjacent to each other regardless of DB
+    # insertion order (e.g. WireGuard next to SSH Proxy); everything else
+    # falls back to grouping by its ConfigCategory.
+    pinned_order = [ConfigEnum.wireguard_enable, ConfigEnum.ssh_server_enable]
+
+    def _proxy_toggle_sort_key(cf):
+        if cf.key in pinned_order:
+            return (0, pinned_order.index(cf.key))
+        return (1, cf.key.category, cf.key)
+
+    boolconfigs = sorted(
+        BoolConfig.query.filter(BoolConfig.child_id == Child.current().id).all(),
+        key=_proxy_toggle_sort_key,
+    )
 
     for cf in boolconfigs:
         if cf.key.category == 'hidden':

@@ -99,7 +99,7 @@ def system_stats() -> dict:
     load_avg = [avg / num_cpus for avg in os.getloadavg()]
     # Return the system information
     return {
-        "cpu_percent": cpu_percent / num_cpus,
+        "cpu_percent": cpu_percent,
         "ram_used": ram_used,
         "ram_total": ram_total,
         "disk_used": disk_used,

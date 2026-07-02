@@ -36,6 +36,11 @@ def init_app(app: APIFlask):
         response.headers["Referrer-Policy"] = "same-origin"
         if response.status_code == 401:
             response.headers['WWW-Authenticate'] = 'Basic realm="Hiddify"'
+        # Ask Chromium-based browsers to resend requests with the OS color
+        # scheme as a request header, so a brand-new session (no explicit
+        # darkmode choice yet) can default to it instead of always light.
+        response.headers["Accept-CH"] = "Sec-CH-Prefers-Color-Scheme"
+        response.headers["Vary"] = "Sec-CH-Prefers-Color-Scheme"
         return response
 
     @app.errorhandler(Exception)
@@ -169,6 +174,13 @@ def init_app(app: APIFlask):
         # setup dark mode
         if request.args.get('darkmode') is not None:
             session['darkmode'] = request.args.get('darkmode', '').lower() == 'true'
+        elif 'darkmode' not in session:
+            # No explicit choice yet: fall back to the OS-level preference,
+            # if the browser sent it (Chromium client hint, only available
+            # once it has seen our Accept-CH response header at least once).
+            color_scheme_hint = request.headers.get('Sec-CH-Prefers-Color-Scheme', '').lower()
+            if color_scheme_hint in ('dark', 'light'):
+                session['darkmode'] = color_scheme_hint == 'dark'
         g.darkmode = session.get('darkmode', False)
 
         # setup pwa
