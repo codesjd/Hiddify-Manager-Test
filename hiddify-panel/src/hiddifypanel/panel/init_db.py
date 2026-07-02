@@ -838,8 +838,8 @@ def add_new_enum_values():
         # Get the values in the enum column in the database
         # result = db.engine.execute(f"SELECT DISTINCT `{column_name}` FROM {table_name}")
         # db_values = {row[0] for row in result}
-
-        result = db.session.execute(text(f"SHOW COLUMNS FROM {table_name} LIKE '{column_name}';")).fetchall()
+        
+        result = db.session.execute(text(f"SHOW COLUMNS FROM {table_name} LIKE :col;"), {"col": column_name}).fetchall()
         db_values = []
 
         for row in result:
@@ -997,7 +997,7 @@ def init_db():
         tmp_uuid = str(uuid.uuid4())
         db.session.add(Child(id=0, unique_id=tmp_uuid, name="Root"))
         db.session.commit()
-        db_execute(f"update child set id=0 where unique_id='{tmp_uuid}'", commit=True)
+        db_execute("update child set id=0 where unique_id=:u", u=tmp_uuid, commit=True)
         child = Child.by_id(0)  
 
     child.mode = ChildMode.virtual

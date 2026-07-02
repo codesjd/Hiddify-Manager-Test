@@ -1,10 +1,10 @@
 import os
 from redis_cache import RedisCache, chunks, compact_dump
 import redis
-from pickle import dumps, loads
+import json
 from loguru import logger
 
-redis_client = redis.from_url(os.environ["REDIS_URI_MAIN"])
+redis_client = redis.from_url(os.environ.get("REDIS_URI_MAIN", "redis://127.0.0.1:6379"))
 # print(os.environ["REDIS_URI_MAIN"])
 
 class CustomRedisCache(RedisCache):
@@ -33,4 +33,4 @@ class CustomRedisCache(RedisCache):
             return False
 
 
-cache = CustomRedisCache(redis_client=redis_client, prefix="h", serializer=dumps, deserializer=loads)
+cache = CustomRedisCache(redis_client=redis_client, prefix="h", serializer=json.dumps, deserializer=json.loads)

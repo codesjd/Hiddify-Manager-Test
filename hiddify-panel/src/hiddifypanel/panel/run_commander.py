@@ -3,6 +3,10 @@ from typing import List
 from strenum import StrEnum
 import subprocess
 import os
+import re
+
+def is_safe_arg(arg: str) -> bool:
+    return bool(re.match(r'^[a-zA-Z0-9_.\-/:?=&#]+$', arg))
 
 
 class Command(StrEnum):
@@ -56,7 +60,7 @@ def commander(command: Command, run_in_background=True, **kwargs: str | int) -> 
         slug = str(kwargs.get('slug', ''))
         period = kwargs.get('period', '')
 
-        if not url or not slug:
+        if not url or not slug or not is_safe_arg(url) or not is_safe_arg(slug):
             raise Exception("Invalid input passed to the run_commander function for temporary-short-link command")
 
         base_cmd.append('temporary-short-link')
@@ -74,7 +78,7 @@ def commander(command: Command, run_in_background=True, **kwargs: str | int) -> 
         base_cmd.append('update-usage')
     elif command == Command.get_cert:
         domain = str(kwargs.get('domain'))
-        if not domain:
+        if not domain or not is_safe_arg(domain):
             raise Exception("Invalid input passed to the run_commander function for get-cert command")
         base_cmd.extend(['get-cert', '--domain', domain])
     elif command == Command.update_wg_usage:
