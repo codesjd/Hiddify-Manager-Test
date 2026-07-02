@@ -59,6 +59,24 @@ stop_nginx_acme(){
 }
 
 
+# The acme-challenge nginx location is identical for every domain (see
+# prepare_acme.sh), so it only needs to be written/nginx-restarted ONCE, up
+# front - not per domain. get_cert() for every domain runs in parallel
+# (run.sh: `get_cert $d &`), and acme.sh's own --pre-hook (prepare_acme.sh)
+# used to `systemctl restart hiddify-nginx` on every single invocation; with
+# several domains racing that restart at the same time, one domain's restart
+# could tear down nginx out from under another domain's HTTP-01 challenge,
+# failing with "Job for hiddify-nginx.service failed" and silently falling
+# back to a self-signed cert for that domain. Doing the restart once here
+# before the parallel loop starts removes the race entirely.
+start_nginx_acme(){
+    mkdir -p /opt/hiddify-manager/acme.sh/www/.well-known/acme-challenge
+    echo "location /.well-known/acme-challenge {root /opt/hiddify-manager/acme.sh/www/;}" >/opt/hiddify-manager/nginx/parts/acme.conf
+    chown -R nginx /opt/hiddify-manager/acme.sh/www/
+    systemctl restart hiddify-nginx
+}
+
+
 function get_cert() {
     cd /opt/hiddify-manager/acme.sh/
     source ./lib/acme.sh.env

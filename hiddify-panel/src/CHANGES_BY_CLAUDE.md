@@ -1,5 +1,46 @@
 # پچ‌های اعمال‌شده روی فورک Hiddify-Manager / Hiddify-Panel
 
+## 🚨 SSL خودش fallback به self-signed می‌کرد - race توی restart nginx (۲۰۲۶-۰۷-۰۲)
+
+گفتی پنل بالا اومد ولی SSL نداره. چک کردم: `openssl x509` نشون داد
+cert سرو شده برای `dns.mayolovers.sbs` **self-signed** بود (issuer==subject،
+هر دو "Google Trust Services LLC" قلابی، اعتبار ۱۰ ساله) - نه یه cert
+واقعی Let's Encrypt. ولی install.log نشون می‌داد ACME issuance واقعی
+هم موفق شده بود! یعنی یه چیزی بعد از issue شدنِ cert واقعی، جایگزینش
+کرده بود با یه fallback خودامضا.
+
+**ریشه‌ی باگ:** `acme.sh/prepare_acme.sh` (که به‌عنوان `--pre-hook` acme.sh
+صدا زده می‌شه) هر بار `systemctl restart hiddify-nginx` می‌زد. ولی
+`acme.sh/run.sh` همه‌ی دامنه‌ها رو **موازی** پردازش می‌کنه
+(`get_cert $d &`). یعنی وقتی چندتا دامنه هم‌زمان دارن issue می‌شن، هرکدوم
+جدا nginx رو restart می‌کنه - و این restart ها با هم race می‌کنن (یکی
+nginx رو می‌کشه درست وسط challenge دامنه‌ی دیگه). دقیقاً همینو توی
+install.log دیدم: `Job for hiddify-nginx.service failed` دقیقاً همون
+لحظه‌ای که هر دو دامنه (IP و دامنه‌ی واقعی) داشتن هم‌زمان acme.sh رو صدا
+می‌زدن. وقتی pre-hook fail می‌شه، acme.sh هم issuance واقعی رو درست
+انجام نمی‌ده، و `get_cert()` می‌افته روی fallback خودامضا
+(`get_self_signed_cert`).
+
+نکته‌ی جالب: محتوای location بلوک acme-challenge توی nginx برای همه‌ی
+دامنه‌ها **کاملاً یکسانه** (چیز دامنه-محورّی نداره) - پس اصلاً نیازی
+نبود هر دامنه جدا nginx رو restart کنه.
+
+**فیکس:** یه تابع جدید `start_nginx_acme()` توی `cert_utils.sh` (جفتِ
+`stop_nginx_acme()` موجود) که **یک بار**، قبل از لوپ موازی، nginx رو
+restart می‌کنه. `prepare_acme.sh` دیگه nginx رو restart نمی‌کنه (فقط
+دایرکتوری/پرمیشن رو - که idempotent و بی‌خطره تکرارش کنی).
+
+**فایل‌های تغییریافته:** `acme.sh/run.sh`، `acme.sh/cert_utils.sh`،
+`acme.sh/prepare_acme.sh`.
+
+**اگه سرورت الان cert خودامضا داره:** بعد از pull کردن این فیکس، فقط
+`bash acme.sh/run.sh` رو دوباره از پوشه‌ی `/opt/hiddify-manager` اجرا
+کن (یا از پنل Apply Config بزن) - چون `get_self_signed_cert` قبل از
+regenerate کردن چک می‌کنه cert معتبره یا نه، این بار باید issuance واقعی
+درست جواب بده و جایگزین self-signed بشه.
+
+---
+
 ## 🐞 اسکن عمیق زیرسیستم subscription (hutils/proxy) - ۵ باگ واقعی (۲۰۲۶-۰۷-۰۲)
 
 گفتی عمیق‌تر برو چون فیچرهای قدیمی باگ مخفی زیاد دارن. رفتم سراغ مسیر
