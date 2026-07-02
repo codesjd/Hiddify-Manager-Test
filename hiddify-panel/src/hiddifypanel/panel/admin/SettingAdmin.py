@@ -363,7 +363,8 @@ def get_config_form():
                                         description=description + extra_info, render_kw=render_kw)
             setattr(CategoryForm, f'{c.key}', field)
 
-        multifield = wtf.FormField(CategoryForm, Markup('<i class="fa-solid fa-plus"></i>&nbsp' + _(f'config.{cat}.label')))
+        cat_label = "Dnstt" if cat == 'dnstt' else _(f'config.{cat}.label')
+        multifield = wtf.FormField(CategoryForm, Markup('<i class="fa-solid fa-plus"></i>&nbsp;' + cat_label))
 
         setattr(DynamicForm, cat, multifield)
 

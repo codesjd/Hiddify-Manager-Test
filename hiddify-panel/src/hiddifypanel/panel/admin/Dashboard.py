@@ -157,16 +157,19 @@ class Dashboard(FlaskView):
 
         gauges = [
             {
+                'id': 'cpu',
                 'label': _('CPU'), 'sub': f"{sys['num_cpus']} " + str(_('core') if sys['num_cpus'] == 1 else _('cores')),
                 'pct': round(sys['cpu_percent']), 'color': 'accent', 'dash': _gauge_dash(sys['cpu_percent'], 34),
                 'breakdown': [{'name': name, 'pct': round(val)} for name, val in cpu_top],
             },
             {
+                'id': 'ram',
                 'label': _('RAM'), 'sub': f"{sys['ram_used']:.1f} / {sys['ram_total']:.1f} GB",
                 'pct': round(ram_pct), 'color': 'magenta', 'dash': _gauge_dash(ram_pct, 34),
                 'breakdown': [{'name': name, 'pct': round(val / sys['ram_total'] * 100) if sys['ram_total'] else 0} for name, val in ram_top],
             },
             {
+                'id': 'disk',
                 'label': _('Disk'), 'sub': f"{sys['disk_used']:.1f} / {sys['disk_total']:.1f} GB",
                 'pct': round(disk_pct), 'color': 'blue', 'dash': _gauge_dash(disk_pct, 34),
                 'breakdown': [

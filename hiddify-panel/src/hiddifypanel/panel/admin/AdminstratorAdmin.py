@@ -119,8 +119,6 @@ class AdminstratorAdmin(AdminLTEModelView):
 
             href = hiddify.get_account_panel_link(model, d) + f'#{hutils.encode.url_encode(model.name)}'
             link = f"<a target='_blank' data-copy='{href}' href='{href}' style='margin: 2px;'>{model.name} <i class='fa-solid fa-arrow-up-right-from-square'></i></a>"
-            if model.parent_admin:
-                return Markup(model.parent_admin.name + "&rlm;&lrm; / &rlm;&lrm;" + link)
             return Markup(link)
         else:
             return model.name

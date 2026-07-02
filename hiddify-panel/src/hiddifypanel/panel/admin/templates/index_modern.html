@@ -195,7 +195,7 @@
       <span style="font-size:11.5px; color:var(--text-secondary);">{{ g_.sub }}</span>
     </div>
     <div style="display:flex; align-items:center; gap:20px;">
-      <svg width="84" height="84" viewBox="0 0 84 84" style="flex-shrink:0;" id="gauge-{{ g_.label|lower }}">
+      <svg width="84" height="84" viewBox="0 0 84 84" style="flex-shrink:0;" id="gauge-{{ g_.id }}">
         <circle cx="42" cy="42" r="34" fill="none" stroke="var(--track)" stroke-width="9"/>
         <circle cx="42" cy="42" r="34" fill="none" stroke="var(--accent-{{ g_.color }})" stroke-width="9" stroke-linecap="round" stroke-dasharray="{{ g_.dash }}" transform="rotate(-90 42 42)" class="gauge-arc"/>
         <text x="42" y="47" text-anchor="middle" font-family="JetBrains Mono, monospace" font-weight="700" font-size="18" fill="var(--text-primary)" class="gauge-text">{{ g_.pct }}%</text>

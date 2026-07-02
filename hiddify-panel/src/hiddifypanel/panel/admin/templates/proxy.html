@@ -61,10 +61,15 @@
         background: var(--surface);
         border: 1px solid var(--border);
         border-radius: 12px;
-        padding: 14px 16px 14px 44px !important;
+        padding: 14px !important;
         margin-bottom: 0 !important;
         display: flex;
+        flex-direction: column;
+        justify-content: center;
         align-items: center;
+    }
+    .global-form .form-text.text-muted {
+        text-align: center;
     }
     [dir="rtl"] .global-form .form-group.custom-switch {
         padding: 14px 44px 14px 16px !important;
@@ -77,13 +82,12 @@
         border: none !important;
         padding: 0 !important;
         display: flex;
-        justify-content: center;
+        width: 100%;
     }
     #submit_global {
         width: 100%;
-        display: flex;
-        justify-content: center;
-        align-items: center;
+        display: block;
+        text-align: center;
     }
 </style>
 {% endblock %}
