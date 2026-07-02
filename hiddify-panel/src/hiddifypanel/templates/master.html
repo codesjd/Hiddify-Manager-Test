@@ -90,18 +90,6 @@
 
 <body class="hold-transition layout-fixed {{" dark-mode" if g.darkmode else "" }} {% block bodyclass
   %}sidebar-collapse{%endblock%}">
-  <div id="splash_screen">
-    <center>
-
-      <img src="{{static_url_for( filename='images/hiddify.png' )}}" />
-
-
-      <a href="https://github.com/hiddify/hiddify-manager/wiki">
-        <h1 class="title">{{_('user.home.title')}}</h1><br>Powered by hiddify.com
-      </a>
-    </center>
-  </div>
-
   {% block page_body %}
   <div class="wrapper">
     {% block nav_bar %}
@@ -217,17 +205,6 @@
 
   {% block tail_js %}
   <script type="text/javascript">
-
-    setTimeout(function () {
-      var wrappers = document.getElementsByClassName("wrapper");
-      var splash_screen = document.getElementById("splash_screen");
-      document.body.removeChild(splash_screen);
-      for (var i = 0; i < wrappers.length; i++) {
-        wrappers[i].style.display = 'initial';
-      }
-
-    }, document.URL.indexOf("pwa") > 0 ? 0 : 500);
-
   </script>
   <!-- jQuery -->
   <script src="{{ static_url_for( filename='plugins/jquery/jquery.min.js' ) }}"></script>
@@ -326,7 +303,7 @@
         position: "{{'topLeft' if get_locale()=='fa' else 'topRight'}}",
 
 
-        body: `{{msg|safe}}`
+        body: {{msg|tojson|safe}}
       })
       {% endfor %}
 
