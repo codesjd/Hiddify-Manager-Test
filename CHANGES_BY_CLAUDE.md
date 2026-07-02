@@ -1,5 +1,40 @@
 # پچ‌های اعمال‌شده روی فورک Hiddify-Manager / Hiddify-Panel
 
+## 🚨 هیچ کانفیگی وصل نمی‌شد: pinnedPeerCertSha256 با base64 به‌جای hex (۲۰۲۶-۰۷-۰۲)
+
+گفتی هیچ‌کدوم از کانفیگ‌ها وصل نمی‌شن (نه فقط amnezia). لاگ v2rayN رو
+فرستادی: `encoding/hex: invalid byte: U+0077 'w'` روی خیلی از کانفیگ‌ها،
+حتی reality. یکی از لینک‌های vless که فرستادی رو باز کردم:
+`pcs=wav%2BcIVAVDKsa%2BOitu3GCyx9boDCF9ZG2i4lBDHqqv8%3D` - این
+base64ه (کاراکترهای `+`، `w`، `x`، `v` همه توی base64 عادی‌ان ولی توی
+hex معتبر نیستن).
+
+`pcs` = پارامتر `pinnedPeerCertSha256` که یه fix قبلی (توی همین فورک، از
+قبل از این session) برای جایگزینی `allowInsecure` حذف‌شده‌ی Xray-core
+اضافه کرده بود (`hutils/network/net.py`). مشکل: کدش
+`base64.b64encode(digest).decode()` می‌کرد، ولی Xray-core این فیلد رو
+hex می‌خواد نه base64 - همونطور که اسمش («Sha256» hex digest) و خودِ
+ارور هم نشون می‌ده. نتیجه: هر دامنه‌ای که `allow_insecure` روش فعال بود
+و یه cert hash واقعی fetch شده بود (به‌جای fallback به `allowInsecure`)،
+یه `pcs` نامعتبر می‌گرفت و کل کانفیگش fail می‌شد به build - نه فقط
+reality، هر پروتکلی که از این مسیر TLS رد می‌شد.
+
+**فیکس:** `digest.hex()` به‌جای `base64.b64encode(digest).decode()` توی
+`_fetch_cert_sha256_blocking()`. همه‌ی مصرف‌کننده‌ها (`xrayjson.py`،
+`xray.py` برای لینک‌ساز vless) مستقیم از همین یه تابع می‌خونن، پس یه جا
+فیکس شد کافیه.
+
+**⚠️ نکته‌ی مهم بعد از این فیکس:** این hash‌ها توی حافظه cache می‌شن
+(`_pinned_cert_cache`, یک ساعت TTL) - مقادیر base64ِ قبلی که همین الان
+توی حافظه‌ی پروسه‌ی در حال اجرا هستن تا یک ساعت دیگه یا تا ری‌استارت
+پنل (Reinstall/Apply Config که پروسه رو عوض کنه) پاک نمی‌شن. برای فیکس
+فوری، پنل رو ری‌استارت کن (یا یک ساعت صبر کن) تا مقادیر جدید hex واقعاً
+جایگزین بشن.
+
+**فایل تغییریافته:** `hutils/network/net.py`.
+
+---
+
 ## 🆕 AmneziaWG کاملاً منتقل شد توی خودِ فرم Outbounds (۲۰۲۶-۰۷-۰۲) — ⚠️ بخشی تست نشده
 
 نسخه‌ی قبلی (پایین‌تر) هنوز یه Settings section جدا لازم داشت برای پیست

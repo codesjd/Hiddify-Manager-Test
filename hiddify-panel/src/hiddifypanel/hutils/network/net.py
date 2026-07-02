@@ -69,7 +69,6 @@ _pinned_cert_inflight: set = set()
 
 
 def _fetch_cert_sha256_blocking(host: str, port: int, timeout: float) -> Union[str, None]:
-    import base64
     import hashlib
     try:
         ctx = ssl.create_default_context()
@@ -81,7 +80,11 @@ def _fetch_cert_sha256_blocking(host: str, port: int, timeout: float) -> Union[s
         if not der_cert:
             return None
         digest = hashlib.sha256(der_cert).digest()
-        return base64.b64encode(digest).decode()
+        # Xray-core's pinnedPeerCertSha256 expects the digest as hex, NOT
+        # base64 - a base64-encoded value here (e.g. "wav+cIVA...") made
+        # every config using it fail with "encoding/hex: invalid byte" as
+        # soon as the base64 alphabet produced a character hex doesn't have.
+        return digest.hex()
     except Exception:
         return None
 
@@ -97,7 +100,7 @@ def _background_fetch_cert(host: str, port: int, key: str):
 
 
 def get_pinned_cert_sha256(host: str, port: int = 443) -> Union[str, None]:
-    """Non-blocking. Returns a cached SHA256 pin (base64, in the form
+    """Non-blocking. Returns a cached SHA256 pin (hex, in the form
     Xray-core's pinnedPeerCertSha256 expects) for host:port if we already
     fetched one recently, or None otherwise - NEVER does network I/O on the
     calling thread. On a cache miss this kicks off a background thread to
