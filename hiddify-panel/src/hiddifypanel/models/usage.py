@@ -91,3 +91,27 @@ class DailyUsage(db.Model):
             "last_30_days": {"usage": last_30_days_stats[0], "online": users_online_last_month},
             "total": {"usage": total_stats[0], "online": users_online_last_10_years, "users": total_users}
         }
+
+    @staticmethod
+    def get_recent_daily_series(days: int = 10, admin_id=None, child_id=None) -> list:
+        """Per-day usage totals (bytes) for the last `days` days, oldest
+        first, with missing days filled in as 0 - used for real sparkline
+        trend lines on the dashboard instead of synthetic/placeholder data.
+        Same admin/child scoping as get_daily_usage_stats()."""
+        from .admin import AdminUser
+        if not admin_id:
+            admin_id = g.account.id
+        sub_admins = AdminUser.query.filter(AdminUser.id == admin_id).first().recursive_sub_admins_ids()
+
+        start = date.today() - timedelta(days=days - 1)
+        query = db.session.query(
+            DailyUsage.date,
+            func.coalesce(func.sum(DailyUsage.usage), 0)
+        ).filter(DailyUsage.date >= start)
+        if admin_id:
+            query = query.filter(DailyUsage.admin_id.in_(sub_admins))
+        if child_id:
+            query = query.filter(DailyUsage.child_id == child_id)
+        rows = dict(query.group_by(DailyUsage.date).all())
+
+        return [rows.get(start + timedelta(days=i), 0) for i in range(days)]

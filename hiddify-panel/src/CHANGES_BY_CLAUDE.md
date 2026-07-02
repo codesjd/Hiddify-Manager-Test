@@ -1,5 +1,64 @@
 # پچ‌های اعمال‌شده روی فورک Hiddify-Manager / Hiddify-Panel
 
+## 🎨 بازطراحی داشبورد ادمین ("Orbit Admin") - برنچ جدا (۲۰۲۶-۰۷-۰۲)
+
+این روی یه برنچ کاملاً جدا انجام شد: `claude/dashboard-modern-redesign`
+(از روی `claude/hiddify-webhook-secret-error-nl4kf1` جدا شده، پس همه‌ی
+فیکس‌های تا الان توش هست). یه design handoff (HTML mockup + screenshots +
+README مشخصات کامل رنگ/فونت/spacing) گرفتم و طبق دستور خودِ فایل
+handoff ("Recreate this design in the target codebase's existing
+framework") توی همون stack موجود (Flask + Jinja2، بدون هیچ فریم‌ورک
+جدید مثل React) پیاده‌سازی شد.
+
+**محدوده:** فقط صفحه‌ی Dashboard (`admin.Dashboard:index`) - همون‌طور که
+خودِ design brief می‌گفت "Single screen: Dashboard". بقیه‌ی صفحات ادمین
+(Users, Settings, Outbounds, ...) دست‌نخورده موندن، همچنان از
+`admin-layout.html`/AdminLTE استفاده می‌کنن. Template جدید
+(`index_modern.html`) کاملاً standalone ه (extend نمی‌کنه از
+admin-layout.html) چون طراحی یه سیستم بصری کاملاً از صفر می‌خواد که اگه
+تو Bootstrap/AdminLTE موجود تزریق بشه باهاش تداخل پیدا می‌کنه.
+
+**داده‌ها واقعی‌ان، نه mock:**
+- Today/Yesterday/Monthly usage + sparkline واقعی: یه متد جدید
+  `DailyUsage.get_recent_daily_series()` اضافه شد (۶۰ روز آخر، یه
+  query) که هم sparkline واقعی می‌سازه هم delta% واقعی
+  (امروز-به-دیروز، دیروز-به-پریروز، این‌ماه-به‌ماه‌قبل).
+- CPU/RAM/Disk gauge + breakdown: از همون `system_stats()`/
+  `top_processes()` موجود.
+- Disk breakdown mockup اصلی per-process بود ولی همچین داده‌ای واقعاً
+  وجود نداره - به‌جاش Hiddify-vs-Other (از `hiddify_used` که از قبل
+  محاسبه می‌شد) گذاشتم، صادقانه‌تر از قلابی کردن اعداد.
+- Total Usage ring: quota = مجموع `usage_limit_GB` کاربرای فعال (یه
+  metric واقعی، هرچند مفهوم "quota سراسری سرور" دقیقاً وجود نداره).
+- Online Users: همون `usage_history['m5']`.
+- زنده (LIVE badge + رفرش هر ۵ ثانیه): از همون endpoint موجود
+  `api_admin.AdminServerStatusApi` استفاده می‌کنه (دقیقاً همونی که
+  داشبورد قدیمی هم ازش poll می‌کنه) - سرور جدیدی لازم نبود. فقط
+  network sparkline چون تاریخچه‌ی سرور-ساید نداره، سمت کلاینت از صفر
+  با poll های واقعی پر می‌شه (نه fake).
+- دکمه‌ی دارک/لایت: از همون مکانیزم موجود کل سایت استفاده می‌کنه
+  (`?darkmode=true/false` → `session['darkmode']` → `g.darkmode`) -
+  یه حالت theme واحد، نه یه toggle جدا مخصوص این صفحه.
+- لینک‌های سایدبار همه واقعی‌ان (`hurl_for` با endpoint های واقعی
+  Flask-Admin/FlaskView)، و دسترسی‌ها دقیقاً همون گیت‌های
+  `g.account.mode` موجود رو رعایت می‌کنن (Settings/Actions فقط برای
+  super_admin و غیره) - چیزی lax‌تر از قبل نشده.
+- RTL/فارسی: تست شد، سایدبار/کارت‌ها درست mirror می‌شن.
+- حالت parent panel: این redesign پوششش نمی‌ده (خودِ brief هم فقط
+  تک‌پنل رو پوشش می‌داد)، پس `Dashboard.py` توی حالت parent همچنان
+  همون `index.html` قدیمی رو رندر می‌کنه - بدون تغییر رفتار.
+
+**تست شده:** رندر واقعی Jinja2 (نه فرضی) با mock context گرفتم و با
+Playwright/Chromium اسکرین‌شات گرفتم - لایت، دارک، RTL هر سه چک شدن و
+با mockup مطابقت دارن.
+
+**فایل‌های جدید:** `panel/admin/templates/index_modern.html`.
+**فایل‌های تغییریافته:** `panel/admin/Dashboard.py` (کانتکست جدید +
+دو helper `_sparkline_points`/`_gauge_dash`)، `models/usage.py`
+(`get_recent_daily_series`).
+
+---
+
 ## 🚨 SSL خودش fallback به self-signed می‌کرد - race توی restart nginx (۲۰۲۶-۰۷-۰۲)
 
 گفتی پنل بالا اومد ولی SSL نداره. چک کردم: `openssl x509` نشون داد
