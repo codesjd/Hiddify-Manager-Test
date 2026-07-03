@@ -199,6 +199,14 @@ def to_link(proxy: dict) -> str | dict:
             query["jmin"] = proxy["awg_jmin"]
         if proxy.get("awg_jmax"):
             query["jmax"] = proxy["awg_jmax"]
+        if proxy.get("awg_h1"):
+            query["h1"] = proxy["awg_h1"]
+        if proxy.get("awg_h2"):
+            query["h2"] = proxy["awg_h2"]
+        if proxy.get("awg_h3"):
+            query["h3"] = proxy["awg_h3"]
+        if proxy.get("awg_h4"):
+            query["h4"] = proxy["awg_h4"]
         return f'wg://{proxy["server"]}:{proxy["port"]}?{urlencode(query)}#{name_link}'
 
     baseurl = f'{proxy["proto"]}://{proxy["uuid"]}@{proxy["server"]}:{proxy["port"]}'

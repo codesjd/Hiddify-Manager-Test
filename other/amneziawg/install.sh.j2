@@ -68,6 +68,10 @@ PrivateKey = ${SERVER_PRIV_KEY}
 {% if hconfigs["amneziawg_jc"] %}Jc = {{hconfigs["amneziawg_jc"]}}
 {% endif %}{% if hconfigs["amneziawg_jmin"] %}Jmin = {{hconfigs["amneziawg_jmin"]}}
 {% endif %}{% if hconfigs["amneziawg_jmax"] %}Jmax = {{hconfigs["amneziawg_jmax"]}}
+{% endif %}{% if hconfigs["amneziawg_h1"] %}H1 = {{hconfigs["amneziawg_h1"]}}
+{% endif %}{% if hconfigs["amneziawg_h2"] %}H2 = {{hconfigs["amneziawg_h2"]}}
+{% endif %}{% if hconfigs["amneziawg_h3"] %}H3 = {{hconfigs["amneziawg_h3"]}}
+{% endif %}{% if hconfigs["amneziawg_h4"] %}H4 = {{hconfigs["amneziawg_h4"]}}
 {% endif %}
 PostUp = iptables -I INPUT -p udp --dport ${SERVER_PORT} -j ACCEPT
 PostUp = iptables -I FORWARD -i ${SERVER_PUB_NIC} -o ${SERVER_AWG_NIC} -j ACCEPT

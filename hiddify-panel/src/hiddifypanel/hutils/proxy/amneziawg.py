@@ -26,6 +26,14 @@ def generate_amneziawg_config(proxy: dict) -> str:
         obfuscation_lines += f"Jmin = {proxy['awg_jmin']}\n"
     if proxy.get("awg_jmax"):
         obfuscation_lines += f"Jmax = {proxy['awg_jmax']}\n"
+    if proxy.get("awg_h1"):
+        obfuscation_lines += f"H1 = {proxy['awg_h1']}\n"
+    if proxy.get("awg_h2"):
+        obfuscation_lines += f"H2 = {proxy['awg_h2']}\n"
+    if proxy.get("awg_h3"):
+        obfuscation_lines += f"H3 = {proxy['awg_h3']}\n"
+    if proxy.get("awg_h4"):
+        obfuscation_lines += f"H4 = {proxy['awg_h4']}\n"
     config = f"""[Interface]
 # Name = {name}
 Address= {addrs}
@@ -38,7 +46,8 @@ DNS = {proxy.get("dns", "1.1.1.1")}
 Endpoint = {proxy["server"]}:{proxy["port"]}
 PublicKey = {proxy["wg_server_pub"]}
 PresharedKey = {proxy['wg_psk']}
-#PersistentKeepalive = {proxy.get("keep_alive", 25)}
+AllowedIPs = {proxy.get("allowed_ips", "0.0.0.0/0, ::/0")}
+PersistentKeepalive = {proxy.get("keep_alive", 25)}
 """
 
     return config

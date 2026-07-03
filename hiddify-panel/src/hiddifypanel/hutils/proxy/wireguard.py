@@ -25,10 +25,8 @@ DNS = {proxy.get("dns", "1.1.1.1")}
 Endpoint = {proxy["server"]}:{proxy["port"]}
 PublicKey = {proxy["wg_server_pub"]}
 PresharedKey = {proxy['wg_psk']}
-#PersistentKeepalive = {proxy.get("keep_alive", 25)}
+AllowedIPs = {proxy.get("allowed_ips", "0.0.0.0/0, ::/0")}
+PersistentKeepalive = {proxy.get("keep_alive", 25)}
 """
-
-#Address = {proxy.get("wg_ipv4", "0.0.0.0/32")}
-#AllowedIPs = {proxy.get("allowed_ips", "0.0.0.0/0")}
 
     return config

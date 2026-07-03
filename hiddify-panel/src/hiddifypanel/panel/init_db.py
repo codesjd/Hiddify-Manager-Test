@@ -17,6 +17,21 @@ from loguru import logger
 MAX_DB_VERSION = 130
 
 
+def _v129(child_id):
+    """H1-H4 (the AmneziaWG header-obfuscation magic values) were missed in
+    _v128 - they're part of the same Jc/Jmin/Jmax obfuscation scheme, and
+    leaving them unset relies on the client and server both falling back to
+    the same implicit default, which isn't guaranteed across every client
+    implementation. 1/2/3/4 are the documented AmneziaWG defaults (== real
+    WireGuard's own message-type bytes, i.e. no header obfuscation) - a
+    safe, working baseline an admin can later tune for stronger DPI
+    resistance."""
+    add_config_if_not_exist(ConfigEnum.amneziawg_h1, "1")
+    add_config_if_not_exist(ConfigEnum.amneziawg_h2, "2")
+    add_config_if_not_exist(ConfigEnum.amneziawg_h3, "3")
+    add_config_if_not_exist(ConfigEnum.amneziawg_h4, "4")
+
+
 def _v128(child_id):
     """One-time setup for AmneziaWG as the client-facing protocol replacing
     WireGuard (_v127) - mirrors _v69's wireguard bootstrap: generate the

@@ -2649,6 +2649,30 @@ msgstr "Maximum junk packet size in bytes. Must match on the client."
 msgid "config.amneziawg_jmax.label"
 msgstr "Jmax (Junk Packet Max Size)"
 
+msgid "config.amneziawg_h1.description"
+msgstr "Magic header value replacing WireGuard's handshake-initiation message type. Must match on the client."
+
+msgid "config.amneziawg_h1.label"
+msgstr "H1 (Header Type 1)"
+
+msgid "config.amneziawg_h2.description"
+msgstr "Magic header value replacing WireGuard's handshake-response message type. Must match on the client."
+
+msgid "config.amneziawg_h2.label"
+msgstr "H2 (Header Type 2)"
+
+msgid "config.amneziawg_h3.description"
+msgstr "Magic header value replacing WireGuard's cookie-reply message type. Must match on the client."
+
+msgid "config.amneziawg_h3.label"
+msgstr "H3 (Header Type 3)"
+
+msgid "config.amneziawg_h4.description"
+msgstr "Magic header value replacing WireGuard's transport-data message type. Must match on the client."
+
+msgid "config.amneziawg_h4.label"
+msgstr "H4 (Header Type 4)"
+
 msgid "config.wireguard_enable.description"
 msgstr ""
 "WireGuard is UDP based protocol. (⚠️ It is Working In <a "

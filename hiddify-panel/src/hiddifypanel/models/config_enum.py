@@ -145,6 +145,17 @@ class ConfigEnum(metaclass=FastEnum):
     amneziawg_jc = _StrConfigDscr(ConfigCategory.amneziawg, ApplyMode.apply_config, hide_in_virtual_child=True)
     amneziawg_jmin = _StrConfigDscr(ConfigCategory.amneziawg, ApplyMode.apply_config, hide_in_virtual_child=True)
     amneziawg_jmax = _StrConfigDscr(ConfigCategory.amneziawg, ApplyMode.apply_config, hide_in_virtual_child=True)
+    # H1-H4: the magic header values AmneziaWG substitutes for WireGuard's
+    # real message-type bytes (1/2/3/4) on the wire, part of the same
+    # obfuscation scheme as Jc/Jmin/Jmax above - initially left out on the
+    # assumption that omitting them everywhere would make both ends fall
+    # back to the same default consistently, but a real client app is not
+    # guaranteed to apply that default the same way the server's awg-quick
+    # does. Setting them explicitly on both ends removes that ambiguity.
+    amneziawg_h1 = _StrConfigDscr(ConfigCategory.amneziawg, ApplyMode.apply_config, hide_in_virtual_child=True)
+    amneziawg_h2 = _StrConfigDscr(ConfigCategory.amneziawg, ApplyMode.apply_config, hide_in_virtual_child=True)
+    amneziawg_h3 = _StrConfigDscr(ConfigCategory.amneziawg, ApplyMode.apply_config, hide_in_virtual_child=True)
+    amneziawg_h4 = _StrConfigDscr(ConfigCategory.amneziawg, ApplyMode.apply_config, hide_in_virtual_child=True)
 
     ssh_server_redis_url = _StrConfigDscr(ConfigCategory.hidden, hide_in_virtual_child=True)
     ssh_server_port = _StrConfigDscr(ConfigCategory.ssh, ApplyMode.apply_config, hide_in_virtual_child=True)

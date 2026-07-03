@@ -452,6 +452,14 @@ def add_amneziawg(base: dict, proxy: dict):
                 amnezia_params["jmin"] = int(proxy["awg_jmin"])
             if proxy.get("awg_jmax"):
                 amnezia_params["jmax"] = int(proxy["awg_jmax"])
+            if proxy.get("awg_h1"):
+                amnezia_params["h1"] = int(proxy["awg_h1"])
+            if proxy.get("awg_h2"):
+                amnezia_params["h2"] = int(proxy["awg_h2"])
+            if proxy.get("awg_h3"):
+                amnezia_params["h3"] = int(proxy["awg_h3"])
+            if proxy.get("awg_h4"):
+                amnezia_params["h4"] = int(proxy["awg_h4"])
             if amnezia_params:
                 base["amnezia"] = amnezia_params
     else:
@@ -469,6 +477,14 @@ def add_amneziawg(base: dict, proxy: dict):
                 base["jmin"] = int(proxy["awg_jmin"])
             if proxy.get("awg_jmax"):
                 base["jmax"] = int(proxy["awg_jmax"])
+            if proxy.get("awg_h1"):
+                base["h1"] = int(proxy["awg_h1"])
+            if proxy.get("awg_h2"):
+                base["h2"] = int(proxy["awg_h2"])
+            if proxy.get("awg_h3"):
+                base["h3"] = int(proxy["awg_h3"])
+            if proxy.get("awg_h4"):
+                base["h4"] = int(proxy["awg_h4"])
 
 
 def add_shadowsocks_base(all_base: list[dict], proxy: dict):

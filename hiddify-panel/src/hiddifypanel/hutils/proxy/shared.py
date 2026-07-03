@@ -558,6 +558,10 @@ def make_proxy(hconfigs: dict, proxy: Proxy, domain_db: Domain, phttp=80, ptls=4
         base['awg_jc'] = hconfigs.get(ConfigEnum.amneziawg_jc)
         base['awg_jmin'] = hconfigs.get(ConfigEnum.amneziawg_jmin)
         base['awg_jmax'] = hconfigs.get(ConfigEnum.amneziawg_jmax)
+        base['awg_h1'] = hconfigs.get(ConfigEnum.amneziawg_h1)
+        base['awg_h2'] = hconfigs.get(ConfigEnum.amneziawg_h2)
+        base['awg_h3'] = hconfigs.get(ConfigEnum.amneziawg_h3)
+        base['awg_h4'] = hconfigs.get(ConfigEnum.amneziawg_h4)
         return base
 
     if proxy.proto in [ProxyProto.vmess]:
