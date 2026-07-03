@@ -70,11 +70,11 @@
             <p class="quicksetup-step-note">{{ _('quicksetup.proxy_cat.description') }}</p>
             {% endif %}
             <div class="row">
-                <div class="card-columns">
+                <div class="card-columns{% if form.step.data == '3' %} quicksetup-domain-outer{% endif %}">
                     {% if ipv4 or ipv6 %}
                     {{_('admin.quicksetup_intro',ipv4=ip_btn(ipv4),ipv6=ip_btn(ipv6))}}
                     {%endif%}
-                    {{render_form(form,form_type="",extra_classes="card-columns1")}}
+                    {{render_form(form,form_type="",extra_classes="card-columns1 quicksetup-domain-form" if form.step.data == "3" else "card-columns1")}}
                 </div>
             </div>
         </div>
@@ -111,6 +111,29 @@
     @media (min-width: 768px) {
         .card-columns {
             column-count: 2;
+        }
+    }
+
+    /* The domain step's field count isn't stable (it can gain/lose a stray
+       row whenever anything nearby changes), and CSS multi-column layout
+       rebalances across all columns whenever the item count changes - which
+       is why the CDN field's position kept moving. Pin it explicitly instead
+       of relying on column-balancing: two real grid columns, domain first
+       row left, CDN first row right, regardless of what else is on the
+       page. */
+    .card-columns.quicksetup-domain-outer {
+        column-count: 1;
+    }
+
+    .quicksetup-domain-form {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        column-gap: 16px;
+    }
+
+    @media (max-width: 575px) {
+        .quicksetup-domain-form {
+            grid-template-columns: 1fr;
         }
     }
 </style>

@@ -125,7 +125,6 @@
         color: black !important;
     }
 </style>
-<script src="https://cdn.ckeditor.com/ckeditor5/42.0.2/ckeditor5.js"></script>
 
 <script type="importmap">
     {
@@ -261,6 +260,24 @@
 
 
     })
+
+    // Every category's fields live in one giant <form>, and a field inside
+    // a collapsed (hidden) fieldset stays fully subject to native HTML5
+    // constraint validation even though it isn't visible - display:none
+    // doesn't exempt it. If such a field's stored value fails its own
+    // required/pattern check (e.g. a stale value from before the field was
+    // edited), the browser silently refuses to submit the *entire* form and
+    // logs "invalid form control is not focusable" - clicking Submit does
+    // nothing, with zero visible feedback, even for changes made in a
+    // completely different category. The 'invalid' event still fires on a
+    // hidden field (unlike 'submit', which never fires at all here), so
+    // catch it in the capture phase and reveal its fieldset synchronously -
+    // by the time the browser moves on to focusing the first invalid
+    // control, it's now visible and focusable.
+    document.addEventListener('invalid', function (e) {
+        var fieldset = e.target.closest && e.target.closest('fieldset')
+        if (fieldset) $(fieldset).find('.form-group').show()
+    }, true)
 
     // #submit is a bare WTForms <input>, rendered as the last grid child of
     // .settings-grid with no wrapper of its own to place a sibling button

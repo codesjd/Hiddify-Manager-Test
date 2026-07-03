@@ -116,6 +116,28 @@ def amneziawg_needs_full_install() -> bool:
     return shutil.which('awg-quick') is None or shutil.which('amneziawg-go') is None
 
 
+def core_needs_full_install() -> bool:
+    """Same class of bug as amneziawg_needs_full_install() above: xray and
+    singbox are each only actually downloaded (install.sh's job) the first
+    time install_run runs with that core enabled - on any server that has
+    never had core_type set to a given value, that core's binary was never
+    fetched, since every prior full install/reinstall passed its enable flag
+    as 0 (runsh() substitutes disable.sh for *both* the install.sh and
+    run.sh calls whenever the flag is 0/false - install.sh, the only thing
+    that downloads the binary, never runs). Switching core_type and then
+    only ever clicking "Apply Configs" (which never runs install.sh at all,
+    by design) leaves that core's systemd service pointing at a binary that
+    doesn't exist. Escalate to a full install so the binary actually gets
+    fetched."""
+    import shutil
+    core_type = hconfig(ConfigEnum.core_type)
+    if core_type == 'singbox':
+        return shutil.which('hiddify-core') is None
+    if core_type == 'xray':
+        return shutil.which('xray') is None
+    return False
+
+
 def reinstall_action(complete_install=False, domain_changed=False, do_update=False):
     from hiddifypanel.panel.admin.Actions import Actions
     action = Actions()

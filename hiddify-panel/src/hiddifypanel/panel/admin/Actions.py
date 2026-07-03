@@ -104,6 +104,9 @@ class Actions(FlaskView):
         if not complete_install and hiddify.amneziawg_needs_full_install():
             complete_install = True
             hutils.flask.flash((_('AmneziaWG needs a one-time setup - running a full install instead of a quick apply.')), 'info')
+        if not complete_install and hiddify.core_needs_full_install():
+            complete_install = True
+            hutils.flask.flash((_('The selected core needs a one-time setup - running a full install instead of a quick apply.')), 'info')
         if domain_changed:
             hutils.flask.flash((_('domain.changed_in_domain_warning')), 'info')
         # hutils.flask.flash(f'complete_install={complete_install} domain_changed={domain_changed} ', 'info')
