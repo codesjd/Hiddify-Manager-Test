@@ -39,7 +39,18 @@ class BaseAccount(db.Model, FlaskLoginUserMixin):  # type: ignore
         # usernames slipped through, and why gen_username never detected a
         # collision).
         cls = self.__class__
-        model = cls.query.filter(cls.username == self.username, cls.id != self.id).first()
+        # no_autoflush: on create, flask-admin's create_model() does
+        # session.add(model) *before* calling on_model_change (which calls
+        # this). self.id is None when `cls.id != self.id` is built (captured
+        # eagerly, becoming "id IS NOT NULL" in SQL), but running this query
+        # would otherwise trigger autoflush, which INSERTs this same
+        # not-yet-committed row and assigns it a real id - so the exclusion
+        # no longer excludes it, and the row matches itself as a "duplicate"
+        # (every new admin was rejected, regardless of username, until this
+        # was added). Suppressing autoflush here keeps the row unflushed
+        # (id still None) for the duration of this check.
+        with db.session.no_autoflush:
+            model = cls.query.filter(cls.username == self.username, cls.id != self.id).first()
         if model:
             return False
         return True

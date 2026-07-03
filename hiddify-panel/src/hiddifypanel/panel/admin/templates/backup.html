@@ -40,16 +40,19 @@
             grid-template-columns: 1fr;
         }
     }
-    /* The restore form is a single file input + toggles; center it and give
-       the bare native file control a look consistent with the rest of the UI
-       instead of the browser default. */
+    /* Only the file-input's own form-group (not the toggle switches below
+       it, which should keep their normal left-aligned icon+label layout) -
+       center it and give the bare native file control a look consistent
+       with the rest of the UI instead of the browser default. */
+    .backup-grid .form-group:has(input[type="file"]) {
+        text-align: center;
+    }
     /* label defaults to display:inline, so making the file input
        inline-block (needed below so text-align:center can center it) put
-       it right next to the label instead of on its own line - force the
-       label onto its own line explicitly instead of relying on a block
-       sibling to push a wrap. */
-    .backup-grid .form-group { text-align: center; }
-    .backup-grid .form-group label {
+       it right next to the label instead of on its own line - force just
+       this label onto its own line explicitly instead of relying on a
+       block sibling to push a wrap. */
+    .backup-grid .form-group:has(input[type="file"]) label {
         display: block !important;
     }
     .backup-grid input[type="file"] {
