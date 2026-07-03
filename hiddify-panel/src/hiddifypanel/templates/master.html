@@ -271,8 +271,9 @@
 
     w = Math.min(window.innerWidth, window.innerHeight) * .5;
     // admin-layout.html's page_body override (the modern admin shell) doesn't
-    // call {{ super() }}, so this #qrcode div (part of master.html's
-    // share-link modal) never renders on any admin page. new QRCode(null, ..)
+    // include master.html's default page body content, so this #qrcode div
+    // (part of master.html's share-link modal) never renders on any admin
+    // page. new QRCode(null, ..)
     // used to throw here uncaught, which - since this is one shared <script>
     // block - silently skipped every statement after it, including the
     // $(document).ready(...) below that renders flashed messages as toasts.
