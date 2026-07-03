@@ -83,7 +83,7 @@ def init_app(app: APIFlask):
         issue_link = hutils.github_issue.generate_github_issue_link_for_500_error(e, trace)
         last_version = hiddify.get_latest_release_version('hiddifypanel')
 
-        return render_template('500.html', error=e, trace=trace, debug=app.debug, has_update=has_update, last_version=last_version, issue_link=issue_link), 500
+        return render_template('500.html', error=e, trace=trace, debug=True, has_update=has_update, last_version=last_version, issue_link=issue_link), 500  # TEMP-DEBUG: revert to app.debug
 
     @app.errorhandler(HTTPError)
     def internal_server_error(e):
@@ -100,7 +100,7 @@ def init_app(app: APIFlask):
             has_update = hutils.utils.is_panel_outdated()
             last_version = hiddify.get_latest_release_version('hiddifypanel')
 
-            return render_template('500.html', error=e, trace=trace, debug=app.debug, has_update=has_update, last_version=last_version, issue_link=issue_link), 500
+            return render_template('500.html', error=e, trace=trace, debug=True, has_update=has_update, last_version=last_version, issue_link=issue_link), 500  # TEMP-DEBUG: revert to app.debug
 
         # if it's access denied error
         # if e.status_code in [400,401,403]:
