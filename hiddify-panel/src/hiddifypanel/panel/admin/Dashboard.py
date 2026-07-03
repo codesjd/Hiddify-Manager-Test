@@ -41,7 +41,11 @@ def _gauge_dash(pct: float, r: int) -> str:
     """SVG stroke-dasharray for a ring gauge showing `pct`% around a circle
     of radius `r` (rounded stroke cap, drawn from -90deg in the template)."""
     import math
-    pct = max(0, min(100, pct))
+    # total_usage_gb/total_quota_gb (the only caller that can hit this) come
+    # from SQL SUM() aggregates over decimal.Decimal-typed DB columns, unlike
+    # every other gauge's plain-float psutil reading - Python refuses to mix
+    # float and Decimal in arithmetic, so this needs an explicit cast.
+    pct = max(0, min(100, float(pct)))
     c = 2 * math.pi * r
     return f"{c * pct / 100:.1f} {c:.1f}"
 
