@@ -30,7 +30,6 @@
       "netdata": true,
       "only_ipv4": true,
       "proxy_path": "OFsEIWaAEy7cIwet6zNb",
-      "speed_test": true,
       "ssfaketls_enable": false,
       "ssfaketls_fakedomain": "fa.wikipedia.org",
       "ssfaketls_secret": "de92a679-1dc9-4d32-8c49-189a12454acd",

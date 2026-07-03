@@ -88,9 +88,6 @@ function main() {
             install_run acme.sh 
         )&
         
-        update_progress "${PROGRESS_ACTION}" "Personal SpeedTest" 35
-        install_run other/speedtest $(hconfig "speed_test") &
-        
         update_progress "${PROGRESS_ACTION}" "dnstt Proxy" 40
         install_run other/dnstt $(hconfig "dnstt_enable") &
 

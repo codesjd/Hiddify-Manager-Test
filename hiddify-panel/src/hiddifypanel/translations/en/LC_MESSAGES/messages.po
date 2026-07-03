@@ -1402,31 +1402,31 @@ msgid "config.dns_server.label"
 msgstr "🖥 DNS Server"
 
 msgid "config.dnstt.description"
-msgstr "config.dnstt.description"
+msgstr "DNSTT tunnels traffic over DNS queries, useful when every other port/protocol is blocked but DNS resolution still works."
 
 msgid "config.dnstt.label"
 msgstr "Dnstt"
 
 msgid "config.dnstt_enable.description"
-msgstr "config.dnstt_enable.description"
+msgstr "Enables the DNSTT (DNS tunneling) proxy."
 
 msgid "config.dnstt_enable.label"
 msgstr "DNSTT Enable"
 
 msgid "config.dnstt_private_key.description"
-msgstr "config.dnstt_private_key.description"
+msgstr "The DNSTT server's private key, generated automatically - clients need the matching public key below to connect."
 
 msgid "config.dnstt_private_key.label"
-msgstr "config.dnstt_private_key.label"
+msgstr "DNSTT Private Key"
 
 msgid "config.dnstt_public_key.description"
-msgstr "config.dnstt_public_key.description"
+msgstr "The DNSTT server's public key - clients use this to verify the server."
 
 msgid "config.dnstt_public_key.label"
-msgstr "config.dnstt_public_key.label"
+msgstr "DNSTT Public Key"
 
 msgid "config.dnstt_resolvers.description"
-msgstr "config.dnstt_resolvers.description"
+msgstr "DNS resolvers (one per line) clients should query through when tunneling over DNSTT."
 
 msgid "config.dnstt_resolvers.label"
 msgstr "DNSTT Resolvers"

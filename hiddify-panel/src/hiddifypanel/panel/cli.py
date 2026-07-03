@@ -181,7 +181,6 @@ def init_app(app):
             "ENABLE_HTTP_PROXY": ConfigEnum.http_proxy_enable,
             "ALLOW_ALL_SNI_TO_USE_PROXY": ConfigEnum.allow_invalid_sni,
             "ENABLE_AUTO_UPDATE": ConfigEnum.auto_update,
-            "ENABLE_SPEED_TEST": ConfigEnum.speed_test,
             "BLOCK_IR_SITES": ConfigEnum.block_iran_sites,
             "ONLY_IPV4": ConfigEnum.only_ipv4
         }

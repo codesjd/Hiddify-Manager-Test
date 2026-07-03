@@ -112,8 +112,8 @@ class OutboundAdmin(AdminLTEModelView):
     """
     column_hide_backrefs = False
     list_template = 'model/outbound_list.html'
-    column_list = ["tag", "protocol", "address", "port", "network", "security", "enable", "comment"]
-    form_columns = ["enable", "tag", "import_link", "protocol", "address", "port", "uuid_or_password",
+    column_list = ["tag", "protocol", "address", "port", "network", "security", "comment"]
+    form_columns = ["tag", "import_link", "protocol", "address", "port", "uuid_or_password",
                      "peer_public_key", "preshared_key", "local_address", "dns", "jc", "jmin", "jmax",
                      "network", "security", "sni", "ws_path", "host_header", "fingerprint", "flow",
                      "comment", "extra_json", "protocol_field_script"]
@@ -140,7 +140,6 @@ class OutboundAdmin(AdminLTEModelView):
         "flow": _("Flow (vless xtls, e.g. xtls-rprx-vision)"),
         "comment": _("Comment"),
         "extra_json": _("Advanced Override (JSON)"),
-        "enable": _("Enable"),
     }
     column_descriptions = dict(
         tag=_("Unique identifier for this outbound. Reference it as the Outbound Tag in a Routing Rule to send matching traffic here."),
@@ -181,14 +180,7 @@ class OutboundAdmin(AdminLTEModelView):
     }
 
     can_export = False
-    column_sortable_list = ["tag", "protocol", "enable"]
-
-    def _enable_formatter(view, context, model, name):
-        return Markup(hutils.flask.hf_status_circle(bool(model.enable)))
-
-    column_formatters = {
-        "enable": _enable_formatter,
-    }
+    column_sortable_list = ["tag", "protocol"]
 
     def is_accessible(self):
         if login_required(roles={Role.super_admin}, permissions={Permission.manage_settings})(lambda: True)() != True:

@@ -32,7 +32,6 @@ class Subsystem(StrEnum):
     telegram = 'other/telegram'
     ssfaketls = 'other/ssfaketls'
     hiddifycli = 'other/hiddify-cli'
-    speedtest = 'other/speedtest'
 
 
 # Domain records aren't ConfigEnum-backed (see DomainAdmin), but this is the
@@ -86,7 +85,6 @@ KEY_SUBSYSTEM_OVERRIDES: dict[ConfigEnum, frozenset[str]] = {
     # core_type toggles which of xray/singbox actually runs, and other/ssh's
     # own .env.j2 reads core_type too (its SOCKS_PROXY port differs by core).
     ConfigEnum.core_type: frozenset({Subsystem.xray, Subsystem.singbox, Subsystem.ssh}),
-    ConfigEnum.speed_test: frozenset({Subsystem.speedtest}),
     ConfigEnum.hiddifycli_enable: frozenset({Subsystem.hiddifycli}),
     # Filed under ConfigCategory.hidden rather than .wireguard, but these are
     # unambiguously wireguard-only settings (interface IPs and keys).

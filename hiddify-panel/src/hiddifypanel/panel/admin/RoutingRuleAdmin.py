@@ -32,7 +32,7 @@ class RoutingRuleAdmin(AdminLTEModelView):
     }
     column_descriptions = dict(
         priority=_("Lower number = checked first. Rules are evaluated in this order; the first match wins."),
-        outbound_tag=_("Must match a Tag from the Outbounds page, or a built-in tag: freedom, blackhole, WARP, forbidden_sites."),
+        outbound_tag=_("Must match a Tag from the Outbounds page, or a built-in tag: freedom, blackhole, WARP."),
         inbound_tags=_("Optional. Match traffic that arrived on these inbounds specifically - covers both xray tags (vless/vmess/"
                         "trojan over a transport, plus Reality per-domain) and, when running singbox, mieru/naive/tuic/hysteria2 "
                         "(only the ones relevant to your current core_type will ever actually match anything). Hiddify shares one "
@@ -84,7 +84,6 @@ class RoutingRuleAdmin(AdminLTEModelView):
             ('freedom', 'freedom (Direct)'),
             ('blackhole', 'blackhole (Block)'),
             ('WARP', 'WARP'),
-            ('forbidden_sites', 'forbidden_sites')
         ]
         outbounds = CustomOutbound.query.filter_by(child_id=Child.current().id, enable=True).all()
         for o in outbounds:
@@ -107,7 +106,6 @@ class RoutingRuleAdmin(AdminLTEModelView):
             ('freedom', 'freedom (Direct)'),
             ('blackhole', 'blackhole (Block)'),
             ('WARP', 'WARP'),
-            ('forbidden_sites', 'forbidden_sites')
         ]
         outbounds = CustomOutbound.query.filter_by(child_id=Child.current().id, enable=True).all()
         for o in outbounds:
