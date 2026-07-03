@@ -26,7 +26,8 @@ class RoutingRuleAdmin(AdminLTEModelView):
     column_hide_backrefs = False
     list_template = 'model/routingrule_list.html'
     column_list = ["priority", "outbound_tag", "inbound_tags", "domains", "ips", "port", "network", "enable", "comment"]
-    form_columns = ["enable", "outbound_tag", "inbound_tags", "domains", "ips", "port", "network", "comment"]
+    form_columns = ["enable", "outbound_tag", "inbound_tags", "domains", "ips", "port", "network",
+                    "source_ips", "source_port", "protocols", "user_emails", "comment"]
 
     column_labels = {
         "priority": _("Priority"),
@@ -36,6 +37,10 @@ class RoutingRuleAdmin(AdminLTEModelView):
         "ips": _("IPs"),
         "port": _("Port"),
         "network": _("Network"),
+        "source_ips": _("Source IPs"),
+        "source_port": _("Source Port"),
+        "protocols": _("Protocol"),
+        "user_emails": _("User"),
         "comment": _("Comment"),
         "enable": _("Enable"),
     }
@@ -51,11 +56,17 @@ class RoutingRuleAdmin(AdminLTEModelView):
         ips=_("One per line. Plain IPs/CIDRs, or \"geoip:ir\" etc."),
         port=_('Optional, e.g. "443" or "1000-2000". Leave empty to match any port.'),
         network=_('Optional: "tcp", "udp", or "tcp,udp". Leave empty to match both.'),
+        source_ips=_("Optional. Match by the client's source IP - one per line, plain IPs/CIDRs or \"geoip:ir\" etc."),
+        source_port=_('Optional, e.g. "443" or "1000-2000". Match by the client\'s source port.'),
+        protocols=_('Optional. Match sniffed protocol(s), comma-separated: "http", "tls", "quic", "bittorrent". Requires sniffing on the inbound.'),
+        user_emails=_("Optional. Match by inbound user email/identifier - one per line."),
     )
 
     form_widget_args = {
         'domains': {'rows': 3},
         'ips': {'rows': 3},
+        'source_ips': {'rows': 3},
+        'user_emails': {'rows': 2},
         # inbound_tags is upgraded client-side by update_hiddify_ui() in
         # flaskadmin-layout.html ($.multipleSelect() keyed on this element's
         # id, same as DomainAdmin's show_domains/download_domain). Setting

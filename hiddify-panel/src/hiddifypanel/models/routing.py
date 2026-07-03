@@ -822,6 +822,13 @@ class CustomRoutingRule(db.Model):  # type: ignore
     # matches traffic by which inbound it arrived on, instead of/alongside
     # domain or IP.
     inbound_tags = Column(Text, nullable=True, default='')
+    # Additional xray/singbox routing match conditions (from the reference
+    # routing form): source IP/CIDR, source port, sniffed protocol, and
+    # inbound auth user/email. All optional - blank = not part of the match.
+    source_ips = Column(Text, nullable=True, default='')      # newline-separated, e.g. geoip:ir / 1.2.3.0/24
+    source_port = Column(String(100), nullable=True, default='')  # e.g. "443" or "1000-2000"
+    protocols = Column(String(100), nullable=True, default='')    # comma-separated sniffed protocols: http,tls,bittorrent,quic
+    user_emails = Column(Text, nullable=True, default='')     # newline/comma-separated inbound user emails
     comment = Column(String(300), nullable=True, default='')
 
     def to_xray_dict(self) -> dict:
@@ -829,6 +836,9 @@ class CustomRoutingRule(db.Model):  # type: ignore
         domains = [d.strip() for d in (self.domains or '').splitlines() if d.strip()]
         ips = [i.strip() for i in (self.ips or '').splitlines() if i.strip()]
         inbound_tags = [t.strip() for t in (self.inbound_tags or '').split(',') if t.strip()]
+        source_ips = [s.strip() for s in (self.source_ips or '').splitlines() if s.strip()]
+        protocols = [p.strip() for p in (self.protocols or '').split(',') if p.strip()]
+        users = [u.strip() for u in (self.user_emails or '').replace(',', '\n').splitlines() if u.strip()]
         if inbound_tags:
             rule["inboundTag"] = inbound_tags
         if domains:
@@ -839,6 +849,14 @@ class CustomRoutingRule(db.Model):  # type: ignore
             rule["port"] = self.port
         if self.network:
             rule["network"] = self.network
+        if source_ips:
+            rule["source"] = source_ips
+        if self.source_port:
+            rule["sourcePort"] = self.source_port
+        if protocols:
+            rule["protocol"] = protocols
+        if users:
+            rule["user"] = users
         return rule
 
     def to_singbox_dict(self) -> dict:
@@ -852,6 +870,9 @@ class CustomRoutingRule(db.Model):  # type: ignore
         domains = [d.strip() for d in (self.domains or '').splitlines() if d.strip()]
         ips = [i.strip() for i in (self.ips or '').splitlines() if i.strip()]
         inbound_tags = [t.strip() for t in (self.inbound_tags or '').split(',') if t.strip()]
+        source_ips = [s.strip() for s in (self.source_ips or '').splitlines() if s.strip()]
+        protocols = [p.strip() for p in (self.protocols or '').split(',') if p.strip()]
+        users = [u.strip() for u in (self.user_emails or '').replace(',', '\n').splitlines() if u.strip()]
         if inbound_tags:
             rule["inbound"] = inbound_tags
         if domains:
@@ -862,6 +883,14 @@ class CustomRoutingRule(db.Model):  # type: ignore
             rule["port"] = self.port
         if self.network:
             rule["network"] = self.network
+        if source_ips:
+            rule["source_ip_cidr"] = source_ips
+        if self.source_port:
+            rule["source_port"] = self.source_port
+        if protocols:
+            rule["protocol"] = protocols
+        if users:
+            rule["auth_user"] = users
         return rule
 
 

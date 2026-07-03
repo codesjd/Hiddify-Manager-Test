@@ -14,7 +14,18 @@ from hiddifypanel.database import db, db_execute
 
 
 from loguru import logger
-MAX_DB_VERSION = 132
+MAX_DB_VERSION = 133
+
+
+def _v132(child_id):
+    """Extra CustomRoutingRule match conditions to complete the routing form
+    against the reference (source IP/CIDR, source port, sniffed protocol,
+    inbound user email). Existing rules get NULL = "not part of the match",
+    so behavior is unchanged for rules that don't set them."""
+    add_column(CustomRoutingRule.source_ips)
+    add_column(CustomRoutingRule.source_port)
+    add_column(CustomRoutingRule.protocols)
+    add_column(CustomRoutingRule.user_emails)
 
 
 def _v131(child_id):
