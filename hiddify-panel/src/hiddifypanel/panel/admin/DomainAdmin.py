@@ -92,11 +92,14 @@ class DomainAdmin(AdminLTEModelView):
     # create_modal = True
     can_export = False
     form_widget_args = {
-        # data-role was blanked out here, which disables Flask-Admin's
-        # default select2 widget - left show_domains (a many-to-many
-        # relationship) as a plain hold-ctrl-to-multi-select box.
-        'show_domains': {'class': 'form-control ltr', 'data-role': 'select2'},
-        'download_domain': {'class': 'form-control ltr', 'data-role': 'select2'}
+        # data-role is intentionally left blank here: show_domains/download_domain
+        # are upgraded client-side by update_hiddify_ui() in flaskadmin-layout.html
+        # (a $.multipleSelect() call keyed on these exact element ids). Setting
+        # data-role="select2" makes flask-admin's own form.js *also* initialize
+        # select2 on the same <select>, and the two widgets fighting over one
+        # element is what breaks the dropdown (empty/blank results on open).
+        'show_domains': {'class': 'form-control ltr', 'data-role': u''},
+        'download_domain': {'class': 'form-control ltr', 'data-role': u''}
     }
 
     form_args = {

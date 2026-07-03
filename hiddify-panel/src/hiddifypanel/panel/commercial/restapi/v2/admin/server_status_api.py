@@ -22,9 +22,10 @@ class AdminServerStatusApi(MethodView):
     def get(self):
         """System: ServerStatus"""
         dto = ServerStatusOutputSchema()
+        top5 = hutils.system.top_processes()
         dto.stats = {  # type: ignore
-            'system': hutils.system.system_stats(),
-            'top5': hutils.system.top_processes()
+            'system': hutils.system.system_stats(cpu_percent=top5.get('system_cpu_percent')),
+            'top5': top5
         }
         admin_id = request.args.get("admin_id") or g.account.id
         dto.usage_history = DailyUsage.get_daily_usage_stats(admin_id)  # type: ignore

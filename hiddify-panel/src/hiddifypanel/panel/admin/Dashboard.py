@@ -99,7 +99,8 @@ class Dashboard(FlaskView):
     # except:
     #     hutils.flask.flash((_('Error!!!')),'info')
 
-        stats = {'system': hutils.system.system_stats(), 'top5': hutils.system.top_processes()}
+        top5 = hutils.system.top_processes()
+        stats = {'system': hutils.system.system_stats(cpu_percent=top5.get('system_cpu_percent')), 'top5': top5}
         usage_history = DailyUsage.get_daily_usage_stats(admin_id, child_id)
 
         if hutils.node.is_parent():

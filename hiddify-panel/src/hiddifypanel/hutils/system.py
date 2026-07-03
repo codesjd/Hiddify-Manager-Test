@@ -18,15 +18,23 @@ def get_folder_size(folder_path: str) -> int:
 
 
 def top_processes() -> dict:
+    # Prime the system-wide sample in the same window as the per-process
+    # ones below, so system_stats()'s cpu_percent (passed in from here) and
+    # this function's per-process breakdown reflect the same ~0.1s of
+    # measurement instead of two independent, differently-timed samples -
+    # which is what made e.g. a single process show non-zero cpu% while the
+    # overall gauge showed 0%.
+    psutil.cpu_percent(interval=None)
     processes = [p for p in psutil.process_iter(['name', 'username', 'memory_info']) if p.info['name'] != '']
     for p in processes:
         try:
             p.cpu_percent(interval=None)
         except psutil.Error:
             pass
-            
+
     import time
     time.sleep(0.1)
+    system_cpu_percent = psutil.cpu_percent(interval=None)
 
     num_cores = psutil.cpu_count() or 1
     memory_usage = {}
@@ -67,13 +75,18 @@ def top_processes() -> dict:
     return {
         "memory": top_memory,
         "ram": top_ram,
-        "cpu": top_cpu
+        "cpu": top_cpu,
+        "system_cpu_percent": system_cpu_percent
     }
 
 
-def system_stats() -> dict:
-    # CPU usage
-    cpu_percent = psutil.cpu_percent(interval=0.1)
+def system_stats(cpu_percent: float | None = None) -> dict:
+    # CPU usage - pass in top_processes()'s system_cpu_percent (sampled from
+    # the exact same window as its per-process breakdown) when available, so
+    # the two never drift apart; falls back to sampling independently if
+    # called on its own.
+    if cpu_percent is None:
+        cpu_percent = psutil.cpu_percent(interval=0.1)
 
     # RAM usage
     ram_stats = psutil.virtual_memory()

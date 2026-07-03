@@ -48,11 +48,12 @@ class RoutingRuleAdmin(AdminLTEModelView):
     form_widget_args = {
         'domains': {'rows': 3},
         'ips': {'rows': 3},
-        # inbound_tags is a manually-added wtf.SelectMultipleField (not a
-        # Flask-Admin auto-converted relationship field), so it doesn't get
-        # the select2 widget automatically - opting in via data-role so the
-        # <select multiple> isn't a plain, hold-ctrl-to-multi-select box.
-        'inbound_tags': {'data-role': 'select2'},
+        # inbound_tags is upgraded client-side by update_hiddify_ui() in
+        # flaskadmin-layout.html ($.multipleSelect() keyed on this element's
+        # id, same as DomainAdmin's show_domains/download_domain). Setting
+        # data-role="select2" here made flask-admin's own form.js *also*
+        # initialize select2 on the same <select>, and the two widgets
+        # fighting over one element broke the dropdown entirely.
     }
     form_extra_fields = {
         "outbound_tag": wtf.SelectField(_("Outbound Tag")),
