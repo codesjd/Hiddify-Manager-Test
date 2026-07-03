@@ -653,6 +653,29 @@ body, .dark-mode {
 }
 .hf-status-circle.on { background: var(--accent-green); }
 .hf-status-circle.off { background: var(--accent-blue); }
+.hf-priority-order {
+  display: flex;
+  gap: 4px;
+}
+.hf-priority-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  background: var(--track);
+  color: var(--text-primary) !important;
+  text-decoration: none !important;
+  font-weight: 700;
+}
+.hf-priority-btn:hover {
+  background: var(--border);
+}
+.hf-priority-btn.disabled {
+  opacity: 0.3;
+  pointer-events: none;
+}
 .hf-usage {
   width: 100%;
   min-width: 120px;
