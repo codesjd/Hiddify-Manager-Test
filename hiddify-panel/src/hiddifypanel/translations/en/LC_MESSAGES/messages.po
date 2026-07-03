@@ -2236,7 +2236,7 @@ msgid "config.ssh_host_rsa_pub.label"
 msgstr "config.ssh_host_rsa_pub.label"
 
 msgid "config.ssh_server_enable.description"
-msgstr "SSH Proxy is completely different than original SSH Server"
+msgstr "SSH Proxy is completely different than original SSH Server. Only works when Core Type (in Settings) is set to sing-box - xray-core has no SSH inbound support at all, so this toggle does nothing while xray is the active core."
 
 msgid "config.ssh_server_enable.label"
 msgstr "✔️ SSH Proxy"
