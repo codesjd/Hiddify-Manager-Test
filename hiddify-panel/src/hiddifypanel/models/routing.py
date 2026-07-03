@@ -536,6 +536,78 @@ class CustomOutbound(db.Model):  # type: ignore
         return mux
 
 
+_LINK_NETWORK_MAP = {
+    'ws': OutboundNetwork.ws, 'grpc': OutboundNetwork.grpc,
+    'httpupgrade': OutboundNetwork.httpupgrade, 'xhttp': OutboundNetwork.xhttp,
+    'tcp': OutboundNetwork.tcp, 'raw': OutboundNetwork.tcp,
+}
+_LINK_SECURITY_MAP = {
+    'none': OutboundSecurity.none, '': OutboundSecurity.none, 'tls': OutboundSecurity.tls,
+    'reality': OutboundSecurity.reality, 'xtls': OutboundSecurity.tls,
+}
+
+
+def _b64_maybe(s: str) -> str:
+    """Decode a base64/base64url blob to text, or return it unchanged if it
+    isn't base64 (share links mix plain and base64-encoded userinfo)."""
+    import base64
+    s = s.strip()
+    try:
+        padded = s + '=' * (-len(s) % 4)
+        decoded = base64.urlsafe_b64decode(padded).decode('utf-8')
+        # Only treat as base64 if the result is printable text - a plain
+        # "method:password" also happens to be valid base64 alphabet, but
+        # decoding it yields garbage bytes, so fall back to the original.
+        if decoded and all(c.isprintable() or c in '\t' for c in decoded):
+            return decoded
+    except Exception:
+        pass
+    return s
+
+
+def _split_hostport(hostport: str, default_port: int) -> tuple:
+    hostport = hostport.strip().strip('/')
+    if hostport.startswith('['):  # bracketed IPv6
+        host, _, rest = hostport[1:].partition(']')
+        port = rest.lstrip(':')
+        return host, int(port) if port.isdigit() else default_port
+    host, _, port = hostport.rpartition(':')
+    if not host:  # no colon -> whole thing is the host
+        return hostport, default_port
+    return host, int(port) if port.isdigit() else default_port
+
+
+def parse_share_link(link: str) -> dict:
+    """Dispatch a proxy share link to the right per-scheme parser and return
+    the CustomOutbound field values it implies, so an admin can paste a link
+    from another panel/provider instead of hand-copying every field.
+
+    Supports vless/vmess/trojan/ss(shadowsocks)/socks/http/hysteria2. Raises
+    ValueError with a human-readable reason on anything unparseable - the
+    caller (OutboundAdmin.on_model_change) turns that into a form
+    ValidationError. AmneziaWG has no share-link format; it's imported from a
+    .conf, handled separately."""
+    link = (link or '').strip()
+    if not link:
+        raise ValueError('empty link')
+    scheme = link.split('://', 1)[0].lower() if '://' in link else ''
+    if scheme == 'vless':
+        return parse_vless_link(link)
+    if scheme == 'vmess':
+        return parse_vmess_link(link)
+    if scheme == 'trojan':
+        return parse_trojan_link(link)
+    if scheme == 'ss':
+        return parse_ss_link(link)
+    if scheme in ('socks', 'socks5'):
+        return parse_socks_http_link(link, OutboundProtocol.socks)
+    if scheme == 'http':
+        return parse_socks_http_link(link, OutboundProtocol.http)
+    if scheme in ('hysteria2', 'hy2'):
+        return parse_hysteria2_link(link)
+    raise ValueError('Unsupported link type "%s://". Supported: vless, vmess, trojan, ss, socks, http, hysteria2.' % scheme)
+
+
 def parse_vless_link(link: str) -> dict:
     """Parse a vless:// share link into the field values CustomOutbound
     needs, so an admin can paste a link from another panel/provider instead
@@ -560,16 +632,6 @@ def parse_vless_link(link: str) -> dict:
     # parse_qs already percent-decodes both keys and values.
     q = {k: v[0] for k, v in parse_qs(parsed.query).items()}
 
-    network_map = {
-        'ws': OutboundNetwork.ws, 'grpc': OutboundNetwork.grpc,
-        'httpupgrade': OutboundNetwork.httpupgrade, 'xhttp': OutboundNetwork.xhttp,
-        'tcp': OutboundNetwork.tcp, 'raw': OutboundNetwork.tcp,
-    }
-    security_map = {
-        'none': OutboundSecurity.none, 'tls': OutboundSecurity.tls,
-        'reality': OutboundSecurity.reality, 'xtls': OutboundSecurity.tls,
-    }
-
     network_key = (q.get('type') or 'tcp').lower()
     security_key = (q.get('security') or 'none').lower()
     path = q.get('serviceName') if network_key == 'grpc' else q.get('path')
@@ -579,8 +641,8 @@ def parse_vless_link(link: str) -> dict:
         'address': parsed.hostname,
         'port': parsed.port or 443,
         'uuid_or_password': parsed.username,
-        'network': network_map.get(network_key, OutboundNetwork.tcp),
-        'security': security_map.get(security_key, OutboundSecurity.none),
+        'network': _LINK_NETWORK_MAP.get(network_key, OutboundNetwork.tcp),
+        'security': _LINK_SECURITY_MAP.get(security_key, OutboundSecurity.none),
         'sni': q.get('sni', ''),
         'ws_path': path or '',
         'host_header': q.get('host', ''),
@@ -589,6 +651,155 @@ def parse_vless_link(link: str) -> dict:
         'encryption': q.get('encryption', 'none'),
         'reality_public_key': q.get('pbk', ''),
         'reality_short_id': q.get('sid', ''),
+        'comment': unquote(parsed.fragment) if parsed.fragment else '',
+    }
+
+
+def parse_vmess_link(link: str) -> dict:
+    """vmess:// links are base64-encoded JSON (the v2rayN format)."""
+    import base64
+    import json
+    b64 = link[len('vmess://'):].strip()
+    b64 += '=' * (-len(b64) % 4)
+    try:
+        data = json.loads(base64.b64decode(b64).decode('utf-8', 'ignore'))
+    except Exception:
+        raise ValueError('vmess link is not valid base64-encoded JSON')
+    if not data.get('add'):
+        raise ValueError('vmess link is missing the server address ("add")')
+
+    net = str(data.get('net', 'tcp')).lower()
+    tls = str(data.get('tls', '')).lower()
+    try:
+        port = int(data.get('port') or 443)
+    except (TypeError, ValueError):
+        port = 443
+    return {
+        'protocol': OutboundProtocol.vmess,
+        'address': data.get('add', ''),
+        'port': port,
+        'uuid_or_password': data.get('id', ''),
+        'network': _LINK_NETWORK_MAP.get(net, OutboundNetwork.tcp),
+        'security': _LINK_SECURITY_MAP.get(tls, OutboundSecurity.none),
+        'sni': data.get('sni') or data.get('host', ''),
+        'ws_path': data.get('path', ''),
+        'host_header': data.get('host', ''),
+        'fingerprint': data.get('fp', ''),
+        'comment': data.get('ps', ''),
+    }
+
+
+def parse_trojan_link(link: str) -> dict:
+    """trojan://password@host:port?type=..&security=..&sni=..#name"""
+    from urllib.parse import urlparse, parse_qs, unquote
+    parsed = urlparse(link)
+    if not parsed.hostname:
+        raise ValueError('trojan link is missing the server address')
+    if not parsed.username:
+        raise ValueError('trojan link is missing the password (trojan://password@host:port)')
+    q = {k: v[0] for k, v in parse_qs(parsed.query).items()}
+    network_key = (q.get('type') or 'tcp').lower()
+    # trojan is TLS by default (that's its whole point); only "none" turns it off.
+    security_key = (q.get('security') or 'tls').lower()
+    path = q.get('serviceName') if network_key == 'grpc' else q.get('path')
+    return {
+        'protocol': OutboundProtocol.trojan,
+        'address': parsed.hostname,
+        'port': parsed.port or 443,
+        'uuid_or_password': unquote(parsed.username),
+        'network': _LINK_NETWORK_MAP.get(network_key, OutboundNetwork.tcp),
+        'security': _LINK_SECURITY_MAP.get(security_key, OutboundSecurity.tls),
+        'sni': q.get('sni', ''),
+        'ws_path': path or '',
+        'host_header': q.get('host', ''),
+        'fingerprint': q.get('fp', ''),
+        'comment': unquote(parsed.fragment) if parsed.fragment else '',
+    }
+
+
+def parse_ss_link(link: str) -> dict:
+    """shadowsocks ss:// - both the SIP002 (userinfo base64, host in clear)
+    and the legacy fully-base64 forms."""
+    from urllib.parse import unquote
+    body = link[len('ss://'):]
+    name = ''
+    if '#' in body:
+        body, frag = body.split('#', 1)
+        name = unquote(frag)
+    if '?' in body:  # drop plugin/query part - not modelled here
+        body = body.split('?', 1)[0]
+    body = body.strip()
+
+    if '@' in body:
+        userinfo, hostport = body.rsplit('@', 1)
+        creds = _b64_maybe(userinfo)
+        host, port = _split_hostport(hostport, 443)
+    else:
+        dec = _b64_maybe(body)
+        creds, _, hostport = dec.rpartition('@')
+        if not hostport:
+            raise ValueError('ss link is not in a recognized shadowsocks format')
+        host, port = _split_hostport(hostport, 443)
+    method, _, password = creds.partition(':')
+    if not host or not method:
+        raise ValueError('ss link is missing method/host')
+    return {
+        'protocol': OutboundProtocol.shadowsocks,
+        'address': host,
+        'port': port,
+        'uuid_or_password': password,
+        'ss_method': method,
+        'network': OutboundNetwork.tcp,
+        'security': OutboundSecurity.none,
+        'comment': name,
+    }
+
+
+def parse_socks_http_link(link: str, proto: 'OutboundProtocol') -> dict:
+    """socks:// / socks5:// / http:// upstream proxy links. Userinfo may be
+    plain user:pass or a base64 blob of the same."""
+    from urllib.parse import urlparse, unquote
+    parsed = urlparse(link)
+    host = parsed.hostname
+    if not host:
+        raise ValueError('proxy link is missing the server address')
+    default_port = 1080 if proto == OutboundProtocol.socks else 8080
+    port = parsed.port or default_port
+    user = unquote(parsed.username) if parsed.username else ''
+    pw = unquote(parsed.password) if parsed.password else ''
+    if user and not pw:  # some links base64 the whole "user:pass" as the username
+        decoded = _b64_maybe(user)
+        if ':' in decoded:
+            user, _, pw = decoded.partition(':')
+    uop = f'{user}:{pw}' if (user or pw) else ''
+    return {
+        'protocol': proto,
+        'address': host,
+        'port': port,
+        'uuid_or_password': uop,
+        'network': OutboundNetwork.tcp,
+        'security': OutboundSecurity.none,
+        'comment': unquote(parsed.fragment) if parsed.fragment else '',
+    }
+
+
+def parse_hysteria2_link(link: str) -> dict:
+    """hysteria2:// / hy2://auth@host:port?obfs=salamander&obfs-password=..&sni=..#name"""
+    from urllib.parse import urlparse, parse_qs, unquote
+    parsed = urlparse(link)
+    if not parsed.hostname:
+        raise ValueError('hysteria2 link is missing the server address')
+    q = {k: v[0] for k, v in parse_qs(parsed.query).items()}
+    obfs_pw = q.get('obfs-password', '') if (q.get('obfs', '').lower() == 'salamander') else ''
+    return {
+        'protocol': OutboundProtocol.hysteria,
+        'address': parsed.hostname,
+        'port': parsed.port or 443,
+        'uuid_or_password': unquote(parsed.username) if parsed.username else '',
+        'sni': q.get('sni', ''),
+        'hysteria_obfs_password': obfs_pw,
+        'network': OutboundNetwork.tcp,
+        'security': OutboundSecurity.none,
         'comment': unquote(parsed.fragment) if parsed.fragment else '',
     }
 

@@ -247,9 +247,11 @@ class OutboundAdmin(AdminLTEModelView):
 
     form_extra_fields = {
         "import_link": wtf.TextAreaField(
-            _("Import Link (vless://...)"),
-            description=_('Paste a vless:// share link here and save - it fills in Address/Port/UUID/Network/Security/SNI/Path/Host/'
-                           'Fingerprint/Flow/Reality-key/short-ID below from it (overwriting whatever was there). Leave blank to edit the fields manually instead.'),
+            _("Import Link"),
+            description=_('Paste a share link and save - it fills in the fields below from it (overwriting whatever was there), '
+                           'auto-detecting the protocol. Supports vless://, vmess://, trojan://, ss:// (shadowsocks), socks://, '
+                           'http:// and hysteria2://. AmneziaWG has no share-link format - configure it from its .conf fields '
+                           'manually. Leave blank to edit the fields directly instead.'),
         ),
         "ss_method": wtf.SelectField(
             _("Encryption Method (shadowsocks)"),
@@ -303,7 +305,7 @@ class OutboundAdmin(AdminLTEModelView):
         raw_link = (form.import_link.data or '').strip()
         if raw_link:
             try:
-                parsed = parse_vless_link(raw_link)
+                parsed = parse_share_link(raw_link)
             except ValueError as e:
                 raise ValidationError(str(e))
             for key, value in parsed.items():
