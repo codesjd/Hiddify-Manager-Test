@@ -171,6 +171,15 @@ class OutboundAdmin(AdminLTEModelView):
         'import_link': {'rows': 3, 'style': 'font-family: monospace'},
     }
 
+    # WireGuard is retired in favor of AmneziaWG - form_choices overrides
+    # the auto-generated Enum dropdown (which would otherwise list every
+    # OutboundProtocol member) so new outbounds can't select it. An existing
+    # row already saved with protocol=wireguard is untouched by this - it
+    # just can't be changed to "wireguard" again if edited away from it.
+    form_choices = {
+        'protocol': [(p.value, p.value) for p in OutboundProtocol if p != OutboundProtocol.wireguard],
+    }
+
     can_export = False
     column_sortable_list = ["tag", "protocol", "enable"]
 

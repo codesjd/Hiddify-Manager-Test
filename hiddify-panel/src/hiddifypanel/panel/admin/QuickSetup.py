@@ -194,7 +194,10 @@ def get_proxy_form(empty=False):
             continue
         if cf.key.startswith("sub_") or cf.key.startswith("mux_"):
             continue
-        if not cf.key.endswith("_enable") or cf.key in [ConfigEnum.hysteria_obfs_enable, ConfigEnum.tls_padding_enable]:
+        # wireguard_enable: retired in favor of AmneziaWG - forced off by
+        # migration _v127, excluded here so there's no toggle to turn it
+        # back on.
+        if not cf.key.endswith("_enable") or cf.key in [ConfigEnum.hysteria_obfs_enable, ConfigEnum.tls_padding_enable, ConfigEnum.wireguard_enable]:
             continue
         
         field = SwitchField(_(f'config.{cf.key}.label'), default=cf.value, description=_(f'config.{cf.key}.description'))

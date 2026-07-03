@@ -17,6 +17,15 @@ from loguru import logger
 MAX_DB_VERSION = 130
 
 
+def _v127(child_id):
+    """WireGuard (the client-facing proxy protocol toggle) is being retired
+    in favor of AmneziaWG - force it off for every install regardless of
+    its previous value, since the toggle itself is being removed from the
+    Proxies/Quick Setup UI and would otherwise be stuck on with no way to
+    turn it off."""
+    set_hconfig(ConfigEnum.wireguard_enable, False, child_id=child_id)
+
+
 def _v126(child_id):
     """Backfill default admin/admin credentials onto the existing Owner
     account for installs that predate username/password login. Only

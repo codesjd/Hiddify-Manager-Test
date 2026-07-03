@@ -78,7 +78,10 @@ def get_global_config_form(empty=False):
     for cf in boolconfigs:
         if cf.key.category == 'hidden':
             continue
-        if not cf.key.endswith("_enable") or cf.key in [ConfigEnum.mux_brutal_enable, ConfigEnum.mux_padding_enable, ConfigEnum.hysteria_obfs_enable]:
+        # wireguard_enable: retired in favor of AmneziaWG - forced off by
+        # migration _v127, excluded here so there's no toggle to turn it
+        # back on.
+        if not cf.key.endswith("_enable") or cf.key in [ConfigEnum.mux_brutal_enable, ConfigEnum.mux_padding_enable, ConfigEnum.hysteria_obfs_enable, ConfigEnum.wireguard_enable]:
             continue
         
         field = SwitchField(_(f'config.{cf.key}.label'), default=cf.value, description=_(f'config.{cf.key}.description'))

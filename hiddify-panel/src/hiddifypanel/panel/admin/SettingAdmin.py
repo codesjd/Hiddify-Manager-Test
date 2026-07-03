@@ -183,7 +183,10 @@ def get_config_form():
     is_parent = hutils.node.is_parent()
 
     for cat in ConfigCategory:
-        if cat == 'hidden':
+        # wireguard: the whole client-facing protocol is retired in favor
+        # of AmneziaWG (forced off by migration _v127) - no reason to keep
+        # showing its enable/port/noise-trick fields as a settings section.
+        if cat == 'hidden' or cat == ConfigCategory.wireguard:
             continue
 
         cat_configs = [c for c in ConfigEnum if c.category == cat and (not is_parent or c.show_in_parent)]
