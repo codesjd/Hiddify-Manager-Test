@@ -376,11 +376,17 @@ def get_config_form():
                     render_kw['required'] = ""
 
                 if 'port' in c.key:
-                    if c.key in [ConfigEnum.http_ports, ConfigEnum.tls_ports]:
-                        validators.append(wtf.validators.Regexp("^(\\d+)(,\\d+)*$", re.IGNORECASE, _("config.Invalid_port")))
-                        render_kw['required'] = ""
-                    else:
-                        validators.append(wtf.validators.Regexp("^(\\d+)(,\\d+)*$|^$", re.IGNORECASE, _("config.Invalid_port")))
+                    # tls_ports/http_ports used to be required (couldn't be
+                    # emptied) AND the haproxy fronts always prepended 443/80
+                    # to whatever was set, so a custom port was only ever
+                    # *added* alongside 443/80, never used *instead* of them.
+                    # Now the field is optional and drives the bound ports
+                    # directly (haproxy falls back to 443/80 only when it's
+                    # empty - see haproxy/fronts/*.pj2), so an admin can serve
+                    # on, e.g., 8443 only. The firewall still allows 80/443
+                    # unconditionally (Actions.all_public_ports), so clearing
+                    # this can't close those at the firewall.
+                    validators.append(wtf.validators.Regexp("^(\\d+)(,\\d+)*$|^$", re.IGNORECASE, _("config.Invalid_port")))
                     # validators.append(wtf.validators.Regexp("^(\d+)(,\d+)*$",re.IGNORECASE,_("config.port is required")))
 
                 # tls tricks validations

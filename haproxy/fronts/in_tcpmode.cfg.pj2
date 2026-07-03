@@ -1,5 +1,8 @@
 frontend in-tcpmode
-    {% for port in (["80"] + hconfigs['http_ports'].split(',')) | unique%}
+    {# http_ports drives the bound plain-HTTP ports directly; falls back
+       to 80 only when the admin left it empty, so a custom port can be
+       used instead of 80, not just alongside it. #}
+    {% for port in ((hconfigs['http_ports'].split(',') | select | unique | list) or ["80"]) %}
     bind :{{port}},:::{{port}} v4v6 tfo
     {%endfor%}
     bind abns@https_in_ssl tfo accept-proxy ssl crt /opt/hiddify-manager/ssl/ alpn h2,http/1.1,h3 allow-0rtt

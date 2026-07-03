@@ -1,7 +1,10 @@
 frontend https-in
     
-    {% for port in (["443"] + hconfigs['tls_ports'].split(',')) | unique %}
-    bind :{{port}},:::{{port}} v4v6 tfo 
+    {# tls_ports drives the bound TLS ports directly; falls back to 443
+       only when the admin left it empty, so a custom port can be used
+       instead of 443, not just alongside it. #}
+    {% for port in ((hconfigs['tls_ports'].split(',') | select | unique | list) or ["443"]) %}
+    bind :{{port}},:::{{port}} v4v6 tfo
     {%endfor%}
     # option tcplog
     # option dontlognull
