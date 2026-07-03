@@ -200,7 +200,7 @@
         <circle cx="42" cy="42" r="34" fill="none" stroke="var(--accent-{{ g_.color }})" stroke-width="9" stroke-linecap="round" stroke-dasharray="{{ g_.dash }}" transform="rotate(-90 42 42)" class="gauge-arc"/>
         <text x="42" y="47" text-anchor="middle" font-family="JetBrains Mono, monospace" font-weight="700" font-size="18" fill="var(--text-primary)" class="gauge-text">{{ g_.pct }}%</text>
       </svg>
-      <div class="res-breakdown">
+      <div class="res-breakdown" id="breakdown-{{ g_.id }}" data-color="{{ g_.color }}">
         {% for b in g_.breakdown %}
         <div>
           <div class="res-row-label"><span>{{ b.name }}</span><span class="res-row-val">{{ b.pct }}%</span></div>
@@ -250,6 +250,23 @@
     svg.querySelector('.gauge-arc').setAttribute('stroke-dasharray', gaugeDash(pct, 34));
     svg.querySelector('.gauge-text').textContent = Math.round(pct) + '%';
   }
+  // The ring gauge above updates every tick, but until now the per-process
+  // breakdown bars below it were only ever set once at page load - so
+  // "Hiddify: 9%" could sit there unchanged for as long as the tab was open
+  // while the live ring gauge moved on to a completely different number.
+  function setBreakdown(key, rows) {
+    var el = document.getElementById('breakdown-' + key);
+    if (!el) return;
+    var color = el.getAttribute('data-color');
+    el.innerHTML = rows.map(function (r) {
+      return '<div><div class="res-row-label"><span>' + r.name + '</span><span class="res-row-val">' +
+        Math.round(r.pct) + '%</span></div><div class="res-bar-track"><div class="res-bar-fill" style="width:' +
+        Math.max(0, Math.min(100, r.pct)) + '%; background:var(--accent-' + color + ');"></div></div></div>';
+    }).join('');
+  }
+  function topN(pairs, n) {
+    return (pairs || []).filter(function (p) { return p[0] && p[0].trim(); }).slice(0, n);
+  }
 
   function poll() {
     fetch("{{ hurl_for('api_admin.AdminServerStatusApi', admin_id=request.args.get('admin_id')) }}", { credentials: 'same-origin' })
@@ -266,6 +283,15 @@
         setGauge('cpu', stats.system.cpu_percent);
         setGauge('ram', stats.system.ram_used / stats.system.ram_total * 100);
         setGauge('disk', stats.system.disk_used / stats.system.disk_total * 100);
+
+        setBreakdown('cpu', topN(stats.top5.cpu, 3).map(function (p) { return { name: p[0], pct: p[1] }; }));
+        setBreakdown('ram', topN(stats.top5.ram, 3).map(function (p) {
+          return { name: p[0], pct: stats.system.ram_total ? p[1] / stats.system.ram_total * 100 : 0 };
+        }));
+        setBreakdown('disk', [
+          { name: 'Hiddify', pct: stats.system.disk_used ? stats.system.hiddify_used / stats.system.disk_used * 100 : 0 },
+          { name: '{{ _("Other") }}', pct: stats.system.disk_used ? Math.max(0, stats.system.disk_used - stats.system.hiddify_used) / stats.system.disk_used * 100 : 0 },
+        ]);
 
         var dt = refreshMs / 1000;
         var upMbps = Math.max(0, (stats.system.bytes_sent_cumulative - lastSent) * 8 / dt / 1024 / 1024);

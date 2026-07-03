@@ -92,8 +92,11 @@ class DomainAdmin(AdminLTEModelView):
     # create_modal = True
     can_export = False
     form_widget_args = {
-        'show_domains': {'class': 'form-control ltr', 'data-role': u''},
-        'download_domain': {'class': 'form-control ltr', 'data-role': u''}
+        # data-role was blanked out here, which disables Flask-Admin's
+        # default select2 widget - left show_domains (a many-to-many
+        # relationship) as a plain hold-ctrl-to-multi-select box.
+        'show_domains': {'class': 'form-control ltr', 'data-role': 'select2'},
+        'download_domain': {'class': 'form-control ltr', 'data-role': 'select2'}
     }
 
     form_args = {

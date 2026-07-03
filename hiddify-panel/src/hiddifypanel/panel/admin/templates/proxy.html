@@ -75,19 +75,15 @@
         padding: 14px 44px 14px 16px !important;
     }
 
-    .global-form .form-group:has(#submit_global) {
-        grid-column: 1 / -1;
-        margin-top: 12px !important;
-        background: transparent !important;
-        border: none !important;
-        padding: 0 !important;
-        display: flex;
-        width: 100%;
-    }
+    /* SubmitField renders as a bare <input>, no .form-group wrapper, in
+       render_form()'s default "basic" form_type - so it's a direct grid
+       child of .toggle-grid and needs the column-span itself. */
     #submit_global {
+        grid-column: 1 / -1;
         width: 100%;
         display: block;
         text-align: center;
+        margin-top: 12px;
     }
 </style>
 {% endblock %}

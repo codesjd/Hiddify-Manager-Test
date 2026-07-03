@@ -48,6 +48,11 @@ class RoutingRuleAdmin(AdminLTEModelView):
     form_widget_args = {
         'domains': {'rows': 3},
         'ips': {'rows': 3},
+        # inbound_tags is a manually-added wtf.SelectMultipleField (not a
+        # Flask-Admin auto-converted relationship field), so it doesn't get
+        # the select2 widget automatically - opting in via data-role so the
+        # <select multiple> isn't a plain, hold-ctrl-to-multi-select box.
+        'inbound_tags': {'data-role': 'select2'},
     }
     form_extra_fields = {
         "outbound_tag": wtf.SelectField(_("Outbound Tag")),

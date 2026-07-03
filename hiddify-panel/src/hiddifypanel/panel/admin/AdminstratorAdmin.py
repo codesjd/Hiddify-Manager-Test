@@ -212,6 +212,9 @@ class AdminstratorAdmin(AdminLTEModelView):
         if g.account.mode == AdminMode.agent and model.mode != AdminMode.agent:
             raise ValidationError("Sub-Admin can not have more power!!!!")
         
+        if model.username and not model.is_username_unique():
+            raise ValidationError(__("An admin with this username already exists."))
+
         if not model.new_password and is_created:
             raise ValidationError("Password for new admin is needed.")
         if model.new_password:

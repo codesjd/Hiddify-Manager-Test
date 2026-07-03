@@ -236,11 +236,11 @@ body {
   color: var(--text-primary);
 }
 .nav-item.active {
-  background: #075E54;
+  background: var(--accent-blue);
   color: white !important;
 }
 .nav-item.active:hover {
-  background: #075E54;
+  background: var(--accent-blue);
 }
 .nav-item.user-link.active,
 .nav-item.admin-link.active {
@@ -294,12 +294,12 @@ body {
   background: var(--track);
 }
 .nav-child.active-child {
-  background: #075E54;
+  background: var(--accent-blue);
   color: white !important;
   font-weight: 700;
 }
 .nav-child.active-child:hover {
-  background: #075E54;
+  background: var(--accent-blue);
 }
 .sidebar-footer {
   padding: 16px 20px 20px 20px;
@@ -1031,7 +1031,6 @@ label, .control-label {
 }
 .settings-search {
   width: 100% !important;
-  max-width: 360px !important;
 }
 .toggle-row {
   display: flex !important;
@@ -1206,8 +1205,8 @@ $(document).ready(function () {
           <div class="avatar">${"{{ (g.account.name[0] if g.account.name else 'A')|upper }}"}</div>
           <div class="avatar-menu">
             <div class="avatar-menu-owner">
-              <div class="avatar-menu-owner-name">{{ g.account.name or g.account.username or _('Owner') }}</div>
-              <div class="avatar-menu-owner-role">{{ g.account.mode }}</div>
+              <div class="avatar-menu-owner-name">{{ _('Name') }}: {{ g.account.name or g.account.username or _('Owner') }}</div>
+              <div class="avatar-menu-owner-role">{{ _('Mode') }}: {{ g.account.mode }}</div>
             </div>
             <div class="avatar-menu-items">
               <a href="{{ hurl_for('flask.adminuser.edit_view', id=g.account.id) }}">{{ _('Account Settings') }}</a>
