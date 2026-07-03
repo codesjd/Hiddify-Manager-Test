@@ -8,6 +8,78 @@ from hiddifypanel.auth import login_required
 from hiddifypanel.models import *
 from hiddifypanel import hutils
 
+
+# Same pattern as OutboundAdmin.py's _ScriptField/_PROTOCOL_FIELD_SCRIPT:
+# a fieldless form entry that just renders a <script> tag to show/hide the
+# override fields that actually apply to *this row's* proto/transport/l3
+# (all read-only/disabled selects already on the form). Every field here is
+# read unconditionally by apply_proxy_overrides() regardless of protocol -
+# it's a generic dict merge - so setting e.g. hysteria_obfs_password on a
+# vless row is harmless at generation time but confusing to look at, since
+# every field showed for every row before this.
+class _ScriptField(wtf.Field):
+    widget = None
+
+    def process_formdata(self, valuelist):
+        pass
+
+    def _value(self):
+        return ''
+
+    def __call__(self, **kwargs):
+        return Markup(_OVERRIDE_FIELD_SCRIPT)
+
+
+_OVERRIDE_FIELD_SCRIPT = """
+<script>
+(function() {
+  function byName(n) { return document.querySelector('[name="' + n + '"]'); }
+  function wrapper(el) { return el ? (el.closest('.form-group') || el.parentElement) : null; }
+
+  var ALL = ['sni', 'host', 'path', 'fingerprint', 'alpn', 'mode', 'hysteria_obfs_password'];
+  var HOST_PATH_TRANSPORTS = ['ws', 'httpupgrade', 'xhttp', 'grpc'];
+
+  function apply() {
+    var l3 = (byName('l3') || {}).value || '';
+    var transport = ((byName('transport') || {}).value || '').toLowerCase();
+    var proto = (byName('proto') || {}).value;
+
+    // Mirrors add_tls()'s own gate in hutils/proxy/singbox.py: sni/alpn
+    // apply whenever l3 contains tls/reality/quic (hysteria2 and tuic are
+    // l3="tls" too, so they get sni/alpn - just not the utls fingerprint,
+    // which that same function explicitly skips for tuic/hysteria2).
+    var isTlsLike = l3.indexOf('tls') !== -1 || l3.indexOf('reality') !== -1 || l3.indexOf('quic') !== -1;
+    var show = {
+      sni: isTlsLike,
+      alpn: isTlsLike,
+      fingerprint: isTlsLike && proto !== 'tuic' && proto !== 'hysteria2',
+      host: HOST_PATH_TRANSPORTS.indexOf(transport) !== -1,
+      path: HOST_PATH_TRANSPORTS.indexOf(transport) !== -1,
+      mode: transport === 'xhttp',
+      hysteria_obfs_password: proto === 'hysteria2'
+    };
+    ALL.forEach(function(n) {
+      var w = wrapper(byName(n));
+      if (w) w.style.display = show[n] ? '' : 'none';
+    });
+  }
+
+  // proto/transport/l3 are disabled selects (context only, never edited),
+  // so there's nothing to bind a change listener to - just apply once per
+  // (re)load, same retry-for-modal-content dance as OutboundAdmin's script.
+  apply();
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', apply);
+  }
+  var tries = 0;
+  var retry = setInterval(function() {
+    apply();
+    if (byName('proto') || ++tries > 20) clearInterval(retry);
+  }, 150);
+})();
+</script>
+"""
+
 # Color-code each space-separated segment of Proxy.name (e.g. "tls_h2 xhttp
 # direct vless dl=h1") by what kind of setting it is, matching the design's
 # layer3=blue / transport=green / mode=purple / protocol=orange convention -
@@ -71,7 +143,8 @@ class InboundOverrideAdmin(AdminLTEModelView):
     # generated form at all, 500ing the edit-modal AJAX load so the pencil
     # button appeared to do nothing.
     form_columns = ["name", "proto", "transport", "cdn", "l3", "enable",
-                     "sni", "host", "path", "fingerprint", "alpn", "mode", "hysteria_obfs_password", "advanced_json"]
+                     "sni", "host", "path", "fingerprint", "alpn", "mode", "hysteria_obfs_password", "advanced_json",
+                     "override_field_script"]
     column_editable_list = ["enable"]
 
     column_labels = {
@@ -105,6 +178,7 @@ class InboundOverrideAdmin(AdminLTEModelView):
         "advanced_json": wtf.TextAreaField(_("Advanced Override (JSON)"),
                                             description=_('Deep-merged on top of everything above, for anything the fields don\'t cover, e.g. {"mux_enable": true}. '
                                                            'Leave empty to only use the fields above.')),
+        "override_field_script": _ScriptField(label=""),
     }
 
     can_create = False
