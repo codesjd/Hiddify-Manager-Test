@@ -63,18 +63,28 @@ def logout_user():
         session.pop('_admin_id')
 
 
-def login_user(user: AdminUser | User, remember=False, duration=None, force=False, fresh=True):
+def login_user(user: AdminUser | User, remember=False, duration=None, force=False, fresh=True, fresh_login=False):
     # abort(400, f'logining user: {user} {user.is_active}')
     g.__account_store = user
     # if not user.is_active:
     #     return False
 
-    # Rotate the server-side session id on every successful login. Sessions
-    # are stored in Redis (base_setup.py: SESSION_TYPE='redis'), keyed by the
-    # id in the session cookie - without this, a session id an attacker got
-    # a victim's browser to adopt *before* login (classic session fixation)
-    # would still map to the now-authenticated session afterward.
-    current_app.session_interface.regenerate(session)  # type: ignore[attr-defined]
+    if fresh_login:
+        # Rotate the server-side session id, but ONLY on an actual new
+        # authentication (credentials/UUID just verified), not on the
+        # before_request re-hydration call below that runs on every single
+        # request for an already-logged-in session. Regenerating on every
+        # request raced concurrent requests sharing the same pre-rotation
+        # cookie (page load + its asset/AJAX requests all fire with the same
+        # sid) - whichever landed second found its sid already deleted from
+        # Redis by the first, logging the admin out mid-navigation. Sessions
+        # are stored in Redis (base_setup.py: SESSION_TYPE='redis'), keyed by
+        # the id in the session cookie - without rotating it at all, a
+        # session id an attacker got a victim's browser to adopt *before*
+        # login (classic session fixation) would still map to the
+        # now-authenticated session afterward, so it still needs to happen
+        # once, right here, on the real login.
+        current_app.session_interface.regenerate(session)  # type: ignore[attr-defined]
 
     account_id = user.get_id()  # type: ignore
     # print('account_id', account_id)
@@ -159,7 +169,7 @@ def get_account_by_uuid(uuid, is_admin):
 def login_by_username_or_uuid(uname_or_uuid, password:str, is_admin: bool)->bool:
     account = AdminUser.by_username_password(uname_or_uuid, password) if is_admin else User.by_username_password(uname_or_uuid, password)
     if account:
-        return login_user(account, force=True)
+        return login_user(account, force=True, fresh_login=True)
 
     account = get_account_by_uuid(uname_or_uuid, is_admin)
     if not account:
@@ -179,7 +189,7 @@ def login_by_username_or_uuid(uname_or_uuid, password:str, is_admin: bool)->bool
         if password:
             account.update_password(password)
 
-    return login_user(account, force=True)
+    return login_user(account, force=True, fresh_login=True)
 
 
 def auth_before_request():
