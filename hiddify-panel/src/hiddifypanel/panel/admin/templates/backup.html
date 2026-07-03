@@ -9,17 +9,21 @@
 <div class="backup-grid">
 <div class="card">
     <div class="card-header"><h3 class="card-title text-center m-0 w-100">{{_("Backup")}}</h3></div>
-    <div class="card-body text-center">
+    <div class="card-body">
         <p>{{_('You can download a json formated of configurations')}}</p>
-        <a class="btn btn-primary" href="{{hurl_for('admin.Backup:backupfile')}}">{{_('Download Backup File')}}</a>
+        <div class="text-center">
+            <a class="btn btn-primary" href="{{hurl_for('admin.Backup:backupfile')}}">{{_('Download Backup File')}}</a>
+        </div>
     </div>
 </div>
 
 <div class="card">
-    <div class="card-header"><h3 class="card-title text-center m-0 w-100">{{_("Restore")}}</h3></div>
-    <div class="card-body text-center">
+    <div class="card-header"><h3 class="card-title text-center m-0 w-100">♻️ {{_("Restore")}}</h3></div>
+    <div class="card-body">
         <p>{{_('You can restore your configs from previously downloaded configs')}}</p>
-        {{render_form(restore_form)}}
+        <div class="text-center">
+            {{render_form(restore_form)}}
+        </div>
     </div>
 </div>
 </div>

@@ -57,7 +57,7 @@ class PermissionsField(SelectMultipleField):
 class AdminstratorAdmin(AdminLTEModelView):
     column_hide_backrefs = False
     column_list = ["name", 'UserLinks', 'mode', 'can_add_admin', 'max_users', 'online_users', 'comment',]
-    form_columns = ["name", 'mode', 'can_add_admin', 'permissions', 'max_users', 'comment', "username", "new_password"]
+    form_columns = ["name", 'mode', 'can_add_admin', 'permissions', 'max_users', 'max_active_users', 'comment', "username", "new_password"]
     list_template = 'model/admin_list.html'
     # column_editable_list = ['name']
     # edit_modal = True

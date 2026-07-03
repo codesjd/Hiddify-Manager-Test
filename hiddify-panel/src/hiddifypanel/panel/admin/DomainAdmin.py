@@ -91,7 +91,10 @@ class DomainAdmin(AdminLTEModelView):
     )
     # create_modal = True
     can_export = False
-    form_widget_args = {'show_domains': {'class': 'form-control ltr'},'download_domain': {'class': 'form-control ltr'}}
+    form_widget_args = {
+        'show_domains': {'class': 'form-control ltr', 'data-role': u''},
+        'download_domain': {'class': 'form-control ltr', 'data-role': u''}
+    }
 
     form_args = {
         'mode': {'enum': DomainType},

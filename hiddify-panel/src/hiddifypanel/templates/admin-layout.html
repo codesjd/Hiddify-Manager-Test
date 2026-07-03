@@ -236,10 +236,18 @@ body {
   color: var(--text-primary);
 }
 .nav-item.active {
-  background: var(--accent);
+  background: #075E54;
   color: white !important;
 }
 .nav-item.active:hover {
+  background: #075E54;
+}
+.nav-item.user-link.active,
+.nav-item.admin-link.active {
+  background: var(--accent);
+}
+.nav-item.user-link.active:hover,
+.nav-item.admin-link.active:hover {
   background: var(--accent);
 }
 .nav-item .nav-icon {
@@ -286,9 +294,12 @@ body {
   background: var(--track);
 }
 .nav-child.active-child {
-  background: var(--track);
-  color: var(--accent) !important;
+  background: #075E54;
+  color: white !important;
   font-weight: 700;
+}
+.nav-child.active-child:hover {
+  background: #075E54;
 }
 .sidebar-footer {
   padding: 16px 20px 20px 20px;
@@ -1084,11 +1095,11 @@ label, .control-label {
         <span class="nav-icon"><svg width="18" height="18" viewBox="0 0 24 24"><path d="M4 4h7v7H4V4zm9 0h7v4h-7V4zm0 7h7v9h-7v-9zM4 14h7v6H4v-6z" fill="currentColor"/></svg></span>
         <span class="nav-label">{{ _('admin.menu.home') }}</span>
       </a>
-      <a class="nav-item {% if request.endpoint and request.endpoint.startswith('flask.user.') %}active{% endif %}" href="{{ hurl_for('flask.user.index_view') }}">
+      <a class="nav-item user-link {% if request.endpoint and request.endpoint.startswith('flask.user.') %}active{% endif %}" href="{{ hurl_for('flask.user.index_view') }}">
         <span class="nav-icon"><svg width="18" height="18" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.3" fill="currentColor"/><path d="M2.8 20c0-3.9 2.8-6.8 6.2-6.8s6.2 2.9 6.2 6.8" fill="currentColor"/><circle cx="17.5" cy="9" r="2.4" fill="currentColor"/><path d="M14.8 13.6c2.8.4 4.9 2.7 4.9 6.4" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round"/></svg></span>
         <span class="nav-label">{{ _('admin.menu.user') }}</span>
       </a>
-      <a class="nav-item {% if request.endpoint and request.endpoint.startswith('flask.adminuser.') %}active{% endif %}" href="{{ hurl_for('flask.adminuser.index_view') }}">
+      <a class="nav-item admin-link {% if request.endpoint and request.endpoint.startswith('flask.adminuser.') %}active{% endif %}" href="{{ hurl_for('flask.adminuser.index_view') }}">
         <span class="nav-icon"><svg width="18" height="18" viewBox="0 0 24 24"><path d="M12 3l6.5 2.5v5.3c0 4.6-2.8 7.9-6.5 9.2-3.7-1.3-6.5-4.6-6.5-9.2V5.5L12 3z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M8.7 12.3l2.3 2.3 4.4-4.9" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
         <span class="nav-label">{{ _('Admins') }}</span>
       </a>

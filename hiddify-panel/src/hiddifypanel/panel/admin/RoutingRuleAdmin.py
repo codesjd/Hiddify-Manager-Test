@@ -48,12 +48,10 @@ class RoutingRuleAdmin(AdminLTEModelView):
     form_widget_args = {
         'domains': {'rows': 3},
         'ips': {'rows': 3},
-        'outbound_tag': {'class': 'select2'},
-        'inbound_tags': {'class': 'select2'},
     }
     form_extra_fields = {
         "outbound_tag": wtf.SelectField(_("Outbound Tag")),
-        "inbound_tags": wtf.SelectMultipleField(_("Match Inbound(s)"), widget=flask_admin.form.Select2Widget(multiple=True)),
+        "inbound_tags": wtf.SelectMultipleField(_("Match Inbound(s)")),
     }
 
     can_export = False
