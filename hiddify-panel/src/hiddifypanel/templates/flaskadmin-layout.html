@@ -197,13 +197,28 @@
     update_hiddify_ui()
 
     
-      $('body').off('click.modal.data-api')//remove flaskadminlte
-      $('body').on('click.modal.data-api', '[data-toggle="modal"]', function () {
-
-        $($(this).data("target") + ' .modal-content').load($(this).attr('href'),function(){
-            setTimeout(update_hiddify_ui,100)
+      // bs4_modal.js (loaded as *part of* the modal's own AJAX content) binds
+      // its own click.modal.data-api handler on 'body' every time a modal
+      // opens, without ever calling .off() first - so by the 2nd+ Edit/
+      // Create click, both handlers fire and race two concurrent $.load()
+      // calls into the same .modal-content, and whichever response lands
+      // second silently overwrites the first (can blow away the just-
+      // upgraded multipleSelect widgets or leave the <select> without its
+      // real options). bindModalOpenHandler() re-does the .off()+.on() at
+      // the end of *our own* load callback too - by then bs4_modal.js's
+      // script (embedded in the content we just loaded) has already
+      // executed and added its duplicate, so re-running .off() here clears
+      // it before the next click, instead of letting it accumulate one
+      // more duplicate per modal open.
+      function bindModalOpenHandler() {
+        $('body').off('click.modal.data-api').on('click.modal.data-api', '[data-toggle="modal"]', function () {
+          $($(this).data("target") + ' .modal-content').load($(this).attr('href'), function () {
+            bindModalOpenHandler();
+            setTimeout(update_hiddify_ui, 100);
+          });
         });
-      });
+      }
+      bindModalOpenHandler();
 
     // The modal form is injected via async $.load(), and bs4_modal.js (which
     // gets re-executed inside the loaded content) re-registers its own
