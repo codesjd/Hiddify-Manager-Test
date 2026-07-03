@@ -180,7 +180,10 @@ def get_proxy_form(empty=False):
     def _proxy_toggle_sort_key(cf):
         if cf.key in pinned_order:
             return (0, pinned_order.index(cf.key))
-        return (1, cf.key.category, cf.key)
+        # ConfigEnum uses a custom FastEnum metaclass with no ordering
+        # support (unlike a plain StrEnum) - cf.key.name is the same
+        # member's plain string name, which sorts fine.
+        return (1, cf.key.category, cf.key.name)
 
     boolconfigs = sorted(
         BoolConfig.query.filter(BoolConfig.child_id == Child.current().id).all(),
