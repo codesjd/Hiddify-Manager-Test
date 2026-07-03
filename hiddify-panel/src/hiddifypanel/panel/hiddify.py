@@ -100,6 +100,22 @@ def get_html_user_link(model: BaseAccount, domain: Domain):
     return res
 
 
+def amneziawg_needs_full_install() -> bool:
+    """AmneziaWG's binaries (awg-quick, amneziawg-go) are built from source
+    by other/amneziawg/install.sh, which only ever runs during a real
+    install/reinstall (Command.install) - a plain "Apply Configs"
+    (Command.apply) always skips install.sh entirely, by design, for every
+    subsystem. So the very first time an admin enables an AmneziaWG
+    outbound and clicks "Apply Configs" (rather than a full reinstall),
+    other/amneziawg/run.sh would try to bring up a systemd unit that was
+    never installed and silently fail (awg-quick@... service not found)."""
+    from hiddifypanel.models.routing import get_amneziawg_outbounds
+    if not get_amneziawg_outbounds():
+        return False
+    import shutil
+    return shutil.which('awg-quick') is None or shutil.which('amneziawg-go') is None
+
+
 def reinstall_action(complete_install=False, domain_changed=False, do_update=False):
     from hiddifypanel.panel.admin.Actions import Actions
     action = Actions()
