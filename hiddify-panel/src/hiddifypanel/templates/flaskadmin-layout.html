@@ -185,8 +185,10 @@
 
             }
         }
-        $("#sub_link_only").on('change', hide_domain_elements)
-        $("#mode").on('change', hide_domain_elements)
+        // namespaced so repeated update_hiddify_ui() runs (see the observer
+        // below) rebind rather than stack a fresh handler each time.
+        $("#sub_link_only").off('change.hiddifyui').on('change.hiddifyui', hide_domain_elements)
+        $("#mode").off('change.hiddifyui').on('change.hiddifyui', hide_domain_elements)
         hide_domain_elements()
         ConvertNumberToPersion(document.getElementById('fa_modal_window'));
         
@@ -197,17 +199,37 @@
     
       $('body').off('click.modal.data-api')//remove flaskadminlte
       $('body').on('click.modal.data-api', '[data-toggle="modal"]', function () {
-        
+
         $($(this).data("target") + ' .modal-content').load($(this).attr('href'),function(){
             setTimeout(update_hiddify_ui,100)
         });
       });
-    
-    // Initialize the observer with the callback function
-    
 
-    // Observe changes in the container element and its descendants
-    
+    // The modal form is injected via async $.load(), and bs4_modal.js (which
+    // gets re-executed inside the loaded content) re-registers its own
+    // click.modal.data-api handler - so a second Edit click can fire two
+    // concurrent loads that race. Relying only on the fixed setTimeout above
+    // to upgrade the <select>s to multipleSelect is therefore fragile: if a
+    // load lands after that timeout, it replaces our upgraded widgets with
+    // plain <select multiple>s again (the "looks fixed, then clicking does
+    // nothing / options only flash on open" symptom). Observe the modal
+    // container and re-run the upgrade after whatever the final content
+    // mutation is; disconnecting for the duration of the run keeps
+    // multipleSelect's own DOM insertions from retriggering us.
+    (function () {
+        var modalEl = document.getElementById('fa_modal_window');
+        if (!modalEl || !window.MutationObserver) return;
+        var timer = null;
+        var observer = new MutationObserver(function () {
+            clearTimeout(timer);
+            timer = setTimeout(function () {
+                observer.disconnect();
+                try { update_hiddify_ui(); } catch (e) { console.error(e); }
+                observer.observe(modalEl, { childList: true, subtree: true });
+            }, 60);
+        });
+        observer.observe(modalEl, { childList: true, subtree: true });
+    })();
 </script>
 
 {% endblock %}

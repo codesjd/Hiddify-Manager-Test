@@ -31,7 +31,14 @@ class BaseAccount(db.Model, FlaskLoginUserMixin):  # type: ignore
         return f'{self.__class__.name}_{self.id if self.hasattr("id") else "-"}'
 
     def is_username_unique(self) -> bool:
-        cls = self.__class__()
+        # cls must be the CLASS, not an instance: self.__class__() would make
+        # cls.username / cls.id resolve to a fresh empty instance's attribute
+        # *values* instead of the mapped Columns, so the filter compared
+        # python literals ('' == 'admin2' -> False) and matched nothing,
+        # making this always report "unique" (the reason duplicate admin
+        # usernames slipped through, and why gen_username never detected a
+        # collision).
+        cls = self.__class__
         model = cls.query.filter(cls.username == self.username, cls.id != self.id).first()
         if model:
             return False

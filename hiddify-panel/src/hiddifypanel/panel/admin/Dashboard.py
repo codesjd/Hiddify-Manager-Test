@@ -161,7 +161,7 @@ class Dashboard(FlaskView):
             {
                 'id': 'cpu',
                 'label': _('CPU'), 'sub': f"{sys['num_cpus']} " + str(_('core') if sys['num_cpus'] == 1 else _('cores')),
-                'pct': round(sys['cpu_percent']), 'color': 'accent', 'dash': _gauge_dash(sys['cpu_percent'], 34),
+                'pct': round(sys['cpu_percent']), 'color': 'purple', 'dash': _gauge_dash(sys['cpu_percent'], 34),
                 'breakdown': [{'name': name, 'pct': round(val)} for name, val in cpu_top],
             },
             {
