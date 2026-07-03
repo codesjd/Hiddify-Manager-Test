@@ -430,9 +430,11 @@ def all_configs_for_cli():
     configs['chconfigs'][0]['first_setup'] = def_user is not None and Domain.query.filter(Domain.domain.contains("sslip.io")).limit(1).count() > 0
 
     # Merge the UI-managed custom outbounds/routing rules (CustomOutbound,
-    # CustomRoutingRule) with whatever raw JSON the admin also typed
-    # directly into additional_configs_xrayjson - both paths stay usable,
-    # the manual field is for anything the form can't express yet.
+    # CustomRoutingRule) into additional_configs_xrayjson - no longer an
+    # admin-editable Settings field (Outbounds/Routing Rules replaced it),
+    # so `manual` below is only ever non-empty on an install that had
+    # something typed in there from before that field was removed from the
+    # UI; still honored for backward compatibility.
     try:
         import json
         db_extra = build_custom_xray_extra()
@@ -446,10 +448,7 @@ def all_configs_for_cli():
     except Exception:
         logger.exception("Failed to merge custom outbounds/routing rules (non-fatal, falling back to manual field only)")
 
-    # Same merge, sing-box schema - additional_configs_singbox already
-    # existed as a settings field but nothing server-side read it before
-    # this; singbox/configs/06_outbounds.json.j2 and 03_routing.json.j2 now
-    # do, the same way the xray templates read additional_configs_xrayjson.
+    # Same merge, sing-box schema - see the comment above, same reasoning.
     try:
         import json
         db_extra_sb = build_custom_singbox_extra()

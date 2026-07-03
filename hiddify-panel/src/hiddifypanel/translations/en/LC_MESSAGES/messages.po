@@ -1201,7 +1201,7 @@ msgid "config.Invalid_telegram_bot_token"
 msgstr "Invalid Telegram Bot Token"
 
 msgid "config.additional_configs.description"
-msgstr "config.additional_configs.description"
+msgstr "Merge in extra proxy configs from external URLs or share links, in addition to what's configured on this panel."
 
 msgid "config.additional_configs.label"
 msgstr "Additional Configs"

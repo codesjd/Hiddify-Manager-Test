@@ -204,8 +204,16 @@ class ConfigEnum(metaclass=FastEnum):
     webhook_signing_key = _StrConfigDscr(ConfigCategory.webhook, hide_in_virtual_child=True)
 
     additional_configs_urls =  _StrConfigDscr(ConfigCategory.additional_configs)
-    additional_configs_singbox =  _StrConfigDscr(ConfigCategory.additional_configs)
-    additional_configs_xrayjson =  _StrConfigDscr(ConfigCategory.additional_configs)
+    # additional_configs_singbox/xrayjson are no longer admin-editable text
+    # fields (the UI-managed Outbounds/Routing Rules pages replace that) -
+    # ConfigCategory.hidden so they drop out of the Settings form entirely,
+    # but the keys themselves stay: hiddify.py's all_configs_for_cli() still
+    # writes the *merged* CustomOutbound/CustomRoutingRule JSON into them,
+    # since that's the actual value xray/configs/06_outbounds.json.j2 and
+    # singbox's equivalent read - this is now a purely internal/computed
+    # value, not something an admin ever sets directly.
+    additional_configs_singbox =  _StrConfigDscr(ConfigCategory.hidden)
+    additional_configs_xrayjson =  _StrConfigDscr(ConfigCategory.hidden)
     
     # region child-parent
     # deprecated
