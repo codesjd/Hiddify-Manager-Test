@@ -37,12 +37,15 @@
 <script src1="{{ js_url }}" type="text/javascript"></script>
 {% endfor %}
 {% endif %}
-<!-- Include the default stylesheet -->
-<link rel="stylesheet" href="https://unpkg.com/multiple-select@2.1.1/dist/multiple-select.min.css">
-
-<!-- Latest compiled and minified JavaScript -->
-<script src="https://unpkg.com/multiple-select@2.1.1/dist/multiple-select.min.js"></script>
-<link href="https://unpkg.com/multiple-select@2.1.1/dist/themes/bootstrap.min.css" rel="stylesheet">
+<!-- multiple-select 2.1.1, vendored locally (was loaded from unpkg.com) - an
+     ad-blocker/tracking-protection extension or an outage on that CDN
+     silently breaks every multipleSelect() widget on this page (Match
+     Inbounds, show_domains, download_domain), which reads as "works in
+     incognito, broken in my normal browser" since extensions are disabled
+     by default in incognito/private windows. -->
+<link rel="stylesheet" href="{{ static_url_for(filename='plugins/multiple-select/multiple-select.min.css') }}">
+<script src="{{ static_url_for(filename='plugins/multiple-select/multiple-select.min.js') }}"></script>
+<link href="{{ static_url_for(filename='plugins/multiple-select/themes/bootstrap.min.css') }}" rel="stylesheet">
 <!-- <link href="https://cdn.jsdelivr.net/npm/select2@4.0.0/dist/css/select2.min.css" rel="stylesheet" /> -->
 <!-- <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" /> -->
 <!-- <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@ttskch/select2-bootstrap4-theme@x.x.x/dist/select2-bootstrap4.min.css">

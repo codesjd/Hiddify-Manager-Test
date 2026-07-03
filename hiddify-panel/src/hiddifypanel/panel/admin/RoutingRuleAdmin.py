@@ -174,7 +174,11 @@ class RoutingRuleAdmin(AdminLTEModelView):
 
     def on_model_change(self, form, model, is_created):
         model.child_id = Child.current().id
-        model.inbound_tags = ','.join(form.inbound_tags.data or [])
+        # Several choices in inbound_tags.choices can share the same
+        # underlying tag (one per enabled Proxy row riding that shared
+        # inbound - see get_available_inbound_tags()), so dedupe before
+        # storing rather than joining raw.
+        model.inbound_tags = ','.join(dict.fromkeys(form.inbound_tags.data or []))
         if is_created:
             # No more manually-typed priority - a new rule always starts at
             # the bottom (lowest priority) of this child's list; the admin

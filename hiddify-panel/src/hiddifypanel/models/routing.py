@@ -615,12 +615,20 @@ def get_available_inbound_tags() -> list[tuple[str, str]]:
     cdn-mode/domain combination) - most protocol+transport combinations
     share a single inbound routed to by HAProxy/SNI regardless of which
     domain or CDN mode the client used (see xray/configs/05_inbounds_new.
-    json.j2: tag "v10-{protocol}-{stream}"). So the granularity here is
-    "this protocol over this transport", not a specific domain/mode/proxy
-    combination - the closest real match to what actually exists on the
+    json.j2: tag "v10-{protocol}-{stream}"). So the underlying *value* here
+    is still "this protocol over this transport", not a specific domain/
+    mode/proxy - the closest real match to what actually exists on the
     wire. Reality is the one exception: each reality domain gets its own
     dedicated inbound (xray/configs/05_inbounds_02_reality_main.json.j2:
     tag "realityin_{stream}_{port}"), so those are listed per-domain.
+
+    What DOES vary is the *label*: rather than one opaque "(any domain)"
+    catch-all per protocol+transport, list every enabled Proxy row that
+    actually rides that shared inbound individually by its own configured
+    name - same granularity as the Proxies and Inbound Override pages, even
+    though several of those rows (one per CDN mode) resolve to the exact
+    same tag under the hood. Selecting more than one that shares a tag is
+    harmless (on_model_change dedupes before storing).
 
     Returns a list of (tag, human-readable label) tuples for use as
     SelectField choices, mirroring the *_enable flags and loops the
@@ -631,6 +639,7 @@ def get_available_inbound_tags() -> list[tuple[str, str]]:
     from hiddifypanel.models.config_enum import ConfigEnum
     from hiddifypanel.models.domain import Domain, DomainType
     from hiddifypanel.models.child import Child
+    from hiddifypanel.models.proxy import Proxy
 
     child_id = Child.current().id
     choices = []
@@ -645,7 +654,14 @@ def get_available_inbound_tags() -> list[tuple[str, str]]:
             if not hconfig(getattr(ConfigEnum, f'{stream}_enable'), child_id):
                 continue
             tag = f'v10-{protocol}-{stream}'
-            choices.append((tag, f'{protocol} / {stream} (any domain, direct+CDN+relay)'))
+            rows = [r for r in Proxy.query.filter(
+                Proxy.child_id == child_id, Proxy.enable == True, Proxy.proto == protocol).all()
+                if str(r.transport).lower() == stream]
+            if rows:
+                for r in rows:
+                    choices.append((tag, r.name))
+            else:
+                choices.append((tag, f'{protocol} / {stream} (any domain, direct+CDN+relay)'))
 
     if hconfig(ConfigEnum.vless_enable, child_id) and hconfig(ConfigEnum.kcp_enable, child_id):
         choices.append(('kcp', 'vless / kcp'))
