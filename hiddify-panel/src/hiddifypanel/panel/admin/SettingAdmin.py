@@ -26,6 +26,23 @@ from bleach import clean as bleach_clean, ALLOWED_TAGS as BLEACH_ALLOWED_TAGS
 ALLOWED_TAGS = set([*BLEACH_ALLOWED_TAGS, "h1", "h2", "h3", "h4", "p"])
 
 
+def _skip_if_unchanged(validator, stored_value):
+    # decoy/fake-tls domains are one-time install-generated values that are
+    # rarely touched again. Their validators do a live DNS lookup and/or
+    # compare them against every other stored fake-domain, so a value that
+    # was fine at install time (or coincidentally equal to another field's
+    # auto-picked domain) can start failing later purely from DNS flakiness
+    # or from that coincidence - with no way for the admin to "fix" a field
+    # they never intended to edit, since resubmitting the same value fails
+    # the same way forever. Only re-run these checks when the admin actually
+    # changed the value.
+    def wrapped(form, field, _validator=validator, _stored=stored_value):
+        if field.data == _stored:
+            return
+        return _validator(form, field)
+    return wrapped
+
+
 class SettingAdmin(FlaskView):
 
     @login_required(roles={Role.super_admin})
@@ -300,17 +317,19 @@ def get_config_form():
                     validators.append(wtf.validators.Regexp("^([A-Za-z0-9\\-\\.]+\\.[a-zA-Z]{2,})|$", re.IGNORECASE, _("config.Invalid_domain")))
                     validators.append(hutils.flask.validate_domain_exist)
                 elif '_domain' in c.key or "_fakedomain" in c.key:
-                    validators.append(wtf.validators.Regexp("^([A-Za-z0-9\\-\\.]+\\.[a-zA-Z]{2,})$", re.IGNORECASE, _("config.Invalid_domain")))
-                    validators.append(hutils.flask.validate_domain_exist)
-
-                    if c.key != ConfigEnum.decoy_domain:
-                        validators.append(wtf.validators.NoneOf([d.domain.lower() for d in Domain.query.all()], _("config.Domain_already_used")))
-                        validators.append(wtf.validators.NoneOf(
-                            [cc.value.lower() for cc in StrConfig.query.filter(StrConfig.child_id == Child.current().id).all() if cc.key != c.key and "fakedomain" in cc.key and cc.key != ConfigEnum.decoy_domain], _("config.Domain_already_used")))
-
                     render_kw['required'] = ""
                     if len(c.value) < 3:
                         c.value = hutils.network.get_random_domains(1)[0]
+                    stored_value = c.value
+
+                    validators.append(wtf.validators.Regexp("^([A-Za-z0-9\\-\\.]+\\.[a-zA-Z]{2,})$", re.IGNORECASE, _("config.Invalid_domain")))
+                    validators.append(_skip_if_unchanged(hutils.flask.validate_domain_exist, stored_value))
+
+                    if c.key != ConfigEnum.decoy_domain:
+                        validators.append(_skip_if_unchanged(
+                            wtf.validators.NoneOf([d.domain.lower() for d in Domain.query.all()], _("config.Domain_already_used")), stored_value))
+                        validators.append(_skip_if_unchanged(wtf.validators.NoneOf(
+                            [cc.value.lower() for cc in StrConfig.query.filter(StrConfig.child_id == Child.current().id).all() if cc.key != c.key and "fakedomain" in cc.key and cc.key != ConfigEnum.decoy_domain], _("config.Domain_already_used")), stored_value))
 
                 # if c.key ==ConfigEnum.reality_short_ids:
                 #     extra_info=f" <a target='_blank' href='{hurl_for('admin.Actions:get_some_random_reality_friendly_domain',test_domain=c.value)}'>"+_('Example Domains')+"</a>"
