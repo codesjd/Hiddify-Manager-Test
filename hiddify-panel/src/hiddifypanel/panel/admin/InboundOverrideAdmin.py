@@ -211,6 +211,12 @@ class InboundOverrideAdmin(AdminLTEModelView):
             return False
         return True
 
+    def create_form(self, obj=None):
+        return self._disable_select2(super().create_form(obj))
+
+    def edit_form(self, obj=None):
+        return self._disable_select2(super().edit_form(obj))
+
     def on_form_prefill(self, form, id):
         proxy = Proxy.query.get(id)
         params = (proxy and proxy.params) or {}

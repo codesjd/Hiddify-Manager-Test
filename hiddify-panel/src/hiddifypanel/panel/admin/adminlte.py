@@ -24,3 +24,23 @@ class AdminLTEModelView(ModelView):
 
     def get_empty_list_message(self):
         return _('There are no items in the table.')
+
+    def _disable_select2(self, form):
+        """Render every <select> in this form as a plain native dropdown
+        instead of a select2 widget.
+
+        flask-admin's Select2Widget (used for any choice/Enum model column,
+        e.g. the Outbound 'protocol' field) does
+        `kwargs.setdefault('data-role', 'select2')`, and its form.js turns
+        that attribute into the nested `<span class="selection">...` widget.
+        Forcing render_kw['data-role'] to '' makes that setdefault a no-op,
+        so the attribute renders empty and form.js' applyStyle switch matches
+        no case - the field stays a normal <select>. Opt-in per ModelView
+        (call from create_form/edit_form); not applied globally so pages that
+        actually want select2's search box keep it.
+        """
+        import wtforms
+        for field in form:
+            if isinstance(field, wtforms.SelectField):
+                field.render_kw = {**(field.render_kw or {}), 'data-role': ''}
+        return form

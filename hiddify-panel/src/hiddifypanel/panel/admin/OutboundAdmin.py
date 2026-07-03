@@ -272,6 +272,12 @@ class OutboundAdmin(AdminLTEModelView):
             return False
         return True
 
+    def create_form(self, obj=None):
+        return self._disable_select2(super().create_form(obj))
+
+    def edit_form(self, obj=None):
+        return self._disable_select2(super().edit_form(obj))
+
     def on_model_change(self, form, model, is_created):
         model.child_id = Child.current().id
 
