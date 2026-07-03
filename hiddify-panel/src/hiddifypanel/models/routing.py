@@ -12,6 +12,10 @@ class OutboundProtocol(StrEnum):
     shadowsocks = auto()
     socks = auto()
     http = auto()
+    # hysteria2 outbound. sing-box-only: xray-core has no hysteria dialer at
+    # all, so to_xray_dict() emits a fail-closed blackhole for this protocol
+    # (see there) - it only actually dials when singbox is the active core.
+    hysteria = auto()
     wireguard = auto()
     freedom = auto()
     # Not a real dialed protocol - binds outbound traffic to a standalone
@@ -127,6 +131,14 @@ class CustomOutbound(db.Model):  # type: ignore
     jc = Column(Integer, nullable=True)
     jmin = Column(Integer, nullable=True)
     jmax = Column(Integer, nullable=True)
+    # hysteria2-only. password reuses uuid_or_password; server/port reuse
+    # address/port; sni reuses the shared sni field. These three cover the
+    # rest of a hysteria2 outbound: Salamander obfuscation password (blank =
+    # no obfs) and the optional client bandwidth hints (0/blank = omit, let
+    # hysteria2's congestion control decide).
+    hysteria_obfs_password = Column(String(200), nullable=True, default='')
+    hysteria_up_mbps = Column(Integer, nullable=True)
+    hysteria_down_mbps = Column(Integer, nullable=True)
     comment = Column(String(300), nullable=True, default='')
     # Advanced escape hatch: raw JSON merged on top of the generated
     # outbound dict (e.g. {"streamSettings": {"grpcSettings": {...}}}).
@@ -259,6 +271,17 @@ class CustomOutbound(db.Model):  # type: ignore
             # bind_interface. No network/security apply.
             return {"tag": self.tag, "protocol": "freedom", "settings": {}, "streamSettings": {"sockopt": {"interface": self.amneziawg_interface}}}
 
+        if self.protocol == OutboundProtocol.hysteria:
+            # xray-core has no hysteria/hysteria2 outbound at all. Both cores'
+            # outbound JSON is precomputed (build_custom_xray_extra runs even
+            # when singbox is active), so this row still has to serialize to
+            # *valid* xray - emit a blackhole carrying the tag. That keeps any
+            # routing rule pointing at this tag resolvable (an unknown
+            # outboundTag would make xray reject the whole config) and fails
+            # closed: while xray is the active core, traffic routed here is
+            # dropped rather than silently leaking out the direct connection.
+            return {"tag": self.tag, "protocol": "blackhole", "settings": {}}
+
         settings: dict = {}
         stream: dict = {}
 
@@ -373,6 +396,31 @@ class CustomOutbound(db.Model):  # type: ignore
             return {"tag": self.tag, "type": "direct", "bind_interface": self.amneziawg_interface}
 
         out: dict = {"tag": self.tag}
+
+        if self.protocol == OutboundProtocol.hysteria:
+            # sing-box hysteria2 outbound. TLS is intrinsic to hysteria2
+            # (it's QUIC/TLS), so it's always emitted; server_name falls back
+            # to the address when no explicit SNI is set.
+            out["type"] = "hysteria2"
+            out["server"] = self.address or ""
+            out["server_port"] = self.port or 443
+            out["password"] = self.uuid_or_password or ""
+            if self.hysteria_up_mbps:
+                out["up_mbps"] = self.hysteria_up_mbps
+            if self.hysteria_down_mbps:
+                out["down_mbps"] = self.hysteria_down_mbps
+            if self.hysteria_obfs_password:
+                out["obfs"] = {"type": "salamander", "password": self.hysteria_obfs_password}
+            tls: dict = {"enabled": True, "server_name": self.sni or self.address or ""}
+            out["tls"] = tls
+            dial = self._singbox_dial_fields()
+            out.update(dial)
+            if self.extra_json and self.extra_json.strip() not in ('', '{}'):
+                try:
+                    out = _deep_merge(out, json.loads(self.extra_json))
+                except Exception:
+                    pass
+            return out
 
         if self.protocol == OutboundProtocol.freedom:
             out["type"] = "direct"

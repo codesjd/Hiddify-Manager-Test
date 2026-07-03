@@ -14,7 +14,18 @@ from hiddifypanel.database import db, db_execute
 
 
 from loguru import logger
-MAX_DB_VERSION = 131
+MAX_DB_VERSION = 132
+
+
+def _v131(child_id):
+    """hysteria2 outbound support on the Outbounds page - three new
+    CustomOutbound columns (Salamander obfs password + optional up/down
+    bandwidth hints); server/port/password/sni reuse the existing shared
+    columns. Existing rows get NULL, which to_singbox_dict() treats as
+    "omit", so nothing changes for non-hysteria outbounds."""
+    add_column(CustomOutbound.hysteria_obfs_password)
+    add_column(CustomOutbound.hysteria_up_mbps)
+    add_column(CustomOutbound.hysteria_down_mbps)
 
 
 def _v130(child_id):

@@ -53,7 +53,8 @@ _PROTOCOL_FIELD_SCRIPT = """
              'sockopt_tcp_window_clamp', 'sockopt_tcp_mptcp', 'sockopt_penetrate',
              'sockopt_address_port_strategy', 'he_try_delay_ms', 'he_prioritize_ipv6',
              'he_interleave', 'he_max_concurrent_try', 'mux_enabled', 'mux_concurrency',
-             'mux_xudp_concurrency', 'mux_xudp_proxy_udp_443'];
+             'mux_xudp_concurrency', 'mux_xudp_proxy_udp_443',
+             'hysteria_obfs_password', 'hysteria_up_mbps', 'hysteria_down_mbps'];
 
   // Every real (non-amneziawg/wireguard/freedom) protocol shares the same
   // sockopt/mux block - xray-core doesn't vary these by protocol, and the
@@ -79,6 +80,9 @@ _PROTOCOL_FIELD_SCRIPT = """
     shadowsocks: ['address', 'port', 'uuid_or_password', 'ss_method', 'network', 'security', 'sni', 'ws_path', 'host_header', 'fingerprint'].concat(SOCKOPT_MUX),
     socks: ['address', 'port', 'uuid_or_password'].concat(SOCKOPT_MUX),
     http: ['address', 'port', 'uuid_or_password'].concat(SOCKOPT_MUX),
+    // hysteria2 is QUIC/TLS with its own obfs+bandwidth knobs; no network/
+    // transport/mux selectors apply. sni is its TLS server_name.
+    hysteria: ['address', 'port', 'uuid_or_password', 'sni', 'hysteria_obfs_password', 'hysteria_up_mbps', 'hysteria_down_mbps'],
     wireguard: ['address', 'port', 'uuid_or_password', 'peer_public_key', 'local_address'],
     amneziawg: ['address', 'port', 'uuid_or_password', 'peer_public_key', 'preshared_key', 'local_address', 'dns', 'jc', 'jmin', 'jmax'],
     freedom: []
@@ -162,6 +166,7 @@ class OutboundAdmin(AdminLTEModelView):
                      "sockopt_address_port_strategy", "he_try_delay_ms", "he_prioritize_ipv6",
                      "he_interleave", "he_max_concurrent_try",
                      "mux_enabled", "mux_concurrency", "mux_xudp_concurrency", "mux_xudp_proxy_udp_443",
+                     "hysteria_obfs_password", "hysteria_up_mbps", "hysteria_down_mbps",
                      "comment", "extra_json", "protocol_field_script"]
 
     column_labels = {
@@ -210,6 +215,9 @@ class OutboundAdmin(AdminLTEModelView):
         "mux_concurrency": _("Mux Concurrency"),
         "mux_xudp_concurrency": _("Mux xudp Concurrency"),
         "mux_xudp_proxy_udp_443": _("Mux xudp UDP 443 (reject/allow/skip)"),
+        "hysteria_obfs_password": _("Obfs Password (hysteria2 salamander)"),
+        "hysteria_up_mbps": _("Up Mbps (hysteria2)"),
+        "hysteria_down_mbps": _("Down Mbps (hysteria2)"),
         "comment": _("Comment"),
         "extra_json": _("Advanced Override (JSON)"),
     }
@@ -230,6 +238,9 @@ class OutboundAdmin(AdminLTEModelView):
         sockopt_dialer_proxy=_("Chain through another Outbound's Tag before dialing this one."),
         sockopt_domain_strategy=_('e.g. "UseIP", "UseIPv4", "UseIPv6", "AsIs". Leave blank for the default.'),
         sockopt_interface=_("Bind outbound connections to this network interface (Linux SO_BINDTODEVICE)."),
+        hysteria_obfs_password=_("hysteria2 Salamander obfuscation password. Must match the server's obfs password. Leave blank if the server has no obfs."),
+        hysteria_up_mbps=_("Optional hysteria2 upload bandwidth hint in Mbps. Leave blank to let congestion control decide."),
+        hysteria_down_mbps=_("Optional hysteria2 download bandwidth hint in Mbps. Leave blank to let congestion control decide."),
         extra_json=_('Optional. Deep-merged on top of the generated outbound JSON for anything the form above can\'t express, '
                       'e.g. {"streamSettings": {"sockopt": {"dialerProxy": "another-tag"}}} to chain through yet another outbound.'),
     )
@@ -255,13 +266,21 @@ class OutboundAdmin(AdminLTEModelView):
         'import_link': {'rows': 3, 'style': 'font-family: monospace'},
     }
 
-    # WireGuard is retired in favor of AmneziaWG - form_choices overrides
-    # the auto-generated Enum dropdown (which would otherwise list every
-    # OutboundProtocol member) so new outbounds can't select it. An existing
-    # row already saved with protocol=wireguard is untouched by this - it
-    # just can't be changed to "wireguard" again if edited away from it.
+    # The protocol dropdown is restricted to the approved set only
+    # (vmess/vless/trojan/shadowsocks/amneziawg/hysteria/socks/http).
+    # OutboundProtocol still defines wireguard/freedom because existing rows
+    # and internal fallbacks reference them, but they're not offered here:
+    # wireguard is retired in favor of amneziawg, and freedom (plain direct)
+    # isn't a "custom outbound" an admin needs - the built-in freedom tag is
+    # already available in Routing Rules. A row already saved with one of
+    # those protocols is untouched; it just can't be re-selected if edited.
+    _ALLOWED_PROTOCOLS = [
+        OutboundProtocol.vmess, OutboundProtocol.vless, OutboundProtocol.trojan,
+        OutboundProtocol.shadowsocks, OutboundProtocol.amneziawg, OutboundProtocol.hysteria,
+        OutboundProtocol.socks, OutboundProtocol.http,
+    ]
     form_choices = {
-        'protocol': [(p.value, p.value) for p in OutboundProtocol if p != OutboundProtocol.wireguard],
+        'protocol': [(p.value, p.value) for p in _ALLOWED_PROTOCOLS],
     }
 
     can_export = False
