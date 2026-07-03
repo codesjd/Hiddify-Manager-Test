@@ -26,6 +26,22 @@ class Actions(FlaskView):
     def apply_configs(self):
         return self.reinstall(False)
 
+    @login_required(roles={Role.super_admin})
+    @route('set_language', methods=['POST'])
+    def set_language(self):
+        # Admin language used to only be reachable from deep inside Settings
+        # (a whole category for one field) - moved to the topbar since it's
+        # something an admin picks once and rarely needs the rest of that
+        # page for. Same set_hconfig+refresh sequence QuickSetup's own
+        # language step uses.
+        import flask_babel
+        lang = request.form.get('lang', '')
+        if lang in [l.value for l in Lang]:
+            set_hconfig(ConfigEnum.lang, lang)
+            set_hconfig(ConfigEnum.admin_lang, lang)
+            flask_babel.refresh()
+        return redirect(request.referrer or hurl_for('admin.Dashboard:index'))
+
     @route('reset', methods=['POST'])
     @login_required(roles={Role.super_admin})
     def reset(self):

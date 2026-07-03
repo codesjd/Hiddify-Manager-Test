@@ -186,7 +186,11 @@ def get_config_form():
         # wireguard: the whole client-facing protocol is retired in favor
         # of AmneziaWG (forced off by migration _v127) - no reason to keep
         # showing its enable/port/noise-trick fields as a settings section.
-        if cat == 'hidden' or cat == ConfigCategory.wireguard:
+        # admin: was just a single language dropdown - moved to the topbar
+        # (see admin-layout.html + Actions.set_language) since a whole
+        # Settings category for one field an admin sets once didn't pull
+        # its weight.
+        if cat == 'hidden' or cat == ConfigCategory.wireguard or cat == ConfigCategory.admin:
             continue
 
         cat_configs = [c for c in ConfigEnum if c.category == cat and (not is_parent or c.show_in_parent)]

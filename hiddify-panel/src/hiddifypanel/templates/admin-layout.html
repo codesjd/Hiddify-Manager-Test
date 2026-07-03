@@ -407,6 +407,25 @@ body, .dark-mode {
 .api-btn:hover {
   background: var(--border);
 }
+.lang-switcher {
+  display: inline-flex;
+}
+.lang-switcher-select {
+  appearance: none;
+  -webkit-appearance: none;
+  padding: {{ '6px 12px 6px 24px' if get_locale()=='fa' else '6px 24px 6px 12px' }};
+  border-radius: 20px;
+  border: none;
+  background: var(--track) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%23888' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E") no-repeat {{ 'left 10px' if get_locale()=='fa' else 'right 10px' }} center;
+  color: var(--text-primary);
+  cursor: pointer;
+  font-family: 'Manrope', sans-serif;
+  font-size: 12px;
+  font-weight: 700;
+}
+.lang-switcher-select:hover {
+  background-color: var(--border);
+}
 .avatar-menu-wrap {
   position: relative;
 }
@@ -1192,6 +1211,13 @@ $(document).ready(function () {
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M8 4l-5 8 5 8M16 4l5 8-5 8" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
           {{ _('admin.menu.api') }}
         </a>
+        <form class="lang-switcher" method="post" action="{{ hurl_for('admin.Actions:set_language') }}">
+          <select name="lang" class="lang-switcher-select" onchange="this.form.submit()" title="{{ _('config.admin_lang.label') }}">
+            {% for l in ['en', 'fa', 'pt', 'zh', 'ru', 'my'] %}
+            <option value="{{ l }}" {% if hconfig(ConfigEnum.admin_lang)==l %}selected{% endif %}>{{ _('lang.' + l) }}</option>
+            {% endfor %}
+          </select>
+        </form>
         {% endif %}
         <div class="live-badge">
           <div class="live-dot"></div>
