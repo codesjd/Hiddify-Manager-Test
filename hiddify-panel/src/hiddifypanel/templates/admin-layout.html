@@ -57,7 +57,12 @@
 
 /* Styling overrides to transform standard elements to modern Orbit Admin */
 * { box-sizing: border-box; }
-body {
+/* .dark-mode is a single-class selector (specificity beats a bare `body`
+   element selector regardless of !important on both sides) that
+   adminlte.css sets on <body> whenever g.darkmode is true, with its own
+   `!important` background - include it here explicitly so this rule wins
+   the tie instead of silently losing to adminlte's dark gray fallback. */
+body, .dark-mode {
   background: var(--bg) !important;
   font-family: 'Manrope', sans-serif !important;
   color: var(--text-primary) !important;

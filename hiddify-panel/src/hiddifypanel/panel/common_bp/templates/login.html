@@ -31,7 +31,12 @@
   --accent-orange: oklch(0.68 0.15 55);
 }
 * { box-sizing: border-box; }
-body, .content-wrapper, .wrapper {
+/* .dark-mode is a single-class selector (specificity beats a bare `body`
+   element selector regardless of !important on both sides) that
+   adminlte.css sets on <body> whenever g.darkmode is true, with its own
+   `!important` background - include it here explicitly so this rule wins
+   the tie instead of silently losing to adminlte's dark gray fallback. */
+body, .dark-mode, .content-wrapper, .wrapper {
   background: var(--bg) !important;
   font-family: 'Manrope', sans-serif !important;
   color: var(--text-primary);
