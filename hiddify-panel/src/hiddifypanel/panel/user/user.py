@@ -306,6 +306,12 @@ class UserView(FlaskView):
     def singbox_ssh_imp(self):
         if not hconfig(ConfigEnum.ssh_server_enable):
             return "The SSH server is disabled"
+        # SSH is a singbox-only inbound; under xray core the singbox service
+        # (and therefore the SSH listener) isn't running at all, so this
+        # config would connect to nothing. Refuse clearly instead of handing
+        # out a dead config.
+        if hconfig(ConfigEnum.core_type) != 'singbox':
+            return "The SSH server requires the sing-box core (set Core Type to sing-box in Settings)"
         # elif not hconfig(ConfigEnum.sub_singbox_ssh_enable):
         #     return "The Singbox: SSH subscription is disabled"
 

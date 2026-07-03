@@ -168,7 +168,14 @@ def get_proxies(child_id: int = 0, only_enabled=False) -> list['Proxy']:
         proxies = [c for c in proxies if c.proto != ProxyProto.wireguard]
     if not hconfig(ConfigEnum.amneziawg_client_enable, child_id):
         proxies = [c for c in proxies if c.proto != ProxyProto.amneziawg]
-    if not hconfig(ConfigEnum.ssh_server_enable, child_id):
+    # SSH is only ever a singbox inbound (05_inbounds_ssh.json.j2) - xray-core
+    # has no SSH inbound support at all (there's no ssh entry anywhere under
+    # xray/configs/), so under the default xray core nothing is listening on
+    # ssh_server_port even with the toggle on. Advertising an SSH config to
+    # users in that case is exactly the "ssh proxy doesn't work" bug: the
+    # client dials a port with no server behind it. Only surface SSH when it's
+    # both enabled AND singbox is the active core.
+    if not (hconfig(ConfigEnum.ssh_server_enable, child_id) and hconfig(ConfigEnum.core_type, child_id) == 'singbox'):
         proxies = [c for c in proxies if c.proto != ProxyProto.ssh]
     if not hconfig(ConfigEnum.hysteria_enable, child_id):
         proxies = [c for c in proxies if c.proto != ProxyProto.hysteria2]
