@@ -1,7 +1,7 @@
 from flask_classful import FlaskView, route
 from hiddifypanel import hutils
 from hiddifypanel.auth import login_required, current_account, login_user, logout_user, login_by_username_or_uuid
-from flask import redirect, request, g, render_template, flash, jsonify
+from flask import redirect, request, g, render_template, flash, jsonify, session
 from hiddifypanel.hutils.flask import hurl_for
 from flask import current_app as app
 from flask_babel import lazy_gettext as _
@@ -12,6 +12,7 @@ from hiddifypanel.models import *
 from flask_wtf import FlaskForm
 import wtforms as wtf
 
+import datetime
 import re
 
 
@@ -21,6 +22,7 @@ class LoginForm(FlaskForm):
 
     password_textbox = wtf.fields.PasswordField(_(f'login.password.label'), default='',
         description=_(f'login.password.description'), render_kw={    })
+    remember_me = wtf.fields.BooleanField(_('Remember me'), default=True)
     submit = wtf.fields.SubmitField(_('login.button'))
 
 
@@ -34,7 +36,7 @@ class LoginView(FlaskView):
         if not current_account:
             form=LoginForm()
             form.secret_textbox.data=form.secret_textbox.data or username_arg
-            return render_template('login.html', form=form)
+            return render_template('login.html', form=form, now_year=datetime.datetime.now().year)
 
             # abort(401, "Unauthorized1")
 
@@ -53,9 +55,14 @@ class LoginView(FlaskView):
         if form.validate_on_submit():
             uuid = form.secret_textbox.data.strip()
             if login_by_username_or_uuid(uuid,form.password_textbox.data, hutils.flask.is_admin_proxy_path()):
+                # SESSION_PERMANENT defaults every session to a 10-day
+                # lifetime already, so "remember me" only has a real effect
+                # when explicitly unchecked: falls back to a browser-session
+                # cookie that clears on close, instead of persisting 10 days.
+                session.permanent = form.remember_me.data
                 return redirect(f'/{g.proxy_path}/')
         hutils.flask.flash(_('config.invalid_username_or_password'), 'danger')  # type: ignore
-        return render_template('login.html', form=LoginForm())
+        return render_template('login.html', form=LoginForm(), now_year=datetime.datetime.now().year)
 
     @ route("/l/<path:path>/")
     @ route("/l/<path:path>")
