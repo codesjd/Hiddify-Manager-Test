@@ -26,8 +26,12 @@
         {%if "codec can't encode characters" in (""~error) %}
         Please restart the server.
         {%endif%}
+{% if debug %}
 {{error}}
 {{trace}}
+{% else %}
+{{_('An unexpected error occurred. Please contact your administrator.')}}
+{% endif %}
                     </pre>
     {% endif %}
 

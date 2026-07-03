@@ -1,5 +1,5 @@
 
-from flask import g, redirect, request, session
+from flask import current_app, g, redirect, request, session
 from hiddifypanel.hutils.flask import hurl_for
 from flask_login.utils import _get_user
 from functools import wraps
@@ -68,6 +68,13 @@ def login_user(user: AdminUser | User, remember=False, duration=None, force=Fals
     g.__account_store = user
     # if not user.is_active:
     #     return False
+
+    # Rotate the server-side session id on every successful login. Sessions
+    # are stored in Redis (base_setup.py: SESSION_TYPE='redis'), keyed by the
+    # id in the session cookie - without this, a session id an attacker got
+    # a victim's browser to adopt *before* login (classic session fixation)
+    # would still map to the now-authenticated session afterward.
+    current_app.session_interface.regenerate(session)  # type: ignore[attr-defined]
 
     account_id = user.get_id()  # type: ignore
     # print('account_id', account_id)

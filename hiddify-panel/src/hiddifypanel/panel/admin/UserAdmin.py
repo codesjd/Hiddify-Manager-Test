@@ -385,7 +385,10 @@ class UserAdmin(AdminLTEModelView):
         # Get the base query
         query = super().get_query()
 
-        admin_id = int(request.args.get("admin_id") or g.account.id)
+        try:
+            admin_id = int(request.args.get("admin_id") or g.account.id)
+        except (TypeError, ValueError):
+            abort(403)
         if admin_id not in g.account.recursive_sub_admins_ids():
             abort(403)
         admin = AdminUser.query.filter(AdminUser.id == admin_id).first()
@@ -404,7 +407,10 @@ class UserAdmin(AdminLTEModelView):
 
         query = super().get_count_query()
 
-        admin_id = int(request.args.get("admin_id") or g.account.id)
+        try:
+            admin_id = int(request.args.get("admin_id") or g.account.id)
+        except (TypeError, ValueError):
+            abort(403)
         if admin_id not in g.account.recursive_sub_admins_ids():
             abort(403)
         admin = AdminUser.query.filter(AdminUser.id == admin_id).first()

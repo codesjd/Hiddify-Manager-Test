@@ -73,7 +73,10 @@ class Proxy(db.Model):  # type: ignore
     l3 = Column(Enum(ProxyL3), nullable=False)
     transport = Column(Enum(ProxyTransport), nullable=False)
     cdn = Column(Enum(ProxyCDN), nullable=False)
-    params = Column(JSON,default={})
+    # A literal {} default would be the same dict instance reused by
+    # SQLAlchemy for every row that doesn't set params explicitly - a
+    # callable default gets invoked fresh per-row instead.
+    params = Column(JSON, default=dict)
 
     @property
     def enabled(self):
