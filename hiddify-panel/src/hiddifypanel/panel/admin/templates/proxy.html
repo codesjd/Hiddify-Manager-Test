@@ -80,18 +80,20 @@
 
     /* SubmitField renders as a bare <input>, no .form-group wrapper, in
        render_form()'s default "basic" form_type - so it's a direct grid
-       child of .toggle-grid and needs the column-span itself. */
-    #submit_global {
+       child of .toggle-grid and needs the column-span itself. #submit_global
+       itself no longer carries the grid-column span once the "move Apply
+       Configs into the same row" script below wraps it in .submit-row -
+       the wrapper takes over that job. */
+    .submit-row {
         grid-column: 1 / -1;
-        width: 100%;
-        display: block;
-        text-align: center;
+        display: flex;
+        gap: 10px;
         margin-top: 12px;
     }
-    .apply-configs-row {
-        display: flex;
-        justify-content: center;
-        margin-top: 12px;
+    .submit-row #submit_global {
+        flex: 1;
+        width: auto;
+        margin-top: 0;
     }
     /* Matches the dashboard's .dash-secondary-btn (Update/Reinstall) look
        instead of Bootstrap's default gray box, which clashed with the rest
@@ -111,9 +113,27 @@
         text-decoration: none !important;
         background: var(--track);
         color: var(--text-primary) !important;
+        flex: 0 0 auto;
     }
     .apply-configs-btn:hover {
         background: var(--border);
     }
 </style>
+{% endblock %}
+
+{% block tail %}
+{{ super() }}
+<script>
+    // #submit_global is a bare WTForms <input>, rendered as the last grid
+    // child of .toggle-grid with no wrapper of its own to place a sibling
+    // button next to - move it into a shared flex row with Apply Configs
+    // instead of fighting render_form()'s markup. Lives in the tail block
+    // (not body) since jQuery loads after body, not before it.
+    $(function () {
+        var $submitRow = $('<div class="submit-row"></div>');
+        $('#submit_global').before($submitRow);
+        $submitRow.append($('#submit_global'), $('.apply-configs-btn'));
+        $('.apply-configs-row').remove();
+    });
+</script>
 {% endblock %}

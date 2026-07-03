@@ -78,13 +78,17 @@
     legend + div > label {
         display: none;
     }
-    #submit {
+    /* #submit no longer carries the grid-column span itself once the "move
+       Apply Configs into the same row" script in the tail block wraps it
+       in .submit-row - the wrapper takes over that job. */
+    .submit-row {
         grid-column: 1 / -1;
-    }
-    .apply-configs-row {
         display: flex;
-        justify-content: center;
+        gap: 10px;
         margin-top: 12px;
+    }
+    .submit-row #submit {
+        flex: 1;
     }
     /* Matches the dashboard's .dash-secondary-btn (Update/Reinstall) look
        instead of Bootstrap's default gray box, which clashed with the rest
@@ -104,6 +108,7 @@
         text-decoration: none !important;
         background: var(--track);
         color: var(--text-primary) !important;
+        flex: 0 0 auto;
     }
     .apply-configs-btn:hover {
         background: var(--border);
@@ -256,6 +261,17 @@
 
 
     })
+
+    // #submit is a bare WTForms <input>, rendered as the last grid child of
+    // .settings-grid with no wrapper of its own to place a sibling button
+    // next to - move it into a shared flex row with Apply Configs instead
+    // of fighting render_form()'s markup.
+    $(function () {
+        var $submitRow = $('<div class="submit-row"></div>');
+        $('#submit').before($submitRow);
+        $submitRow.append($('#submit'), $('.apply-configs-btn'));
+        $('.apply-configs-row').remove();
+    });
 
     $(document).ready(function () {
         $('#search_settings').on('input', function () {
