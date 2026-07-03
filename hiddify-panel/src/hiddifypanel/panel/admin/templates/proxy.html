@@ -15,6 +15,9 @@
         <div class="global-form">
             {{render_form(global_config_form,extra_classes="toggle-grid")}}
         </div>
+        <div class="apply-configs-row">
+            <a href="{{ hurl_for('admin.Actions:apply_configs') }}" class="btn btn-secondary form_post">⚡ {{ _('Apply Configs') }}</a>
+        </div>
     </div>
 </div>
 
@@ -84,6 +87,17 @@
         display: block;
         text-align: center;
         margin-top: 12px;
+    }
+    .apply-configs-row {
+        display: flex;
+        justify-content: center;
+        margin-top: 10px;
+        padding-top: 10px;
+        border-top: 1px solid var(--border);
+    }
+    .apply-configs-row .btn {
+        width: 100%;
+        max-width: 320px;
     }
 </style>
 {% endblock %}

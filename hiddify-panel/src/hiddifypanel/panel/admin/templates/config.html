@@ -38,6 +38,9 @@
         <div class="global-form">
             {{render_form(form,form_type="",extra_classes="settings-grid")}}
         </div>
+        <div class="apply-configs-row">
+            <a href="{{ hurl_for('admin.Actions:apply_configs') }}" class="btn btn-secondary form_post">⚡ {{ _('Apply Configs') }}</a>
+        </div>
     </div>
 </div>
 
@@ -77,6 +80,17 @@
     }
     #submit {
         grid-column: 1 / -1;
+    }
+    .apply-configs-row {
+        display: flex;
+        justify-content: center;
+        margin-top: 10px;
+        padding-top: 10px;
+        border-top: 1px solid var(--border);
+    }
+    .apply-configs-row .btn {
+        width: 100%;
+        max-width: 320px;
     }
 </style>
 

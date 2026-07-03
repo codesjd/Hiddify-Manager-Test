@@ -100,19 +100,30 @@ def get_lang_form(empty=False):
 def get_password_form(empty=False):
     class PasswordForm(FlaskForm):
         step = wtf.HiddenField(default="1")
+        admin_username = wtf.StringField(
+            _("Username"),
+            description=_("Used to log in to the admin panel."),
+            default=(AdminUser.current_admin_or_owner().username or ''),
+            validators=[
+                InputRequired(message=_("Username is required.")),
+                Length(min=3, max=100, message=_("Username must be between 3 and 100 characters.")),
+                validate_username_unique,
+            ])
         admin_pass = wtf.PasswordField(
             _("user.password.title"),
             description=_("user.password.description"),
             default="",validators=[
-                
-                InputRequired(message=_("user.password.validation-required")), 
+
+                InputRequired(message=_("user.password.validation-required")),
                 Length(min=8, message=_("user.password.validation-lenght"))
-        
+
             ])
         password_submit = wtf.SubmitField(_('Submit'))
 
         def post(self, view):
-            AdminUser.current_admin_or_owner().update_password(self.admin_pass.data)
+            admin = AdminUser.current_admin_or_owner()
+            admin.username = self.admin_username.data.strip()
+            admin.update_password(self.admin_pass.data)
 
             return render_template(
                 'quick_setup.html', form=view.current_form(next=True),
@@ -124,6 +135,22 @@ def get_password_form(empty=False):
     form = PasswordForm(None)if empty else PasswordForm()
     form.step.data = "2"
     return form
+
+
+def validate_username_unique(form, field):
+    admin = AdminUser.current_admin_or_owner()
+    # Query directly instead of temporarily assigning field.data onto the
+    # live tracked `admin` instance - excluding admin.id here means this
+    # only flags a genuine collision with a *different* admin, not the
+    # unchanged value of this same one.
+    with db.session.no_autoflush:
+        existing = AdminUser.query.filter(
+            AdminUser.username == field.data.strip(),
+            AdminUser.id != admin.id,
+        ).first()
+    if existing:
+        raise ValidationError(_("An admin with this username already exists."))
+
 
 def get_proxy_form(empty=False):
     class ProxyForm(FlaskForm):
