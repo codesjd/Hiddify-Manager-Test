@@ -53,7 +53,7 @@
 <script src="{{ static_url_for( filename='plugins/bootstrap4-editable/js/bootstrap-editable.min.js' ) }}"></script>
 <script>
     
-    function initMultipleSelect($el) {
+    function initMultipleSelect($el, placeholder) {
         // update_hiddify_ui() can run more than once for the same modal open
         // (flask-admin's own bs4_modal.js binds its own, non-deduped
         // "click.modal.data-api" handler on top of the one below each time a
@@ -65,14 +65,20 @@
         if ($el.data('multipleSelect')) {
             $el.multipleSelect('destroy');
         }
-        $el.multipleSelect({ width: '100%', filter: true });
+        // multipleSelect's own placeholder option defaults to '' - with
+        // nothing selected (or, for download_domain, the blank "__None"
+        // option selected, whose label is itself empty text) the closed
+        // box renders completely blank, which reads as "the widget is
+        // broken / showing nothing" even though the dropdown itself works
+        // fine once opened.
+        $el.multipleSelect({ width: '100%', filter: true, placeholder: placeholder || '{{ _("Select...") }}' });
     }
 
     function update_hiddify_ui() {
 
-        initMultipleSelect($("#show_domains"));
-        initMultipleSelect($("#download_domain"));
-        initMultipleSelect($("#inbound_tags"));
+        initMultipleSelect($("#show_domains"), '{{ _("All domains") }}');
+        initMultipleSelect($("#download_domain"), '{{ _("None") }}');
+        initMultipleSelect($("#inbound_tags"), '{{ _("All inbounds") }}');
 
         if ($("#domain").length > 0) {
             var selectElement = document.getElementById("mode");
