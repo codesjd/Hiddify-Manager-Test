@@ -222,13 +222,13 @@ def get_quick_setup_form(empty=False):
         domain_validators = [
             wtf.validators.Regexp(domain_regex, re.IGNORECASE, _("config.Invalid_domain")),
             validate_domain,
-            wtf.validators.NoneOf([d.domain.lower() for d in Domain.query.all()], _("config.Domain_already_used")),
+            validate_domain_not_conflicting(DomainType.direct),
             wtf.validators.NoneOf([c.value.lower() for c in StrConfig.query.all() if "fakedomain" in c.key and c.key != ConfigEnum.decoy_domain], _("config.Domain_already_used"))]
 
         cdn_domain_validators = [
             wtf.validators.Regexp(f'({domain_regex})|(^$)', re.IGNORECASE, _("config.Invalid_domain")),
             validate_domain_cdn,
-            wtf.validators.NoneOf([d.domain.lower() for d in Domain.query.all()], _("config.Domain_already_used")),
+            validate_domain_not_conflicting(DomainType.cdn),
             wtf.validators.NoneOf([c.value.lower() for c in StrConfig.query.all() if "fakedomain" in c.key and c.key != ConfigEnum.decoy_domain], _("config.Domain_already_used"))]
         domain = wtf.StringField(
             _("domain.domain"),
@@ -261,9 +261,20 @@ def get_quick_setup_form(empty=False):
 
         def post(self, view):
             Domain.query.filter(Domain.domain == f'{hutils.network.get_ip_str(4)}.sslip.io').delete()
-            db.session.add(Domain(domain=self.domain.data.lower(), mode=DomainType.direct))
+            # Insert-if-missing rather than always-insert: a domain already
+            # sitting here in the *same* mode is a harmless resubmission of
+            # this same step (e.g. Quick Setup run more than once, or a
+            # retried request after a slow/dropped connection) - the
+            # validators above already reject a genuine conflict (the
+            # domain existing in a *different* mode), so reaching this line
+            # with an existing same-mode row means there's nothing to do.
+            domain = self.domain.data.lower()
+            if not Domain.query.filter(Domain.domain == domain).first():
+                db.session.add(Domain(domain=domain, mode=DomainType.direct))
             if self.cdn_domain.data:
-                db.session.add(Domain(domain=self.cdn_domain.data.lower(), mode=DomainType.cdn))
+                cdn_domain = self.cdn_domain.data.lower()
+                if not Domain.query.filter(Domain.domain == cdn_domain).first():
+                    db.session.add(Domain(domain=cdn_domain, mode=DomainType.cdn))
             set_hconfig(ConfigEnum.block_iran_sites, self.block_iran_sites.data)
             set_hconfig(ConfigEnum.decoy_domain, self.decoy_domain.data)
             # hiddify.bulk_register_configs([
@@ -284,6 +295,20 @@ def get_quick_setup_form(empty=False):
     form = BasicConfigs(None) if empty else BasicConfigs()
     form.step.data = "3"
     return form
+
+
+def validate_domain_not_conflicting(mode):
+    '''A domain already registered in `mode` is a harmless resubmission
+    (Quick Setup run more than once, or a retried request) - only a domain
+    registered under a *different* mode is a genuine conflict.'''
+    def _validator(form, field):
+        submitted = (field.data or '').lower()
+        if not submitted:
+            return
+        existing = Domain.query.filter(Domain.domain == submitted).first()
+        if existing and existing.mode != mode:
+            raise ValidationError(_("config.Domain_already_used"))
+    return _validator
 
 
 def validate_domain(form, field):
