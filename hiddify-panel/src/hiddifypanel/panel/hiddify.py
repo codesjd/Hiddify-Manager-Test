@@ -449,7 +449,12 @@ def all_configs_for_cli():
     try:
         amneziawg_outbounds = get_amneziawg_outbounds()
         configs['amneziawg_outbounds'] = amneziawg_outbounds
-        configs['chconfigs'][0]['has_amneziawg_outbound'] = len(amneziawg_outbounds) > 0
+        # This flag also gates whether other/amneziawg's install_run() runs
+        # at all (see install.sh) - broadened to also cover the client-facing
+        # hiddifyawg interface (amneziawg_client_enable), not just outbound
+        # chaining, since both need the exact same awg-quick/amneziawg-go
+        # binaries built.
+        configs['chconfigs'][0]['has_amneziawg_outbound'] = len(amneziawg_outbounds) > 0 or bool(hconfig(ConfigEnum.amneziawg_client_enable))
     except Exception:
         logger.exception("Failed to collect AmneziaWG outbounds (non-fatal, other/amneziawg/ will just see an empty list)")
         configs['amneziawg_outbounds'] = []

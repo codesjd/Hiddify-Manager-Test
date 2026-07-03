@@ -96,6 +96,8 @@ def get_port(proxy: Proxy, hconfigs: dict, domain_db: Domain, ptls: int, phttp: 
         port = hconfigs[ConfigEnum.kcp_ports].split(",")[0]
     elif proxy.proto == ProxyProto.wireguard:
         port = hconfigs[ConfigEnum.wireguard_port]
+    elif proxy.proto == ProxyProto.amneziawg:
+        port = hconfigs[ConfigEnum.amneziawg_port]
     elif proxy.proto == "tuic":
         port = domain_db.internal_port_tuic
     elif proxy.proto == "hysteria2":
@@ -164,6 +166,8 @@ def get_proxies(child_id: int = 0, only_enabled=False) -> list['Proxy']:
 
     if not hconfig(ConfigEnum.wireguard_enable, child_id):
         proxies = [c for c in proxies if c.proto != ProxyProto.wireguard]
+    if not hconfig(ConfigEnum.amneziawg_client_enable, child_id):
+        proxies = [c for c in proxies if c.proto != ProxyProto.amneziawg]
     if not hconfig(ConfigEnum.ssh_server_enable, child_id):
         proxies = [c for c in proxies if c.proto != ProxyProto.ssh]
     if not hconfig(ConfigEnum.hysteria_enable, child_id):
@@ -242,14 +246,14 @@ def get_valid_proxies(domains: list[Domain]) -> list[dict]:
             ips = hutils.network.get_domain_ips_cached(domain.domain)
         for proxy in proxeismap[domain.child_id]:
             noDomainProxies = False
-            if proxy.proto in [ProxyProto.ssh, ProxyProto.wireguard,ProxyProto.mieru]:
+            if proxy.proto in [ProxyProto.ssh, ProxyProto.wireguard, ProxyProto.amneziawg, ProxyProto.mieru]:
                 noDomainProxies = True
             if proxy.proto in [ProxyProto.ss] and proxy.transport not in [ProxyTransport.grpc, ProxyTransport.h2, ProxyTransport.WS, ProxyTransport.httpupgrade, ProxyTransport.xhttp]:
                 noDomainProxies = True
             options = []
             key = f'{proxy.proto}{proxy.transport}{proxy.cdn}{proxy.l3}'
 
-            if proxy.proto in [ProxyProto.dnstt,ProxyProto.ssh, ProxyProto.tuic, ProxyProto.hysteria2, ProxyProto.wireguard, ProxyProto.ss,ProxyProto.mieru] \
+            if proxy.proto in [ProxyProto.dnstt,ProxyProto.ssh, ProxyProto.tuic, ProxyProto.hysteria2, ProxyProto.wireguard, ProxyProto.amneziawg, ProxyProto.ss,ProxyProto.mieru] \
                 or (proxy.proto==ProxyProto.naive and proxy.l3==ProxyL3.h3_quic) :
                 if noDomainProxies and all([x in added_ip[key] for x in ips]):
                     continue
@@ -257,13 +261,15 @@ def get_valid_proxies(domains: list[Domain]) -> list[dict]:
                 for x in ips:
                     added_ip[key].add(x)
 
-                if proxy.proto in [ProxyProto.ssh, ProxyProto.wireguard, ProxyProto.ss]:
+                if proxy.proto in [ProxyProto.ssh, ProxyProto.wireguard, ProxyProto.amneziawg, ProxyProto.ss]:
                     # if domain.mode == 'fake':
                     #     continue
                     if proxy.proto in [ProxyProto.ssh]:
                         options = [{'pport': hconfigs[ConfigEnum.ssh_server_port]}]
                     elif proxy.proto in [ProxyProto.wireguard]:
                         options = [{'pport': hconfigs[ConfigEnum.wireguard_port]}]
+                    elif proxy.proto in [ProxyProto.amneziawg]:
+                        options = [{'pport': hconfigs[ConfigEnum.amneziawg_port]}]
                     elif proxy.transport in [ProxyTransport.shadowsocks]:
                         options = [{'pport': hconfigs[ConfigEnum.shadowsocks2022_port]}]
                     elif proxy.proto in [ProxyProto.ss]:
@@ -535,6 +541,23 @@ def make_proxy(hconfigs: dict, proxy: Proxy, domain_db: Domain, phttp=80, ptls=4
         base['wg_ipv6'] = hutils.network.add_number_to_ipv6(hconfigs[ConfigEnum.wireguard_ipv6], g.account.id)
         base['wg_server_pub'] = hconfigs[ConfigEnum.wireguard_public_key]
         base['wg_noise_trick'] = hconfigs[ConfigEnum.wireguard_noise_trick]
+        return base
+    if proxy.proto in ['amneziawg']:
+        # Same per-user WireGuard-format keypair as the 'wireguard' branch
+        # above (protocol/key-compatible, and amneziawg is replacing
+        # wireguard as the client-facing protocol) - just against the
+        # amneziawg_* server/subnet settings and with the extra Jc/Jmin/Jmax
+        # obfuscation params real AmneziaWG clients need to match the
+        # server's [Interface] section.
+        base['wg_pub'] = g.account.wg_pub
+        base['wg_pk'] = g.account.wg_pk
+        base['wg_psk'] = g.account.wg_psk
+        base['wg_ipv4'] = hutils.network.add_number_to_ipv4(hconfigs[ConfigEnum.amneziawg_ipv4], g.account.id)
+        base['wg_ipv6'] = hutils.network.add_number_to_ipv6(hconfigs[ConfigEnum.amneziawg_ipv6], g.account.id)
+        base['wg_server_pub'] = hconfigs[ConfigEnum.amneziawg_public_key]
+        base['awg_jc'] = hconfigs.get(ConfigEnum.amneziawg_jc)
+        base['awg_jmin'] = hconfigs.get(ConfigEnum.amneziawg_jmin)
+        base['awg_jmax'] = hconfigs.get(ConfigEnum.amneziawg_jmax)
         return base
 
     if proxy.proto in [ProxyProto.vmess]:

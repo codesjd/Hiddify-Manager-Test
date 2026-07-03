@@ -2610,6 +2610,45 @@ msgstr ""
 msgid "config.wireguard.label"
 msgstr "WireGuard"
 
+msgid "config.amneziawg.description"
+msgstr ""
+"AmneziaWG is a WireGuard-compatible protocol with extra traffic "
+"obfuscation (junk packets), designed to resist DPI-based blocking that "
+"plain WireGuard is vulnerable to."
+
+msgid "config.amneziawg.label"
+msgstr "AmneziaWG"
+
+msgid "config.amneziawg_client_enable.description"
+msgstr "Enables a client-facing AmneziaWG interface, so users can connect directly with an AmneziaWG-capable client."
+
+msgid "config.amneziawg_client_enable.label"
+msgstr "🐉 AmneziaWG"
+
+msgid "config.amneziawg_port.description"
+msgstr "Defines the port for the AmneziaWG interface"
+
+msgid "config.amneziawg_port.label"
+msgstr "↔️ AmneziaWG Port"
+
+msgid "config.amneziawg_jc.description"
+msgstr "Junk packet count - number of junk packets sent before the handshake. Must match on the client."
+
+msgid "config.amneziawg_jc.label"
+msgstr "Jc (Junk Packet Count)"
+
+msgid "config.amneziawg_jmin.description"
+msgstr "Minimum junk packet size in bytes. Must match on the client."
+
+msgid "config.amneziawg_jmin.label"
+msgstr "Jmin (Junk Packet Min Size)"
+
+msgid "config.amneziawg_jmax.description"
+msgstr "Maximum junk packet size in bytes. Must match on the client."
+
+msgid "config.amneziawg_jmax.label"
+msgstr "Jmax (Junk Packet Max Size)"
+
 msgid "config.wireguard_enable.description"
 msgstr ""
 "WireGuard is UDP based protocol. (⚠️ It is Working In <a "

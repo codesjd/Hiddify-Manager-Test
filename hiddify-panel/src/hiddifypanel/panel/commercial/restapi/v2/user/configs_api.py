@@ -116,6 +116,13 @@ class AllConfigsAPI(MethodView):
                     f"{base_url}wireguard/#{config_name}"
                 )
             )
+        if hconfig(ConfigEnum.amneziawg_client_enable):
+            items.append(
+                create_item(
+                    "AmneziaWG", "AmneziaWG", "", "", "", "",
+                    f"{base_url}amneziawg/#{config_name}"
+                )
+            )
             # Add Singbox: SSh
         if hconfig(ConfigEnum.sub_singbox_ssh_enable) and hconfig(ConfigEnum.ssh_server_enable):
             items.append(

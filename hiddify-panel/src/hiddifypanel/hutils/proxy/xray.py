@@ -173,6 +173,33 @@ def to_link(proxy: dict) -> str | dict:
                 "ifp":proxy["wg_noise_trick"]
             }
             return f'wg://{proxy["server"]}:{proxy["port"]}?{urlencode(query)}#{name_link}'
+    if proxy['proto'] == ProxyProto.amneziawg:
+        # Same wg:// hiddify-format link as plain wireguard above (a
+        # WireGuard-unaware client would ignore the extra jc/jmin/jmax
+        # params, though it would then fail the handshake since the server
+        # requires them) - a client that knows to look for these gets full
+        # AmneziaWG obfuscation. No established "amneziawg://" URI scheme
+        # exists in this codebase or elsewhere to mirror, so this extends
+        # the existing convention rather than inventing a new one; the
+        # downloadable .conf (see hutils/proxy/amneziawg.py) is the
+        # authoritative, format-native way to import this connection.
+        query = {
+            "privateKey": proxy["wg_pk"],
+            "publicKey": proxy["wg_server_pub"],
+            "presharedKey": proxy["wg_psk"],
+            "reserved": "0,0,0",
+            "ip": f'{proxy["wg_ipv4"]}/32',
+            "mtu": "1280",
+            "keepalive": "30",
+            "udp": 1,
+        }
+        if proxy.get("awg_jc"):
+            query["jc"] = proxy["awg_jc"]
+        if proxy.get("awg_jmin"):
+            query["jmin"] = proxy["awg_jmin"]
+        if proxy.get("awg_jmax"):
+            query["jmax"] = proxy["awg_jmax"]
+        return f'wg://{proxy["server"]}:{proxy["port"]}?{urlencode(query)}#{name_link}'
 
     baseurl = f'{proxy["proto"]}://{proxy["uuid"]}@{proxy["server"]}:{proxy["port"]}'
 

@@ -21,14 +21,32 @@ def get_ed25519_private_public_pair():
 
 
 def get_wg_private_public_psk_pair():
-    try:
-        private_key = subprocess.run(["wg", "genkey"], capture_output=True, text=True, check=True).stdout.strip()
-        public_key = subprocess.run(["wg", "pubkey"], input=private_key, capture_output=True, text=True, check=True).stdout.strip()
-        psk = subprocess.run(["wg", "genpsk"], capture_output=True, text=True, check=True).stdout.strip()
-        return private_key, public_key, psk
-    except subprocess.CalledProcessError as e:
-        print(f"Error: {e}")
-        return None, None, None
+    """Pure-Python X25519 keypair + random preshared key, in WireGuard's own
+    wire format (32 raw bytes, standard base64 with padding - NOT the
+    urlsafe/unpadded encoding generate_x25519_keys() below uses for reality
+    keys). Used to be `wg genkey`/`pubkey`/`genpsk` subprocess calls, but
+    the `wireguard` package (which provides that CLI) is only installed
+    when wireguard_enable is explicitly turned on - since it's off by
+    default now, every new user's key generation (called unconditionally
+    on insert) would otherwise silently fail. This same format is what
+    AmneziaWG's client-facing feature needs too, since awg is
+    protocol/key-compatible with wg."""
+    import base64
+    priv = x25519.X25519PrivateKey.generate()
+    pub = priv.public_key()
+    priv_bytes = priv.private_bytes(
+        encoding=serialization.Encoding.Raw,
+        format=serialization.PrivateFormat.Raw,
+        encryption_algorithm=serialization.NoEncryption(),
+    )
+    pub_bytes = pub.public_bytes(
+        encoding=serialization.Encoding.Raw,
+        format=serialization.PublicFormat.Raw,
+    )
+    private_key = base64.b64encode(priv_bytes).decode()
+    public_key = base64.b64encode(pub_bytes).decode()
+    psk = base64.b64encode(os.urandom(32)).decode()
+    return private_key, public_key, psk
 
 
 def generate_x25519_keys(base_64_encode=True):

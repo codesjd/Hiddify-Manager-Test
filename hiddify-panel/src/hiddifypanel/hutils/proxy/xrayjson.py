@@ -127,6 +127,8 @@ def to_xray(proxy: dict) -> dict:
 def add_proto_settings(base: dict, proxy: dict):
     if proxy['proto'] == ProxyProto.wireguard:
         add_wireguard_settings(base, proxy)
+    elif proxy['proto'] == ProxyProto.amneziawg:
+        add_wireguard_settings(base, proxy)
     elif proxy['proto'] == ProxyProto.ss:
         add_shadowsocks_settings(base, proxy)
     elif proxy['proto'] == ProxyProto.vless:

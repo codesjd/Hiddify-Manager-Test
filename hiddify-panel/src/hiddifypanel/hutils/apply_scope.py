@@ -68,6 +68,7 @@ _PROTOCOL_CATEGORIES = frozenset({
 
 CATEGORY_SUBSYSTEMS: dict[ConfigCategory, frozenset[str]] = {
     ConfigCategory.wireguard: frozenset({Subsystem.wireguard}),
+    ConfigCategory.amneziawg: frozenset({Subsystem.amneziawg}),
     ConfigCategory.ssh: frozenset({Subsystem.ssh}),
     ConfigCategory.telegram: frozenset({Subsystem.telegram}),
     ConfigCategory.dnstt: frozenset({Subsystem.dnstt}),
@@ -93,6 +94,12 @@ KEY_SUBSYSTEM_OVERRIDES: dict[ConfigEnum, frozenset[str]] = {
     ConfigEnum.wireguard_ipv4: frozenset({Subsystem.wireguard}),
     ConfigEnum.wireguard_private_key: frozenset({Subsystem.wireguard}),
     ConfigEnum.wireguard_public_key: frozenset({Subsystem.wireguard}),
+    # Same reasoning as the wireguard_* overrides above, for AmneziaWG's own
+    # client-facing interface settings.
+    ConfigEnum.amneziawg_ipv6: frozenset({Subsystem.amneziawg}),
+    ConfigEnum.amneziawg_ipv4: frozenset({Subsystem.amneziawg}),
+    ConfigEnum.amneziawg_private_key: frozenset({Subsystem.amneziawg}),
+    ConfigEnum.amneziawg_public_key: frozenset({Subsystem.amneziawg}),
 }
 
 

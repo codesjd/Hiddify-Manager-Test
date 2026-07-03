@@ -129,6 +129,27 @@ class UserView(FlaskView):
 
         # return self.singbox_ssh_imp()
 
+    @route("/amneziawg/")
+    @route("/amneziawg")
+    @login_required(roles={Role.user})
+    def amneziawg(self):
+        '''Returns amneziawg client config'''
+        c = get_common_data(g.account.uuid, 'new')
+        amneziawgs = []
+        for pinfo in hutils.proxy.get_valid_proxies(c['domains']):
+            if pinfo['proto'] != ProxyProto.amneziawg:
+                continue
+            amneziawgs.append(pinfo)
+
+        if not len(amneziawgs):
+            abort(404)
+        resp = ""
+        for awg in amneziawgs:
+            resp += f'#========={awg["extra_info"]} {awg["name"]}================\n'
+            resp += hutils.proxy.amneziawg.generate_amneziawg_config(awg)
+            resp += "\n\n"
+        return add_headers(resp, c)
+
     @route("/clash/")
     @route("/clash")
     @login_required(roles={Role.user})

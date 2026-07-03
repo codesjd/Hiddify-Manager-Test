@@ -79,6 +79,7 @@ class ConfigCategory(StrEnum):
     additional_configs=auto()
     dnstt=auto()
     webhook=auto()
+    amneziawg=auto()
 
 
 class ApplyMode(StrEnum):
@@ -127,6 +128,23 @@ class ConfigEnum(metaclass=FastEnum):
     wireguard_private_key = _StrConfigDscr(ConfigCategory.hidden, ApplyMode.apply_config, hide_in_virtual_child=True)
     wireguard_public_key = _StrConfigDscr(ConfigCategory.hidden, ApplyMode.apply_config, hide_in_virtual_child=True)
     wireguard_noise_trick = _StrConfigDscr(ConfigCategory.wireguard, ApplyMode.apply_config)
+
+    # Client-facing AmneziaWG - a shared "hiddifyawg" interface (like
+    # wireguard_* above's "hiddifywg"), replacing WireGuard as the protocol
+    # users connect to directly. Distinct from the pre-existing
+    # amneziawg_enable/amneziawg_config (marked removed below) which were an
+    # earlier, abandoned single-tunnel design, and distinct from the
+    # Outbounds page's per-row amneziawg tunnels (CustomOutbound.jc/jmin/jmax)
+    # used for chaining - those keep their own per-row settings.
+    amneziawg_client_enable = _BoolConfigDscr(ConfigCategory.amneziawg, ApplyMode.reinstall, hide_in_virtual_child=True)
+    amneziawg_port = _StrConfigDscr(ConfigCategory.amneziawg, ApplyMode.apply_config, hide_in_virtual_child=True)
+    amneziawg_ipv6 = _StrConfigDscr(ConfigCategory.hidden, ApplyMode.apply_config, hide_in_virtual_child=True)
+    amneziawg_ipv4 = _StrConfigDscr(ConfigCategory.hidden, ApplyMode.apply_config, hide_in_virtual_child=True)
+    amneziawg_private_key = _StrConfigDscr(ConfigCategory.hidden, ApplyMode.apply_config, hide_in_virtual_child=True)
+    amneziawg_public_key = _StrConfigDscr(ConfigCategory.hidden, ApplyMode.apply_config, hide_in_virtual_child=True)
+    amneziawg_jc = _StrConfigDscr(ConfigCategory.amneziawg, ApplyMode.apply_config, hide_in_virtual_child=True)
+    amneziawg_jmin = _StrConfigDscr(ConfigCategory.amneziawg, ApplyMode.apply_config, hide_in_virtual_child=True)
+    amneziawg_jmax = _StrConfigDscr(ConfigCategory.amneziawg, ApplyMode.apply_config, hide_in_virtual_child=True)
 
     ssh_server_redis_url = _StrConfigDscr(ConfigCategory.hidden, hide_in_virtual_child=True)
     ssh_server_port = _StrConfigDscr(ConfigCategory.ssh, ApplyMode.apply_config, hide_in_virtual_child=True)

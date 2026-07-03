@@ -28,6 +28,7 @@ class Command(StrEnum):
     get_cert = 'get-cert'
     apply_users = 'apply-users'
     update_wg_usage = 'update-wg-usage'
+    update_awg_usage = 'update-awg-usage'
 
 
 def commander(command: Command, run_in_background=True, subsystems: set[str] | frozenset[str] | None = None, **kwargs: str | int) -> str | None:
@@ -99,6 +100,8 @@ def commander(command: Command, run_in_background=True, subsystems: set[str] | f
         base_cmd.extend(['get-cert', '--domain', domain])
     elif command == Command.update_wg_usage:
         base_cmd.append('update-wg-usage')
+    elif command == Command.update_awg_usage:
+        base_cmd.append('update-awg-usage')
     else:
         raise Exception('WTF is happening!')
     if run_in_background:

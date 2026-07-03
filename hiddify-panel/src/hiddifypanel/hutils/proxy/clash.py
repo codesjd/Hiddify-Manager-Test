@@ -40,7 +40,7 @@ def to_clash(proxy, meta_or_normal):
     if meta_or_normal == "normal":
         if proxy.get('flow'):
             return {'name': name, 'msg': "xtls not supported in clash", 'type': 'debug'}
-        if proxy['proto'] in [ProxyProto.ssh, ProxyProto.wireguard, ProxyProto.tuic, ProxyProto.hysteria2]:
+        if proxy['proto'] in [ProxyProto.ssh, ProxyProto.wireguard, ProxyProto.amneziawg, ProxyProto.tuic, ProxyProto.hysteria2]:
             return {'name': name, 'msg': f"clash does not support {proxy['proto']}", 'type': 'debug'}
         if proxy['proto'] in ["vless", 'tuic', 'hysteria2']:
             return {'name': name, 'msg': f"{proxy['proto']} not supported in clash", 'type': 'debug'}
@@ -52,6 +52,10 @@ def to_clash(proxy, meta_or_normal):
     # vmess ws
     base["name"] = f"""{proxy['extra_info']} {proxy["name"]} § {proxy['port']} {proxy["dbdomain"].id}"""
     base["type"] = str(proxy["proto"])
+    if proxy["proto"] == ProxyProto.amneziawg:
+        # clash-meta has no native amneziawg type; the wireguard type is the
+        # closest real schema it understands.
+        base["type"] = "wireguard"
     base["server"] = proxy["server"]
     base["port"] = proxy["port"]
     if proxy["proto"] == "ssh":
@@ -60,13 +64,16 @@ def to_clash(proxy, meta_or_normal):
         base["host-key"] = proxy.get('host_keys', [])
         return base
     base["udp"] = True
-    if proxy["proto"] == ProxyProto.wireguard:
+    if proxy["proto"] in [ProxyProto.wireguard, ProxyProto.amneziawg]:
         base["private-key"] = proxy["wg_pk"]
         base["ip"] = f'{proxy["wg_ipv4"]}/32'
         # base["ipv6"]
         base["public-key"] = proxy["wg_server_pub"]
         base["pre-shared-key"] = proxy["wg_psk"]
         # base["allowed-ips"]
+        # clash-meta has no Jc/Jmin/Jmax (AmneziaWG obfuscation) support at
+        # all, so this only produces a working handshake if the server's
+        # obfuscation params are left unset.
         return base
     if proxy["proto"] == ProxyProto.tuic:
         # base['congestion_control'] = "cubic"

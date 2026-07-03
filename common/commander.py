@@ -174,5 +174,13 @@ def update_wg_usage():
     print(wg_raw_output.decode())
 
 
+@cli.command('update-awg-usage')
+def update_awg_usage():
+    # amneziawg-tools' `awg` is a fork of `wg` with an identical CLI, so
+    # `transfer` output is the same "<pubkey> <received> <sent>" per line.
+    awg_raw_output = subprocess.check_output(['awg', 'show', 'hiddifyawg', 'transfer'])
+    print(awg_raw_output.decode())
+
+
 if __name__ == "__main__":
     cli()

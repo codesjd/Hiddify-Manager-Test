@@ -1,0 +1,101 @@
+source /opt/hiddify-manager/common/utils.sh
+source ./awg_utils.sh
+
+# sing-box has no native AmneziaWG support (verified against hiddify-sing-box's
+# source directly - no Jc/Jmin/Jmax/amnezia anywhere in it), so this runs as
+# its own standalone WireGuard-family interface, the same way WARP runs its
+# own wg-quick@warp interface via other/warp/wireguard/. sing-box's outbound
+# just binds to whatever interface this brings up (bind_interface), same
+# mechanism as WARP - no core-level protocol support needed.
+#
+# Two upstream projects, neither ships prebuilt Linux binaries as of writing,
+# so both are built from source here:
+#   - amneziawg-tools: C, provides `awg`/`awg-quick` (forks of wg/wg-quick)
+#     and an awg-quick@.service systemd template.
+#   - amneziawg-go: Go, userspace WireGuard-family implementation. awg-quick
+#     tries `ip link add type amneziawg` (a kernel module essentially no
+#     stock cloud kernel has) first and automatically falls back to
+#     amneziawg-go in PATH if that fails - so no kernel module/DKMS build is
+#     needed, just this binary.
+#
+# This same install (jinja-rendered, unlike the plain-bash version this file
+# used to be) also brings up "hiddifyawg", a second, independent awg-quick
+# interface used for genuine client-facing AmneziaWG connections (Proxy rows
+# with proto=amneziawg) - one shared interface for every user, mirroring
+# other/wireguard/install.sh.j2's hiddifywg almost exactly, just built on
+# amneziawg-go/awg-quick instead of the in-kernel wireguard module so the
+# server can enforce Jc/Jmin/Jmax obfuscation against real clients.
+#
+# NOTE: untested. I don't have a real server to build/run either of these
+# on, so this is written directly from both projects' own build
+# instructions/source, not verified end-to-end. Please report the exact
+# output if `bash install.sh` fails here.
+
+install_package golang-go
+
+BUILD_DIR="$(pwd)/build"
+mkdir -p "$BUILD_DIR"
+
+if ! command -v awg-quick >/dev/null 2>&1; then
+    rm -rf "$BUILD_DIR/amneziawg-tools"
+    git clone --depth 1 https://github.com/amnezia-vpn/amneziawg-tools "$BUILD_DIR/amneziawg-tools" || exit 1
+    (cd "$BUILD_DIR/amneziawg-tools/src" && make && make install WITH_SYSTEMDUNITS=yes) || exit 2
+fi
+
+if ! command -v amneziawg-go >/dev/null 2>&1; then
+    rm -rf "$BUILD_DIR/amneziawg-go"
+    git clone --depth 1 https://github.com/amnezia-vpn/amneziawg-go "$BUILD_DIR/amneziawg-go" || exit 3
+    (cd "$BUILD_DIR/amneziawg-go" && make) || exit 4
+    install -m 755 "$BUILD_DIR/amneziawg-go/amneziawg-go" /usr/bin/amneziawg-go || exit 5
+fi
+
+mkdir -p /etc/amnezia/amneziawg
+chmod 660 -R /etc/amnezia/amneziawg/
+
+{% if hconfigs["amneziawg_client_enable"] %}
+SERVER_PUB_NIC="$(ip -4 route ls | grep default | grep -Po '(?<=dev )(\S+)' | head -1)"
+SERVER_AWG_IPV4="{{hconfigs["amneziawg_ipv4"]}}"
+SERVER_AWG_IPV6="{{hconfigs["amneziawg_ipv6"]}}"
+SERVER_PORT={{hconfigs["amneziawg_port"]}}
+SERVER_PRIV_KEY={{hconfigs["amneziawg_private_key"]}}
+
+systemctl stop "awg-quick@${SERVER_AWG_NIC}" >/dev/null 2>&1
+
+echo "[Interface]
+Address = ${SERVER_AWG_IPV4}/16,${SERVER_AWG_IPV6}/90
+ListenPort = ${SERVER_PORT}
+PrivateKey = ${SERVER_PRIV_KEY}
+{% if hconfigs["amneziawg_jc"] %}Jc = {{hconfigs["amneziawg_jc"]}}
+{% endif %}{% if hconfigs["amneziawg_jmin"] %}Jmin = {{hconfigs["amneziawg_jmin"]}}
+{% endif %}{% if hconfigs["amneziawg_jmax"] %}Jmax = {{hconfigs["amneziawg_jmax"]}}
+{% endif %}
+PostUp = iptables -I INPUT -p udp --dport ${SERVER_PORT} -j ACCEPT
+PostUp = iptables -I FORWARD -i ${SERVER_PUB_NIC} -o ${SERVER_AWG_NIC} -j ACCEPT
+PostUp = iptables -I FORWARD -i ${SERVER_AWG_NIC} -j ACCEPT
+PostUp = iptables -t nat -A POSTROUTING -o ${SERVER_PUB_NIC} -j MASQUERADE
+PostUp = ip6tables -I FORWARD -i ${SERVER_AWG_NIC} -j ACCEPT
+PostUp = ip6tables -t nat -A POSTROUTING -o ${SERVER_PUB_NIC} -j MASQUERADE
+PostDown = iptables -D INPUT -p udp --dport ${SERVER_PORT} -j ACCEPT
+PostDown = iptables -D FORWARD -i ${SERVER_PUB_NIC} -o ${SERVER_AWG_NIC} -j ACCEPT
+PostDown = iptables -D FORWARD -i ${SERVER_AWG_NIC} -j ACCEPT
+PostDown = iptables -t nat -D POSTROUTING -o ${SERVER_PUB_NIC} -j MASQUERADE
+PostDown = ip6tables -D FORWARD -i ${SERVER_AWG_NIC} -j ACCEPT
+PostDown = ip6tables -t nat -D POSTROUTING -o ${SERVER_PUB_NIC} -j MASQUERADE" >"/etc/amnezia/amneziawg/${SERVER_AWG_NIC}.conf"
+chmod 600 "/etc/amnezia/amneziawg/${SERVER_AWG_NIC}.conf"
+
+echo "net.ipv4.ip_forward = 1
+net.ipv6.conf.all.forwarding = 1" >/etc/sysctl.d/awg.conf
+
+if [ "$MODE" != "docker" ]; then
+    sysctl --system >/dev/null
+fi
+
+systemctl start "awg-quick@${SERVER_AWG_NIC}"
+systemctl enable "awg-quick@${SERVER_AWG_NIC}"
+{% else %}
+# Client-facing interface disabled (or never turned on) - make sure it isn't
+# left running from a previous config, but leave the outbound-chaining
+# awg{id} interfaces (handled by run.sh.j2 below) untouched.
+systemctl disable --now "awg-quick@${SERVER_AWG_NIC}" >/dev/null 2>&1
+rm -f "/etc/amnezia/amneziawg/${SERVER_AWG_NIC}.conf"
+{% endif %}

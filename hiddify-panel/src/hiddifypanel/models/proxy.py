@@ -49,6 +49,7 @@ class ProxyProto(StrEnum):
     naive = auto()
     mieru = auto()
     dnstt = auto()
+    amneziawg = auto()
 
 
 class ProxyL3(StrEnum):

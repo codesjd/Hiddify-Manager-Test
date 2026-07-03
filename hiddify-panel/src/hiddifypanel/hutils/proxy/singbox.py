@@ -100,8 +100,14 @@ def to_singbox(proxy: dict) -> list[dict] | dict:
     if proxy["proto"] == ProxyProto.wireguard:
         add_wireguard(base, proxy)
         return all_base
-    
-    
+    if proxy["proto"] == ProxyProto.amneziawg:
+        # sing-box has no native "amneziawg" outbound type; the wireguard
+        # type is the closest real schema it understands.
+        base["type"] = "wireguard"
+        add_amneziawg(base, proxy)
+        return all_base
+
+
     if proxy['proto']==ProxyProto.mieru:
         add_mieru(base, proxy)
         return all_base
@@ -415,6 +421,54 @@ def add_wireguard(base: dict, proxy: dict):
         base["mtu"] = 1380
         if g.user_agent.get('is_hiddify') and hutils.flask.is_client_version(hutils.flask.ClientVersion.hiddify_next, 0, 15, 0):
                 base["fake_packets"] = proxy["wg_noise_trick"]
+
+
+def add_amneziawg(base: dict, proxy: dict):
+    # sing-box's wireguard outbound has no official Jc/Jmin/Jmax
+    # (AmneziaWG obfuscation) fields. This mirrors the wg_noise_trick
+    # precedent above: an undocumented, best-effort extension gated to
+    # Hiddify's own client, since no verified public client is known to
+    # read these fields on a "wireguard"-typed outbound.
+    if hutils.flask.is_client_version(hutils.flask.ClientVersion.singbox, 1, 13, 0):
+        base["private_key"] = proxy["wg_pk"]
+        base["mtu"] = 1380
+        base["address"] = [f'{proxy["wg_ipv4"]}/32']
+        base['peers'] = [{
+            "public_key": proxy["wg_server_pub"],
+            "pre_shared_key": proxy["wg_psk"],
+            "address": base['server'],
+            "port": base['server_port'],
+            "allowed_ips": [
+                "0.0.0.0/0", "::/0"
+            ]
+        }]
+        del base["server_port"]
+        del base["server"]
+        if g.user_agent.get('is_hiddify'):
+            amnezia_params = {}
+            if proxy.get("awg_jc"):
+                amnezia_params["jc"] = int(proxy["awg_jc"])
+            if proxy.get("awg_jmin"):
+                amnezia_params["jmin"] = int(proxy["awg_jmin"])
+            if proxy.get("awg_jmax"):
+                amnezia_params["jmax"] = int(proxy["awg_jmax"])
+            if amnezia_params:
+                base["amnezia"] = amnezia_params
+    else:
+        base["local_address"] = f'{proxy["wg_ipv4"]}/32'
+        base["private_key"] = proxy["wg_pk"]
+        base["peer_public_key"] = proxy["wg_server_pub"]
+
+        base["pre_shared_key"] = proxy["wg_psk"]
+
+        base["mtu"] = 1380
+        if g.user_agent.get('is_hiddify') and hutils.flask.is_client_version(hutils.flask.ClientVersion.hiddify_next, 0, 15, 0):
+            if proxy.get("awg_jc"):
+                base["jc"] = int(proxy["awg_jc"])
+            if proxy.get("awg_jmin"):
+                base["jmin"] = int(proxy["awg_jmin"])
+            if proxy.get("awg_jmax"):
+                base["jmax"] = int(proxy["awg_jmax"])
 
 
 def add_shadowsocks_base(all_base: list[dict], proxy: dict):

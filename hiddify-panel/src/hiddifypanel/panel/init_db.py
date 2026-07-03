@@ -17,6 +17,38 @@ from loguru import logger
 MAX_DB_VERSION = 130
 
 
+def _v128(child_id):
+    """One-time setup for AmneziaWG as the client-facing protocol replacing
+    WireGuard (_v127) - mirrors _v69's wireguard bootstrap: generate the
+    server's own interface keypair once, set default subnet/port/
+    obfuscation values, and add the default Proxy rows users connect
+    through. amneziawg_client_enable itself defaults to False - turning
+    the whole thing on is a deliberate admin action, matching how a fresh
+    install's wireguard_enable used to default to True but this one
+    doesn't (avoids silently opening a new UDP port on upgrade)."""
+    add_config_if_not_exist(ConfigEnum.amneziawg_client_enable, False)
+    add_config_if_not_exist(ConfigEnum.amneziawg_port, hutils.random.get_random_unused_port())
+    add_config_if_not_exist(ConfigEnum.amneziawg_ipv4, "10.91.0.1")
+    add_config_if_not_exist(ConfigEnum.amneziawg_ipv6, "fd42:42:91::1")
+    awg_pk, awg_pub, _ = hutils.crypto.get_wg_private_public_psk_pair()
+    add_config_if_not_exist(ConfigEnum.amneziawg_private_key, awg_pk)
+    add_config_if_not_exist(ConfigEnum.amneziawg_public_key, awg_pub)
+    add_config_if_not_exist(ConfigEnum.amneziawg_jc, "4")
+    add_config_if_not_exist(ConfigEnum.amneziawg_jmin, "40")
+    add_config_if_not_exist(ConfigEnum.amneziawg_jmax, "70")
+
+    default_rows = [
+        Proxy(l3=ProxyL3.udp, transport=ProxyTransport.custom, cdn=ProxyCDN.direct, proto=ProxyProto.amneziawg, enable=True, name="AmneziaWG", child_id=child_id),
+        Proxy(l3=ProxyL3.udp, transport=ProxyTransport.custom, cdn=ProxyCDN.relay, proto=ProxyProto.amneziawg, enable=True, name="AmneziaWG Relay", child_id=child_id),
+    ]
+    for p in default_rows:
+        is_exist = Proxy.query.filter(Proxy.name == p.name, Proxy.child_id == child_id).first() or Proxy.query.filter(
+            Proxy.l3 == p.l3, Proxy.transport == p.transport, Proxy.cdn == p.cdn, Proxy.proto == p.proto, Proxy.child_id == child_id).first()
+        if not is_exist:
+            db.session.add(p)
+    db.session.commit()
+
+
 def _v127(child_id):
     """WireGuard (the client-facing proxy protocol toggle) is being retired
     in favor of AmneziaWG - force it off for every install regardless of
