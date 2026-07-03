@@ -155,7 +155,6 @@ def validate_username_unique(form, field):
 def get_proxy_form(empty=False):
     class ProxyForm(FlaskForm):
         step = wtf.HiddenField(default="3")
-        description_for_fieldset = wtf.TextAreaField("", description=_(f'quicksetup.proxy_cat.description'), render_kw={"class": "d-none"})
 
         def post(self, view):
 
@@ -219,7 +218,6 @@ def get_quick_setup_form(empty=False):
 
     class BasicConfigs(FlaskForm):
         step = wtf.HiddenField(default="2")
-        description_for_fieldset = wtf.TextAreaField("", description=_(f'quicksetup.proxy_cat.description'), render_kw={"class": "d-none"})
         domain_regex = "^([A-Za-z0-9\\-\\.]+\\.[a-zA-Z]{2,})$"
 
         domain_validators = [

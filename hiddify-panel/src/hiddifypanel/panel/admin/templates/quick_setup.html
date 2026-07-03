@@ -66,6 +66,9 @@
         <div class="card-header">{{_("admin.quicksetup.title")}}</div>
         <div class="card-body">
 
+            {% if form.step.data == "4" %}
+            <p class="quicksetup-step-note">{{ _('quicksetup.proxy_cat.description') }}</p>
+            {% endif %}
             <div class="row">
                 <div class="card-columns">
                     {% if ipv4 or ipv6 %}
@@ -79,6 +82,11 @@
 </div>
 
 <style>
+    .quicksetup-step-note {
+        color: var(--text-secondary, #6c757d);
+        margin-bottom: 16px;
+    }
+
     .form-group {
         display: inline-block;
         width: 100%;
