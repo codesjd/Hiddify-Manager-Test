@@ -29,6 +29,7 @@ if TYPE_CHECKING:
     from . import utils
     from . import network
     from . import webhook
+    from . import apply_scope
 else:
     # Define modules for lazy loading
     network = LazyLoader(".network",__name__)
@@ -46,3 +47,4 @@ else:
     proxy = LazyLoader(".proxy",__name__)
     node = LazyLoader(".node",__name__)
     webhook = LazyLoader(".webhook",__name__)
+    apply_scope = LazyLoader(".apply_scope",__name__)

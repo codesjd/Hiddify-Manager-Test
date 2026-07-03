@@ -200,6 +200,31 @@ function set_config_from_hpanel() {
 }
 
 function install_run() {
+    # HIDDIFY_APPLY_SUBSYSTEMS, when set, scopes a "Apply Configs" run
+    # (DO_NOT_INSTALL=true) to only the listed subsystems - e.g. changing
+    # just core_type shouldn't also re-run acme.sh's cert issuance, restart
+    # telegram/dnstt/speedtest, etc. Only ever takes effect for the apply
+    # path: a real install/reinstall (DO_NOT_INSTALL unset) always touches
+    # everything, ignoring any stale value here, and an unset/empty
+    # HIDDIFY_APPLY_SUBSYSTEMS (every caller before this feature existed,
+    # and any caller that doesn't explicitly opt in) runs every subsystem
+    # exactly as before - this is a strictly additive, opt-in narrowing.
+    if [ "$DO_NOT_INSTALL" == "true" ] && [ -n "$HIDDIFY_APPLY_SUBSYSTEMS" ] && [ "$1" != "hiddify-panel" ]; then
+        # hiddify-panel itself is exempt - its run.sh runs DB migrations
+        # (hiddify-panel-cli init-db) and restarts the panel/background-tasks
+        # services, none of which are optional per-subsystem work the way
+        # xray/haproxy/acme.sh/etc are. It had no enable-flag gate before
+        # this feature either (always ran unconditionally), so it keeps
+        # doing exactly that regardless of what's in the subsystems list.
+        case ",$HIDDIFY_APPLY_SUBSYSTEMS," in
+            *",$1,"*) ;;
+            *)
+                echo "======================$1==(skipped, not in HIDDIFY_APPLY_SUBSYSTEMS)========={"
+                echo "}========================$1==================================="
+                return 0
+                ;;
+        esac
+    fi
     echo "======================$1====================================={"
    if [ "$DO_NOT_INSTALL" != "true" ];then
             runsh install.sh $@
@@ -209,7 +234,7 @@ function install_run() {
     fi
     if [ "$DO_NOT_RUN" != "true" ];then
          runsh run.sh $@
-    fi   
+    fi
     echo "}========================$1==================================="
 }
 

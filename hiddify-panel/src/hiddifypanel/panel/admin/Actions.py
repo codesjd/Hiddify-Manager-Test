@@ -122,7 +122,17 @@ class Actions(FlaskView):
         # subprocess.Popen(f"sudo {config['HIDDIFY_CONFIG_PATH']}/{file} --no-gui".split(" "), cwd=f"{config['HIDDIFY_CONFIG_PATH']}", start_new_session=True)
 
         # run install.sh or apply_configs.sh
-        commander(Command.install if complete_install else Command.apply)
+        if complete_install:
+            # A full install/reinstall always touches everything, regardless
+            # of any narrower scope tracked since the last apply.
+            commander(Command.install)
+        else:
+            # None (unknown/unmapped change since the last apply) makes
+            # commander() omit --subsystems entirely, which is the exact
+            # same command line as before this feature existed - full width,
+            # not "touch nothing".
+            commander(Command.apply, subsystems=hutils.apply_scope.get_pending_subsystems())
+        hutils.apply_scope.clear_pending_subsystems()
 
         # import time
         # time.sleep(1)
@@ -133,6 +143,7 @@ class Actions(FlaskView):
         key = hutils.crypto.generate_x25519_keys()
         set_hconfig(ConfigEnum.reality_private_key, key['private_key'])
         set_hconfig(ConfigEnum.reality_public_key, key['public_key'])
+        hutils.apply_scope.mark_dirty(hutils.apply_scope.CORE_ONLY_SUBSYSTEMS)
         hutils.flask.flash_config_success(restart_mode=ApplyMode.apply_config, domain_changed=False)
         return redirect(hurl_for('admin.SettingAdmin:index'))
 

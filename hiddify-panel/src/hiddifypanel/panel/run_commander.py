@@ -7,9 +7,12 @@ import re
 
 def is_safe_arg(arg: str) -> bool:
     # % included for percent-encoded URLs (temporary-short-link's `url` can
-    # legitimately contain them) - everything else stays a tight whitelist,
-    # no shell metacharacters.
-    return bool(re.match(r'^[a-zA-Z0-9_.\-/:?=&#%]+$', arg))
+    # legitimately contain them); , for comma-joined lists (the apply
+    # command's --subsystems) - everything else stays a tight whitelist, no
+    # shell metacharacters. subprocess is always invoked with a list (never
+    # shell=True) so this is defense-in-depth, not the only thing standing
+    # between input and a shell.
+    return bool(re.match(r'^[a-zA-Z0-9_.\-/:?=&#%,]+$', arg))
 
 
 class Command(StrEnum):
@@ -27,12 +30,17 @@ class Command(StrEnum):
     update_wg_usage = 'update-wg-usage'
 
 
-def commander(command: Command, run_in_background=True, **kwargs: str | int) -> str | None:
+def commander(command: Command, run_in_background=True, subsystems: set[str] | frozenset[str] | None = None, **kwargs: str | int) -> str | None:
     """
     Run the commander based on the given command type.
     Args:
         command: The type of command to run.
         run_in_background: Whether to run the command in the background.
+        subsystems: For Command.apply only - a set of install.sh subsystem
+                    names (see hutils.apply_scope.Subsystem) to selectively
+                    touch, skipping everything else. None/empty means touch
+                    everything (today's behavior, and the only safe choice
+                    when the caller isn't sure what actually needs it).
         **kwargs: Additional arguments to pass to the commander. Accepts the following:
                   url, slug, period for the temporary-short-link command.
                   port for the temporary-access command.
@@ -46,6 +54,11 @@ def commander(command: Command, run_in_background=True, **kwargs: str | int) -> 
 
     if command == Command.apply:
         base_cmd.append('apply')
+        if subsystems:
+            subsystems_arg = ','.join(sorted(subsystems))
+            if not is_safe_arg(subsystems_arg):
+                raise Exception("Invalid input passed to the run_commander function for apply command's subsystems")
+            base_cmd.extend(['--subsystems', subsystems_arg])
     elif command == Command.install:
         base_cmd.append('install')
     elif command == Command.reinstall:

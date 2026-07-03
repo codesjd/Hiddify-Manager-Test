@@ -195,6 +195,12 @@ class ConfigEnum(metaclass=FastEnum):
 
     unique_id = _StrConfigDscr(ConfigCategory.hidden)
     last_hash = _StrConfigDscr(ConfigCategory.hidden)
+    # Comma-separated install.sh subsystem names (hutils.apply_scope.Subsystem)
+    # accumulated since the last "Apply Configs" - lets that action touch only
+    # the subsystems actually affected instead of always doing a full-width
+    # apply. Empty/unset means "unknown scope, do everything" (the safe
+    # default and today's unconditional behavior), never "narrow to nothing".
+    pending_apply_subsystems = _StrConfigDscr(ConfigCategory.hidden, hide_in_virtual_child=True)
     cdn_forced_host = _StrConfigDscr(ConfigCategory.hidden)  # removed
     lang = _TypedConfigDscr(Lang, ConfigCategory.branding)
     admin_lang = _TypedConfigDscr(Lang, ConfigCategory.admin)

@@ -177,4 +177,5 @@ class InboundOverrideAdmin(AdminLTEModelView):
 
     def after_model_change(self, form, model, is_created):
         hutils.proxy.get_proxies.invalidate_all()
+        hutils.apply_scope.mark_dirty(hutils.apply_scope.CORE_ONLY_SUBSYSTEMS)
         hutils.flask.flash_config_success(restart_mode=ApplyMode.apply_config, domain_changed=False)

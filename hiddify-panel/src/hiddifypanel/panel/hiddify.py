@@ -110,14 +110,27 @@ def reinstall_action(complete_install=False, domain_changed=False, do_update=Fal
 
 def check_need_reset(old_configs, do=False):
     restart_mode = ApplyMode.nothing
+    # None means "at least one changed key's install.sh footprint isn't
+    # confidently known" - the next Apply Configs must then be full-width.
+    # Keeps scanning every key (no early break) so a later reinstall-tier
+    # change can still upgrade restart_mode, and so every changed key gets
+    # a chance to contribute to (or invalidate) the accumulated subsystems.
+    subsystems: set[str] | None = set()
     for c in old_configs:
         if c.apply_mode == ApplyMode.nothing:
             continue
         # c=ConfigEnum(c)
-        if restart_mode == ApplyMode.reinstall:
-            break
-        if old_configs[c] != hconfig(c):
+        if old_configs[c] == hconfig(c):
+            continue
+        if c.apply_mode == ApplyMode.reinstall:
+            restart_mode = ApplyMode.reinstall
+        elif restart_mode != ApplyMode.reinstall:
             restart_mode = c.apply_mode
+        if subsystems is not None:
+            key_subsystems = hutils.apply_scope.subsystems_for_key(c)
+            subsystems = None if key_subsystems is None else (subsystems | key_subsystems)
+    if restart_mode != ApplyMode.nothing:
+        hutils.apply_scope.mark_dirty(subsystems)
     if old_configs[ConfigEnum.proxy_path_admin] != hconfig(ConfigEnum.proxy_path_admin):
         g.new_proxy_path = hconfig(ConfigEnum.proxy_path_admin)
         g.force_proxy_path = g.proxy_path

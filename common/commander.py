@@ -27,8 +27,8 @@ class Command(StrEnum):
     id = 'id'
 
 
-def run(cmd: list[str]):
-    subprocess.run(cmd, shell=False, check=True)
+def run(cmd: list[str], env: dict | None = None):
+    subprocess.run(cmd, shell=False, check=True, env=env)
 
 
 @click.group(chain=True)
@@ -43,9 +43,18 @@ def id():
 
 
 @cli.command('apply')
-def apply():
+@click.option('--subsystems', type=str, default='', required=False,
+              help='Comma-separated subsystem names (matching install.sh\'s '
+                   'install_run first argument, e.g. xray,singbox,other/ssh) '
+                   'to selectively touch on this apply. Empty (default) '
+                   'touches everything, same as before this option existed.')
+def apply(subsystems: str):
     cmd = [Command.apply.value, '--no-gui']
-    run(cmd)
+    env = None
+    if subsystems:
+        env = os.environ.copy()
+        env['HIDDIFY_APPLY_SUBSYSTEMS'] = subsystems
+    run(cmd, env=env)
 
 
 @cli.command('install')
