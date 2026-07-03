@@ -26,6 +26,23 @@ from bleach import clean as bleach_clean, ALLOWED_TAGS as BLEACH_ALLOWED_TAGS
 ALLOWED_TAGS = set([*BLEACH_ALLOWED_TAGS, "h1", "h2", "h3", "h4", "p"])
 
 
+# Same BoolConfig keys already editable, with a friendlier per-protocol
+# layout, on the dedicated Proxies page's own top section
+# (ProxyAdmin.get_global_config_form(), which lists every *_enable
+# BoolConfig not in ConfigCategory.hidden) - showing them again here meant
+# two different pages editing the exact same switch. Kept under
+# ConfigCategory.proxies (rather than moved to hidden) since that category
+# also still carries fields with no other home (naive_port, block_iran_sites,
+# shared_secret) and reassigning it would also drop them off the Proxies
+# page's own filter, which itself excludes anything in ConfigCategory.hidden.
+_PROXIES_CATEGORY_DUPES_ON_PROXY_PAGE = {
+    ConfigEnum.vmess_enable, ConfigEnum.ws_enable, ConfigEnum.grpc_enable,
+    ConfigEnum.httpupgrade_enable, ConfigEnum.xhttp_enable, ConfigEnum.naive_enable,
+    ConfigEnum.vless_enable, ConfigEnum.trojan_enable, ConfigEnum.reality_enable,
+    ConfigEnum.tcp_enable, ConfigEnum.quic_enable, ConfigEnum.h2_enable,
+}
+
+
 def _skip_if_unchanged(validator, stored_value):
     # decoy/fake-tls domains are one-time install-generated values that are
     # rarely touched again. Their validators do a live DNS lookup and/or
@@ -211,6 +228,8 @@ def get_config_form():
             continue
 
         cat_configs = [c for c in ConfigEnum if c.category == cat and (not is_parent or c.show_in_parent)]
+        if cat == ConfigCategory.proxies:
+            cat_configs = [c for c in cat_configs if c not in _PROXIES_CATEGORY_DUPES_ON_PROXY_PAGE]
         if len(cat_configs) == 0:
             continue
 
