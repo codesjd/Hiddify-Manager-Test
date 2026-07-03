@@ -39,7 +39,7 @@
             {{render_form(form,form_type="",extra_classes="settings-grid")}}
         </div>
         <div class="apply-configs-row">
-            <a href="{{ hurl_for('admin.Actions:apply_configs') }}" class="btn btn-secondary form_post">⚡ {{ _('Apply Configs') }}</a>
+            <a href="{{ hurl_for('admin.Actions:apply_configs') }}" class="apply-configs-btn form_post">⚡ {{ _('Apply Configs') }}</a>
         </div>
     </div>
 </div>
@@ -84,13 +84,29 @@
     .apply-configs-row {
         display: flex;
         justify-content: center;
-        margin-top: 10px;
-        padding-top: 10px;
-        border-top: 1px solid var(--border);
+        margin-top: 12px;
     }
-    .apply-configs-row .btn {
-        width: 100%;
-        max-width: 320px;
+    /* Matches the dashboard's .dash-secondary-btn (Update/Reinstall) look
+       instead of Bootstrap's default gray box, which clashed with the rest
+       of the redesigned UI. */
+    .apply-configs-btn {
+        font-family: 'Manrope', sans-serif;
+        font-size: 13px;
+        font-weight: 700;
+        padding: 9px 20px;
+        border-radius: 9px;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        white-space: nowrap;
+        border: none;
+        text-decoration: none !important;
+        background: var(--track);
+        color: var(--text-primary) !important;
+    }
+    .apply-configs-btn:hover {
+        background: var(--border);
     }
 </style>
 
