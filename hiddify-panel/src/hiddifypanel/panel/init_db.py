@@ -14,7 +14,43 @@ from hiddifypanel.database import db, db_execute
 
 
 from loguru import logger
-MAX_DB_VERSION = 130
+MAX_DB_VERSION = 131
+
+
+def _v130(child_id):
+    """New CustomOutbound columns for the expanded Outbounds form: vless
+    encryption, shadowsocks cipher method, REALITY public_key/short_id (a
+    real, confirmed bug - to_xray_dict()/to_singbox_dict() never sent these
+    at all, so every "reality" security outbound could never actually
+    complete a handshake regardless of what else was configured), and
+    xray-core's real sockopt/happyEyeballs/mux fields, none of which had
+    dedicated columns before (extra_json was the only way to set them)."""
+    add_column(CustomOutbound.encryption)
+    add_column(CustomOutbound.reality_public_key)
+    add_column(CustomOutbound.reality_short_id)
+    add_column(CustomOutbound.ss_method)
+    add_column(CustomOutbound.sockopt_mark)
+    add_column(CustomOutbound.sockopt_tcp_fast_open)
+    add_column(CustomOutbound.sockopt_tproxy)
+    add_column(CustomOutbound.sockopt_domain_strategy)
+    add_column(CustomOutbound.sockopt_dialer_proxy)
+    add_column(CustomOutbound.sockopt_interface)
+    add_column(CustomOutbound.sockopt_tcp_keep_alive_interval)
+    add_column(CustomOutbound.sockopt_tcp_keep_alive_idle)
+    add_column(CustomOutbound.sockopt_tcp_user_timeout)
+    add_column(CustomOutbound.sockopt_tcp_max_seg)
+    add_column(CustomOutbound.sockopt_tcp_window_clamp)
+    add_column(CustomOutbound.sockopt_tcp_mptcp)
+    add_column(CustomOutbound.sockopt_penetrate)
+    add_column(CustomOutbound.sockopt_address_port_strategy)
+    add_column(CustomOutbound.he_try_delay_ms)
+    add_column(CustomOutbound.he_prioritize_ipv6)
+    add_column(CustomOutbound.he_interleave)
+    add_column(CustomOutbound.he_max_concurrent_try)
+    add_column(CustomOutbound.mux_enabled)
+    add_column(CustomOutbound.mux_concurrency)
+    add_column(CustomOutbound.mux_xudp_concurrency)
+    add_column(CustomOutbound.mux_xudp_proxy_udp_443)
 
 
 def _v129(child_id):

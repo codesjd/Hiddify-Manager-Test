@@ -45,8 +45,27 @@ _PROTOCOL_FIELD_SCRIPT = """
   function wrapper(el) { return el ? (el.closest('.form-group') || el.parentElement) : null; }
 
   var ALL = ['address', 'port', 'uuid_or_password', 'network', 'security', 'sni',
-             'ws_path', 'host_header', 'fingerprint', 'flow', 'import_link',
-             'peer_public_key', 'preshared_key', 'local_address', 'dns', 'jc', 'jmin', 'jmax'];
+             'ws_path', 'host_header', 'fingerprint', 'flow', 'import_link', 'encryption', 'ss_method',
+             'peer_public_key', 'preshared_key', 'local_address', 'dns', 'jc', 'jmin', 'jmax',
+             'sockopt_mark', 'sockopt_tcp_fast_open', 'sockopt_tproxy', 'sockopt_domain_strategy',
+             'sockopt_dialer_proxy', 'sockopt_interface', 'sockopt_tcp_keep_alive_interval',
+             'sockopt_tcp_keep_alive_idle', 'sockopt_tcp_user_timeout', 'sockopt_tcp_max_seg',
+             'sockopt_tcp_window_clamp', 'sockopt_tcp_mptcp', 'sockopt_penetrate',
+             'sockopt_address_port_strategy', 'he_try_delay_ms', 'he_prioritize_ipv6',
+             'he_interleave', 'he_max_concurrent_try', 'mux_enabled', 'mux_concurrency',
+             'mux_xudp_concurrency', 'mux_xudp_proxy_udp_443'];
+
+  // Every real (non-amneziawg/wireguard/freedom) protocol shares the same
+  // sockopt/mux block - xray-core doesn't vary these by protocol, and the
+  // reference forms show the identical set for vless/vmess/trojan/
+  // shadowsocks/socks/http.
+  var SOCKOPT_MUX = ['sockopt_mark', 'sockopt_tcp_fast_open', 'sockopt_tproxy', 'sockopt_domain_strategy',
+             'sockopt_dialer_proxy', 'sockopt_interface', 'sockopt_tcp_keep_alive_interval',
+             'sockopt_tcp_keep_alive_idle', 'sockopt_tcp_user_timeout', 'sockopt_tcp_max_seg',
+             'sockopt_tcp_window_clamp', 'sockopt_tcp_mptcp', 'sockopt_penetrate',
+             'sockopt_address_port_strategy', 'he_try_delay_ms', 'he_prioritize_ipv6',
+             'he_interleave', 'he_max_concurrent_try', 'mux_enabled', 'mux_concurrency',
+             'mux_xudp_concurrency', 'mux_xudp_proxy_udp_443'];
 
   // Which of the fields above are actually meaningful for each Protocol -
   // everything not listed here gets hidden. address/port double as the
@@ -54,16 +73,21 @@ _PROTOCOL_FIELD_SCRIPT = """
   // convention the Python side uses in routing.py).
   var SHOW_FOR = {
     vless: ['address', 'port', 'uuid_or_password', 'network', 'security', 'sni',
-            'ws_path', 'host_header', 'fingerprint', 'flow', 'import_link'],
-    vmess: ['address', 'port', 'uuid_or_password', 'network', 'security', 'sni', 'ws_path', 'host_header', 'fingerprint'],
-    trojan: ['address', 'port', 'uuid_or_password', 'network', 'security', 'sni', 'ws_path', 'host_header', 'fingerprint'],
-    shadowsocks: ['address', 'port', 'uuid_or_password', 'network', 'security', 'sni', 'ws_path', 'host_header', 'fingerprint'],
-    socks: ['address', 'port', 'uuid_or_password'],
-    http: ['address', 'port', 'uuid_or_password'],
+            'ws_path', 'host_header', 'fingerprint', 'flow', 'import_link', 'encryption'].concat(SOCKOPT_MUX),
+    vmess: ['address', 'port', 'uuid_or_password', 'network', 'security', 'sni', 'ws_path', 'host_header', 'fingerprint'].concat(SOCKOPT_MUX),
+    trojan: ['address', 'port', 'uuid_or_password', 'network', 'security', 'sni', 'ws_path', 'host_header', 'fingerprint'].concat(SOCKOPT_MUX),
+    shadowsocks: ['address', 'port', 'uuid_or_password', 'ss_method', 'network', 'security', 'sni', 'ws_path', 'host_header', 'fingerprint'].concat(SOCKOPT_MUX),
+    socks: ['address', 'port', 'uuid_or_password'].concat(SOCKOPT_MUX),
+    http: ['address', 'port', 'uuid_or_password'].concat(SOCKOPT_MUX),
     wireguard: ['address', 'port', 'uuid_or_password', 'peer_public_key', 'local_address'],
     amneziawg: ['address', 'port', 'uuid_or_password', 'peer_public_key', 'preshared_key', 'local_address', 'dns', 'jc', 'jmin', 'jmax'],
     freedom: []
   };
+  // reality_public_key/reality_short_id only ever matter when Security is
+  // actually set to "reality" - shown/hidden by a second, independent
+  // toggle keyed on that field rather than baked into SHOW_FOR per protocol,
+  // since it's the Security *value*, not the Protocol, that decides this.
+  var REALITY_ONLY = ['reality_public_key', 'reality_short_id'];
 
   function applyProtocol() {
     var sel = byName('protocol');
@@ -73,13 +97,27 @@ _PROTOCOL_FIELD_SCRIPT = """
       var w = wrapper(byName(n));
       if (w) w.style.display = show.indexOf(n) === -1 ? 'none' : '';
     });
+    applyReality();
+  }
+
+  function applyReality() {
+    var protoSel = byName('protocol');
+    var secSel = byName('security');
+    var show = (SHOW_FOR[protoSel && protoSel.value] || []).indexOf('security') !== -1
+               && secSel && secSel.value === 'reality';
+    REALITY_ONLY.forEach(function(n) {
+      var w = wrapper(byName(n));
+      if (w) w.style.display = show ? '' : 'none';
+    });
   }
 
   function init() {
     var sel = byName('protocol');
+    var secSel = byName('security');
     if (!sel || sel.dataset.protocolToggleBound) return;
     sel.dataset.protocolToggleBound = '1';
     sel.addEventListener('change', applyProtocol);
+    if (secSel) secSel.addEventListener('change', applyReality);
     applyProtocol();
   }
 
@@ -113,9 +151,17 @@ class OutboundAdmin(AdminLTEModelView):
     column_hide_backrefs = False
     list_template = 'model/outbound_list.html'
     column_list = ["tag", "protocol", "address", "port", "network", "security", "comment"]
-    form_columns = ["tag", "import_link", "protocol", "address", "port", "uuid_or_password",
+    form_columns = ["tag", "import_link", "protocol", "address", "port", "uuid_or_password", "ss_method",
                      "peer_public_key", "preshared_key", "local_address", "dns", "jc", "jmin", "jmax",
-                     "network", "security", "sni", "ws_path", "host_header", "fingerprint", "flow",
+                     "network", "security", "sni", "ws_path", "host_header", "fingerprint", "flow", "encryption",
+                     "reality_public_key", "reality_short_id",
+                     "sockopt_mark", "sockopt_tcp_fast_open", "sockopt_tproxy", "sockopt_domain_strategy",
+                     "sockopt_dialer_proxy", "sockopt_interface", "sockopt_tcp_keep_alive_interval",
+                     "sockopt_tcp_keep_alive_idle", "sockopt_tcp_user_timeout", "sockopt_tcp_max_seg",
+                     "sockopt_tcp_window_clamp", "sockopt_tcp_mptcp", "sockopt_penetrate",
+                     "sockopt_address_port_strategy", "he_try_delay_ms", "he_prioritize_ipv6",
+                     "he_interleave", "he_max_concurrent_try",
+                     "mux_enabled", "mux_concurrency", "mux_xudp_concurrency", "mux_xudp_proxy_udp_443",
                      "comment", "extra_json", "protocol_field_script"]
 
     column_labels = {
@@ -138,6 +184,32 @@ class OutboundAdmin(AdminLTEModelView):
         "host_header": _("Host Header (WS/HTTPUpgrade/XHTTP)"),
         "fingerprint": _("uTLS Fingerprint"),
         "flow": _("Flow (vless xtls, e.g. xtls-rprx-vision)"),
+        "encryption": _("Encryption (vless, e.g. none)"),
+        "ss_method": _("Encryption Method (shadowsocks)"),
+        "reality_public_key": _("Reality Public Key"),
+        "reality_short_id": _("Reality Short ID"),
+        "sockopt_mark": _("Mark (fwmark)"),
+        "sockopt_tcp_fast_open": _("TCP Fast Open"),
+        "sockopt_tproxy": _("TProxy"),
+        "sockopt_domain_strategy": _("Domain Strategy"),
+        "sockopt_dialer_proxy": _("Dialer Proxy"),
+        "sockopt_interface": _("Interface"),
+        "sockopt_tcp_keep_alive_interval": _("TCP Keep-Alive Interval"),
+        "sockopt_tcp_keep_alive_idle": _("TCP Keep-Alive Idle (s)"),
+        "sockopt_tcp_user_timeout": _("TCP User Timeout (ms)"),
+        "sockopt_tcp_max_seg": _("TCP Max Seg"),
+        "sockopt_tcp_window_clamp": _("TCP Window Clamp"),
+        "sockopt_tcp_mptcp": _("Multipath TCP"),
+        "sockopt_penetrate": _("Penetrate"),
+        "sockopt_address_port_strategy": _("Address+Port Strategy"),
+        "he_try_delay_ms": _("Happy Eyeballs: Try Delay (ms)"),
+        "he_prioritize_ipv6": _("Happy Eyeballs: Prioritize IPv6"),
+        "he_interleave": _("Happy Eyeballs: Interleave"),
+        "he_max_concurrent_try": _("Happy Eyeballs: Max Concurrent Try"),
+        "mux_enabled": _("Mux"),
+        "mux_concurrency": _("Mux Concurrency"),
+        "mux_xudp_concurrency": _("Mux xudp Concurrency"),
+        "mux_xudp_proxy_udp_443": _("Mux xudp UDP 443 (reject/allow/skip)"),
         "comment": _("Comment"),
         "extra_json": _("Advanced Override (JSON)"),
     }
@@ -152,6 +224,12 @@ class OutboundAdmin(AdminLTEModelView):
         jc=_("AmneziaWG obfuscation - number of junk packets sent before the handshake. Leave blank for a plain (non-obfuscated) tunnel."),
         jmin=_("AmneziaWG obfuscation - minimum junk packet size in bytes."),
         jmax=_("AmneziaWG obfuscation - maximum junk packet size in bytes."),
+        reality_public_key=_("Required for Security=reality - the remote server's Reality public key (pbk)."),
+        reality_short_id=_("Required for Security=reality - the remote server's Reality short ID (sid)."),
+        sockopt_mark=_("Linux SO_MARK (fwmark) applied to this outbound's sockets. Leave blank unless you use policy routing."),
+        sockopt_dialer_proxy=_("Chain through another Outbound's Tag before dialing this one."),
+        sockopt_domain_strategy=_('e.g. "UseIP", "UseIPv4", "UseIPv6", "AsIs". Leave blank for the default.'),
+        sockopt_interface=_("Bind outbound connections to this network interface (Linux SO_BINDTODEVICE)."),
         extra_json=_('Optional. Deep-merged on top of the generated outbound JSON for anything the form above can\'t express, '
                       'e.g. {"streamSettings": {"sockopt": {"dialerProxy": "another-tag"}}} to chain through yet another outbound.'),
     )
@@ -160,7 +238,14 @@ class OutboundAdmin(AdminLTEModelView):
         "import_link": wtf.TextAreaField(
             _("Import Link (vless://...)"),
             description=_('Paste a vless:// share link here and save - it fills in Address/Port/UUID/Network/Security/SNI/Path/Host/'
-                           'Fingerprint/Flow below from it (overwriting whatever was there). Leave blank to edit the fields manually instead.'),
+                           'Fingerprint/Flow/Reality-key/short-ID below from it (overwriting whatever was there). Leave blank to edit the fields manually instead.'),
+        ),
+        "ss_method": wtf.SelectField(
+            _("Encryption Method (shadowsocks)"),
+            choices=[(m, m) for m in [
+                "chacha20-ietf-poly1305", "aes-256-gcm", "aes-128-gcm",
+                "2022-blake3-aes-128-gcm", "2022-blake3-aes-256-gcm", "2022-blake3-chacha20-poly1305",
+            ]],
         ),
         "protocol_field_script": _ScriptField(label=""),
     }

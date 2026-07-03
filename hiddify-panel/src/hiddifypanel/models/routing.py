@@ -70,6 +70,49 @@ class CustomOutbound(db.Model):  # type: ignore
     fingerprint = Column(String(50), nullable=True, default='')
     # vless-only xtls flow control, e.g. "xtls-rprx-vision".
     flow = Column(String(50), nullable=True, default='')
+    # vless-only encryption (e.g. "none", or a post-quantum ML-KEM option) -
+    # was hardcoded to "none" below; xray-core actually reads this per-user.
+    encryption = Column(String(100), nullable=True, default='none')
+    # REALITY needs the server's actual public key/short id to connect at
+    # all - these were missing entirely (to_xray_dict()/to_singbox_dict()
+    # only ever sent serverName/fingerprint), making every "reality"
+    # security outbound unusable regardless of what else was configured.
+    reality_public_key = Column(String(100), nullable=True, default='')
+    reality_short_id = Column(String(50), nullable=True, default='')
+    # shadowsocks cipher - was hardcoded to chacha20-ietf-poly1305
+    # regardless of what the real upstream server actually uses.
+    ss_method = Column(String(50), nullable=True, default='chacha20-ietf-poly1305')
+
+    # Xray-core's sockopt block (real, documented fields - shared verbatim
+    # across every stream-based protocol, xray-core doesn't vary this by
+    # protocol). Left NULL/blank = omitted entirely, since 0 is a
+    # meaningful non-default value for several of these (e.g. mark, tcp_fast_open).
+    sockopt_mark = Column(Integer, nullable=True)
+    sockopt_tcp_fast_open = Column(Boolean, nullable=True)
+    sockopt_tproxy = Column(String(20), nullable=True, default='')  # "off"/"redirect"/"tproxy"
+    sockopt_domain_strategy = Column(String(30), nullable=True, default='')
+    sockopt_dialer_proxy = Column(String(100), nullable=True, default='')
+    sockopt_interface = Column(String(50), nullable=True, default='')
+    sockopt_tcp_keep_alive_interval = Column(Integer, nullable=True)
+    sockopt_tcp_keep_alive_idle = Column(Integer, nullable=True)
+    sockopt_tcp_user_timeout = Column(Integer, nullable=True)
+    sockopt_tcp_max_seg = Column(Integer, nullable=True)
+    sockopt_tcp_window_clamp = Column(Integer, nullable=True)
+    sockopt_tcp_mptcp = Column(Boolean, nullable=True)
+    sockopt_penetrate = Column(Boolean, nullable=True)
+    sockopt_address_port_strategy = Column(String(30), nullable=True, default='')
+    # Happy Eyeballs (RFC 8305) dual-stack dial racing - xray-core's own
+    # sockopt.happyEyeballs sub-object.
+    he_try_delay_ms = Column(Integer, nullable=True)
+    he_prioritize_ipv6 = Column(Boolean, nullable=True)
+    he_interleave = Column(Integer, nullable=True)
+    he_max_concurrent_try = Column(Integer, nullable=True)
+
+    # xray-core's per-outbound mux (connection multiplexing).
+    mux_enabled = Column(Boolean, nullable=True, default=False)
+    mux_concurrency = Column(Integer, nullable=True)
+    mux_xudp_concurrency = Column(Integer, nullable=True)
+    mux_xudp_proxy_udp_443 = Column(String(20), nullable=True, default='')  # "reject"/"allow"/"skip"
     # wireguard/amneziawg peer fields. address/port above double as the
     # Endpoint host/port and uuid_or_password as the local PrivateKey for
     # both protocols (same convention xray/singbox already use elsewhere in
@@ -144,6 +187,66 @@ class CustomOutbound(db.Model):  # type: ignore
         ]
         return "\n".join(lines) + "\n"
 
+    def _xray_sockopt(self) -> dict:
+        """xray-core's sockopt object - real, documented fields, shared
+        verbatim across every stream-based protocol. Only ever set when the
+        admin actually entered something (None/'' left out entirely rather
+        than sent as a false/0/empty value xray-core would treat as an
+        explicit override)."""
+        sockopt: dict = {}
+        if self.sockopt_mark is not None:
+            sockopt["mark"] = self.sockopt_mark
+        if self.sockopt_tcp_fast_open is not None:
+            sockopt["tcpFastOpen"] = self.sockopt_tcp_fast_open
+        if self.sockopt_tproxy:
+            sockopt["tproxy"] = self.sockopt_tproxy
+        if self.sockopt_domain_strategy:
+            sockopt["domainStrategy"] = self.sockopt_domain_strategy
+        if self.sockopt_dialer_proxy:
+            sockopt["dialerProxy"] = self.sockopt_dialer_proxy
+        if self.sockopt_interface:
+            sockopt["interface"] = self.sockopt_interface
+        if self.sockopt_tcp_keep_alive_interval is not None:
+            sockopt["tcpKeepAliveInterval"] = self.sockopt_tcp_keep_alive_interval
+        if self.sockopt_tcp_keep_alive_idle is not None:
+            sockopt["tcpKeepAliveIdle"] = self.sockopt_tcp_keep_alive_idle
+        if self.sockopt_tcp_user_timeout is not None:
+            sockopt["tcpUserTimeout"] = self.sockopt_tcp_user_timeout
+        if self.sockopt_tcp_max_seg is not None:
+            sockopt["tcpMaxSeg"] = self.sockopt_tcp_max_seg
+        if self.sockopt_tcp_window_clamp is not None:
+            sockopt["tcpWindowClamp"] = self.sockopt_tcp_window_clamp
+        if self.sockopt_tcp_mptcp is not None:
+            sockopt["tcpMptcp"] = self.sockopt_tcp_mptcp
+        if self.sockopt_penetrate is not None:
+            sockopt["penetrate"] = self.sockopt_penetrate
+        if self.sockopt_address_port_strategy:
+            sockopt["addressPortStrategy"] = self.sockopt_address_port_strategy
+        he: dict = {}
+        if self.he_try_delay_ms is not None:
+            he["tryDelayMs"] = self.he_try_delay_ms
+        if self.he_prioritize_ipv6 is not None:
+            he["prioritizeIPv6"] = self.he_prioritize_ipv6
+        if self.he_interleave is not None:
+            he["interleave"] = self.he_interleave
+        if self.he_max_concurrent_try is not None:
+            he["maxConcurrentTry"] = self.he_max_concurrent_try
+        if he:
+            sockopt["happyEyeballs"] = he
+        return sockopt
+
+    def _xray_mux(self) -> dict:
+        if not self.mux_enabled:
+            return {}
+        mux: dict = {"enabled": True}
+        if self.mux_concurrency is not None:
+            mux["concurrency"] = self.mux_concurrency
+        if self.mux_xudp_concurrency is not None:
+            mux["xudpConcurrency"] = self.mux_xudp_concurrency
+        if self.mux_xudp_proxy_udp_443:
+            mux["xudpProxyUDP443"] = self.mux_xudp_proxy_udp_443
+        return mux
+
     def to_xray_dict(self) -> dict:
         import json
 
@@ -162,7 +265,7 @@ class CustomOutbound(db.Model):  # type: ignore
         if self.protocol in (OutboundProtocol.vless, OutboundProtocol.vmess):
             user = {"id": self.uuid_or_password or ""}
             if self.protocol == OutboundProtocol.vless:
-                user["encryption"] = "none"
+                user["encryption"] = self.encryption or "none"
                 if self.flow:
                     user["flow"] = self.flow
             else:
@@ -171,7 +274,7 @@ class CustomOutbound(db.Model):  # type: ignore
         elif self.protocol == OutboundProtocol.trojan:
             settings = {"servers": [{"address": self.address or "", "port": self.port or 443, "password": self.uuid_or_password or ""}]}
         elif self.protocol == OutboundProtocol.shadowsocks:
-            settings = {"servers": [{"address": self.address or "", "port": self.port or 443, "password": self.uuid_or_password or "", "method": "chacha20-ietf-poly1305"}]}
+            settings = {"servers": [{"address": self.address or "", "port": self.port or 443, "password": self.uuid_or_password or "", "method": self.ss_method or "chacha20-ietf-poly1305"}]}
         elif self.protocol in (OutboundProtocol.socks, OutboundProtocol.http):
             server = {"address": self.address or "", "port": self.port or 1080}
             if self.uuid_or_password:
@@ -219,13 +322,27 @@ class CustomOutbound(db.Model):  # type: ignore
                 stream["tlsSettings"]["fingerprint"] = self.fingerprint
         elif self.security == OutboundSecurity.reality:
             stream["security"] = "reality"
-            stream["realitySettings"] = {"serverName": self.sni or self.address or ""}
+            # publicKey/shortId are not optional extras - REALITY cannot
+            # complete a handshake without the server's actual values here.
+            stream["realitySettings"] = {
+                "serverName": self.sni or self.address or "",
+                "publicKey": self.reality_public_key or "",
+                "shortId": self.reality_short_id or "",
+            }
             if self.fingerprint:
                 stream["realitySettings"]["fingerprint"] = self.fingerprint
+
+        sockopt = self._xray_sockopt()
+        if sockopt:
+            stream["sockopt"] = sockopt
 
         out = {"tag": self.tag, "protocol": self.protocol.value, "settings": settings}
         if stream:
             out["streamSettings"] = stream
+
+        mux = self._xray_mux()
+        if mux:
+            out["mux"] = mux
 
         if self.extra_json and self.extra_json.strip() not in ('', '{}'):
             try:
@@ -289,7 +406,7 @@ class CustomOutbound(db.Model):  # type: ignore
                 out["password"] = self.uuid_or_password or ""
             elif self.protocol == OutboundProtocol.shadowsocks:
                 out["password"] = self.uuid_or_password or ""
-                out["method"] = "chacha20-ietf-poly1305"
+                out["method"] = self.ss_method or "chacha20-ietf-poly1305"
             elif self.protocol in (OutboundProtocol.socks, OutboundProtocol.http):
                 if self.uuid_or_password:
                     user, _, pw = self.uuid_or_password.partition(':')
@@ -316,8 +433,25 @@ class CustomOutbound(db.Model):  # type: ignore
                     if self.fingerprint:
                         tls["utls"] = {"enabled": True, "fingerprint": self.fingerprint}
                     if self.security == OutboundSecurity.reality:
-                        tls["reality"] = {"enabled": True}
+                        # Same fix as to_xray_dict() - public_key/short_id
+                        # are required for a real handshake, not optional.
+                        tls["reality"] = {
+                            "enabled": True,
+                            "public_key": self.reality_public_key or "",
+                            "short_id": self.reality_short_id or "",
+                        }
                     out["tls"] = tls
+
+            # sing-box's multiplex applies to http/socks/shadowsocks too,
+            # not just vless/vmess/trojan - matches xray's broader mux scope
+            # and the reference forms, which showed mux fields for all of
+            # these protocol types.
+            multiplex = self._singbox_multiplex()
+            if multiplex:
+                out["multiplex"] = multiplex
+
+        dial = self._singbox_dial_fields()
+        out.update(dial)
 
         if self.extra_json and self.extra_json.strip() not in ('', '{}'):
             try:
@@ -326,6 +460,32 @@ class CustomOutbound(db.Model):  # type: ignore
             except Exception:
                 pass
         return out
+
+    def _singbox_dial_fields(self) -> dict:
+        """sing-box's dial-behavior fields live directly on the outbound
+        (not nested like xray's sockopt) - the subset that maps cleanly
+        onto xray's sockopt fields above, for admins who switch core_type
+        without re-entering these."""
+        out: dict = {}
+        if self.sockopt_interface:
+            out["bind_interface"] = self.sockopt_interface
+        if self.sockopt_mark is not None:
+            out["routing_mark"] = self.sockopt_mark
+        if self.sockopt_tcp_fast_open is not None:
+            out["tcp_fast_open"] = self.sockopt_tcp_fast_open
+        if self.sockopt_tcp_mptcp is not None:
+            out["tcp_multi_path"] = self.sockopt_tcp_mptcp
+        if self.sockopt_domain_strategy:
+            out["domain_strategy"] = self.sockopt_domain_strategy
+        return out
+
+    def _singbox_multiplex(self) -> dict:
+        if not self.mux_enabled:
+            return {}
+        mux: dict = {"enabled": True, "protocol": "h2mux"}
+        if self.mux_concurrency is not None:
+            mux["max_streams"] = self.mux_concurrency
+        return mux
 
 
 def parse_vless_link(link: str) -> dict:
@@ -378,6 +538,9 @@ def parse_vless_link(link: str) -> dict:
         'host_header': q.get('host', ''),
         'fingerprint': q.get('fp', ''),
         'flow': q.get('flow', ''),
+        'encryption': q.get('encryption', 'none'),
+        'reality_public_key': q.get('pbk', ''),
+        'reality_short_id': q.get('sid', ''),
         'comment': unquote(parsed.fragment) if parsed.fragment else '',
     }
 
