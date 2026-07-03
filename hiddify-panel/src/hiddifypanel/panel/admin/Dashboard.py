@@ -11,6 +11,7 @@ from hiddifypanel.auth import login_required
 from hiddifypanel.database import db
 from hiddifypanel.panel import hiddify
 from hiddifypanel.models import *
+from hiddifypanel.models import ONE_GIG
 from hiddifypanel import hutils
 import hiddifypanel
 

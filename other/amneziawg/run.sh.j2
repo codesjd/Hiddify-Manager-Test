@@ -24,9 +24,11 @@ for f in /etc/amnezia/amneziawg/awg*.conf; do
 done
 
 {% for ob in amneziawg_outbounds %}
-cat >/etc/amnezia/amneziawg/{{ ob.interface }}.conf <<'HIDDIFY_AWG_EOF'
-{{ ob.conf }}
-HIDDIFY_AWG_EOF
+# base64 round-trip instead of a heredoc: ob.conf is admin-supplied text, and
+# a fixed heredoc delimiter could be truncated early (and the remainder
+# interpreted as shell commands) if that text ever contained a line matching
+# the delimiter. base64's output alphabet has no shell-significant characters.
+echo {{ ob.conf | b64encode }} | base64 -d >/etc/amnezia/amneziawg/{{ ob.interface }}.conf
 chmod 600 /etc/amnezia/amneziawg/{{ ob.interface }}.conf
 
 systemctl enable awg-quick@{{ ob.interface }} >/dev/null 2>&1
