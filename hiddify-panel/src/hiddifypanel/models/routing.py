@@ -21,6 +21,11 @@ class OutboundProtocol(StrEnum):
     # naive inbound is singbox-only too, see singbox/configs/05_inbounds_
     # naive.json.j2), so to_xray_dict() blackholes this the same way.
     naive = auto()
+    # TUIC and Mieru outbounds. sing-box-only, same blackhole-on-xray
+    # treatment as hysteria/naive above - xray-core has no dialer for
+    # either.
+    tuic = auto()
+    mieru = auto()
     wireguard = auto()
     freedom = auto()
     # Not a real dialed protocol - binds outbound traffic to a standalone
@@ -175,6 +180,16 @@ class CustomOutbound(db.Model):  # type: ignore
     hysteria_obfs_password = Column(String(200), nullable=True, default='')
     hysteria_up_mbps = Column(Integer, nullable=True)
     hysteria_down_mbps = Column(Integer, nullable=True)
+    # TUIC-only (sing-box outbound; xray-core has no TUIC dialer, same
+    # blackhole treatment as hysteria/naive above). uuid_or_password holds
+    # "uuid:password" (TUIC authenticates with both together, unlike a
+    # single secret) - same user:pass convention already used for
+    # socks/http/naive.
+    tuic_congestion_control = Column(String(20), nullable=True, default='cubic')
+    # Mieru-only (sing-box outbound; same xray blackhole treatment).
+    # uuid_or_password holds "username:password" here too.
+    mieru_transport = Column(String(10), nullable=True, default='tcp')
+    mieru_multiplexing = Column(String(30), nullable=True, default='MULTIPLEXING_LOW')
     comment = Column(String(300), nullable=True, default='')
     # Advanced escape hatch: raw JSON merged on top of the generated
     # outbound dict (e.g. {"streamSettings": {"grpcSettings": {...}}}).
@@ -346,6 +361,11 @@ class CustomOutbound(db.Model):  # type: ignore
             # hysteria above.
             return {"tag": self.tag, "protocol": "blackhole", "settings": {}}
 
+        if self.protocol in (OutboundProtocol.tuic, OutboundProtocol.mieru):
+            # xray-core has no TUIC or Mieru outbound dialer either - same
+            # fail-closed blackhole treatment as hysteria/naive above.
+            return {"tag": self.tag, "protocol": "blackhole", "settings": {}}
+
         settings: dict = {}
         stream: dict = {}
 
@@ -498,6 +518,50 @@ class CustomOutbound(db.Model):  # type: ignore
                 out["username"] = user
                 out["password"] = pw
             out["tls"] = {"enabled": True, "server_name": self.sni or self.address or ""}
+            dial = self._singbox_dial_fields()
+            out.update(dial)
+            if self.extra_json and self.extra_json.strip() not in ('', '{}'):
+                try:
+                    out = _deep_merge(out, json.loads(self.extra_json))
+                except Exception:
+                    pass
+            return out
+
+        if self.protocol == OutboundProtocol.tuic:
+            # sing-box TUIC outbound - authenticates with uuid+password
+            # together (unlike a single secret), so uuid_or_password is
+            # split "uuid:password" the same way socks/http/naive already
+            # split "user:pass".
+            out["type"] = "tuic"
+            out["server"] = self.address or ""
+            out["server_port"] = self.port or 443
+            if self.uuid_or_password:
+                uuid, _, password = self.uuid_or_password.partition(':')
+                out["uuid"] = uuid
+                out["password"] = password
+            out["congestion_control"] = self.tuic_congestion_control or "cubic"
+            out["tls"] = {"enabled": True, "server_name": self.sni or self.address or ""}
+            dial = self._singbox_dial_fields()
+            out.update(dial)
+            if self.extra_json and self.extra_json.strip() not in ('', '{}'):
+                try:
+                    out = _deep_merge(out, json.loads(self.extra_json))
+                except Exception:
+                    pass
+            return out
+
+        if self.protocol == OutboundProtocol.mieru:
+            # sing-box Mieru outbound - username:password split the same
+            # way, out of uuid_or_password.
+            out["type"] = "mieru"
+            out["server"] = self.address or ""
+            out["server_port"] = self.port or 2999
+            if self.uuid_or_password:
+                username, _, password = self.uuid_or_password.partition(':')
+                out["username"] = username
+                out["password"] = password
+            out["transport"] = self.mieru_transport or "tcp"
+            out["multiplexing"] = self.mieru_multiplexing or "MULTIPLEXING_LOW"
             dial = self._singbox_dial_fields()
             out.update(dial)
             if self.extra_json and self.extra_json.strip() not in ('', '{}'):

@@ -14,7 +14,21 @@ from hiddifypanel.database import db, db_execute
 
 
 from loguru import logger
-MAX_DB_VERSION = 136
+MAX_DB_VERSION = 137
+
+
+def _v136(child_id):
+    """New CustomOutbound columns for TUIC and Mieru outbound support -
+    xray-core has no native dialer for either (same situation as
+    hysteria2/naive), so these only take effect when core_type=singbox;
+    to_xray_dict() blackholes them. tuic_congestion_control defaults to
+    "cubic" (TUIC's own documented default); mieru_transport/multiplexing
+    default to sing-box's own "tcp"/"MULTIPLEXING_LOW" defaults so an
+    existing row that never touches these fields still serializes to a
+    complete, working outbound rather than an empty/invalid one."""
+    add_column(CustomOutbound.tuic_congestion_control)
+    add_column(CustomOutbound.mieru_transport)
+    add_column(CustomOutbound.mieru_multiplexing)
 
 
 def _v135(child_id):

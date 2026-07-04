@@ -148,7 +148,8 @@ _PROTOCOL_FIELD_SCRIPT = """
              'hysteria_obfs_password', 'hysteria_up_mbps', 'hysteria_down_mbps',
              'awg_conf', 'awg_s1', 'awg_s2', 'awg_s3', 'awg_s4',
              'awg_i1', 'awg_i2', 'awg_i3', 'awg_i4', 'awg_i5',
-             'awg_h1', 'awg_h2', 'awg_h3', 'awg_h4'];
+             'awg_h1', 'awg_h2', 'awg_h3', 'awg_h4',
+             'tuic_congestion_control', 'mieru_transport', 'mieru_multiplexing'];
 
   // Every real (non-amneziawg/wireguard/freedom) protocol shares the same
   // sockopt/mux block - xray-core doesn't vary these by protocol, and the
@@ -189,6 +190,12 @@ _PROTOCOL_FIELD_SCRIPT = """
     // here. No share-link format support in this codebase yet either, so
     // no IMPORT_LINK.
     naive: ['address', 'port', 'uuid_or_password', 'sni'].concat(SOCKOPT_MUX),
+    // TUIC: uuid_or_password is "uuid:password". Always TLS, no separate
+    // transport selector.
+    tuic: ['address', 'port', 'uuid_or_password', 'sni', 'tuic_congestion_control'].concat(SOCKOPT_MUX),
+    // Mieru: uuid_or_password is "username:password". No TLS/security field
+    // - Mieru does its own obfuscation, not a TLS wrapper.
+    mieru: ['address', 'port', 'uuid_or_password', 'mieru_transport', 'mieru_multiplexing'].concat(SOCKOPT_MUX),
     wireguard: ['address', 'port', 'uuid_or_password', 'peer_public_key', 'local_address'],
     // AmneziaWG has no share-link format (no import_link here - it gets its
     // own raw .conf paste field instead, occupying the same spot in the
@@ -290,6 +297,7 @@ class OutboundAdmin(AdminLTEModelView):
                      "awg_h1", "awg_h2", "awg_h3", "awg_h4",
                      "awg_s1", "awg_s2", "awg_s3", "awg_s4",
                      "awg_i1", "awg_i2", "awg_i3", "awg_i4", "awg_i5",
+                     "tuic_congestion_control", "mieru_transport", "mieru_multiplexing",
                      "comment", "extra_json", "protocol_field_script"]
 
     column_labels = {
@@ -355,13 +363,16 @@ class OutboundAdmin(AdminLTEModelView):
         "awg_i4": _("I4 (AmneziaWG)"),
         "awg_i5": _("I5 (AmneziaWG)"),
         "awg_conf": _("Raw .conf paste (AmneziaWG)"),
+        "tuic_congestion_control": _("Congestion Control (TUIC)"),
+        "mieru_transport": _("Transport (Mieru)"),
+        "mieru_multiplexing": _("Multiplexing (Mieru)"),
         "comment": _("Comment"),
         "extra_json": _("Advanced Override (JSON)"),
     }
     column_descriptions = dict(
         tag=_("Unique identifier for this outbound. Reference it as the Outbound Tag in a Routing Rule to send matching traffic here."),
         address=_("The destination server's IP or domain - e.g. another one of your own servers, for chaining, or the wireguard/amneziawg peer's Endpoint host. Not used for freedom."),
-        uuid_or_password=_("UUID for vless/vmess, password for trojan/shadowsocks, user:pass for socks/http/naive, or PrivateKey for wireguard/amneziawg. For a 2022-blake3-* Encryption Method, this must be the exact-length base64 PSK that method requires, not an arbitrary password. Not used for freedom."),
+        uuid_or_password=_("UUID for vless/vmess, password for trojan/shadowsocks, user:pass for socks/http/naive, uuid:password for tuic, username:password for mieru, or PrivateKey for wireguard/amneziawg. For a 2022-blake3-* Encryption Method, this must be the exact-length base64 PSK that method requires, not an arbitrary password. Not used for freedom."),
         ss_method=_("Encryption method. The 2022-blake3-* methods require the password above to be an exact-length base64 pre-shared key (16 bytes for aes-128-gcm, 32 bytes for aes-256-gcm/chacha20-poly1305) - an arbitrary password will fail to connect."),
         peer_public_key=_("The remote peer's PublicKey - same value as [Peer] PublicKey in a WireGuard/AmneziaWG .conf."),
         preshared_key=_("The remote peer's PresharedKey, if it has one - same value as [Peer] PresharedKey in an AmneziaWG .conf. Leave blank if not used."),
@@ -393,6 +404,9 @@ class OutboundAdmin(AdminLTEModelView):
         awg_i3=_("AmneziaWG obfuscation - special-junk pattern I3."),
         awg_i4=_("AmneziaWG obfuscation - special-junk pattern I4."),
         awg_i5=_("AmneziaWG obfuscation - special-junk pattern I5."),
+        tuic_congestion_control=_("TUIC congestion control algorithm. sing-box only - xray-core has no TUIC dialer, so this outbound is dropped (blackholed) while the panel's core is Xray."),
+        mieru_transport=_("Mieru's underlying transport protocol. sing-box only - xray-core has no Mieru dialer, so this outbound is dropped (blackholed) while the panel's core is Xray."),
+        mieru_multiplexing=_("Mieru's multiplexing level - higher levels trade some latency for better throughput/obfuscation."),
         extra_json=_('Optional. Deep-merged on top of the generated outbound JSON for anything the form above can\'t express, '
                       'e.g. {"streamSettings": {"sockopt": {"dialerProxy": "another-tag"}}} to chain through yet another outbound.'),
     )
@@ -412,6 +426,20 @@ class OutboundAdmin(AdminLTEModelView):
                 "2022-blake3-aes-128-gcm", "2022-blake3-aes-256-gcm", "2022-blake3-chacha20-poly1305",
             ]],
         ),
+        "tuic_congestion_control": wtf.SelectField(
+            _("Congestion Control (TUIC)"),
+            choices=[(m, m) for m in ["cubic", "bbr", "new_reno"]],
+        ),
+        "mieru_transport": wtf.SelectField(
+            _("Transport (Mieru)"),
+            choices=[("tcp", "TCP"), ("udp", "UDP")],
+        ),
+        "mieru_multiplexing": wtf.SelectField(
+            _("Multiplexing (Mieru)"),
+            choices=[(m, m) for m in [
+                "MULTIPLEXING_OFF", "MULTIPLEXING_LOW", "MULTIPLEXING_MIDDLE", "MULTIPLEXING_HIGH",
+            ]],
+        ),
         "protocol_field_script": _ScriptField(label=""),
     }
 
@@ -421,7 +449,8 @@ class OutboundAdmin(AdminLTEModelView):
     }
 
     # The protocol dropdown is restricted to the approved set only
-    # (vmess/vless/trojan/shadowsocks/amneziawg/hysteria/socks/http/naive).
+    # (vmess/vless/trojan/shadowsocks/amneziawg/hysteria/socks/http/naive/
+    # tuic/mieru).
     # OutboundProtocol still defines wireguard/freedom because existing rows
     # and internal fallbacks reference them, but they're not offered here:
     # wireguard is retired in favor of amneziawg, and freedom (plain direct)
@@ -432,6 +461,7 @@ class OutboundAdmin(AdminLTEModelView):
         OutboundProtocol.vmess, OutboundProtocol.vless, OutboundProtocol.trojan,
         OutboundProtocol.shadowsocks, OutboundProtocol.amneziawg, OutboundProtocol.hysteria,
         OutboundProtocol.socks, OutboundProtocol.http, OutboundProtocol.naive,
+        OutboundProtocol.tuic, OutboundProtocol.mieru,
     ]
     form_choices = {
         'protocol': [(p.value, p.value) for p in _ALLOWED_PROTOCOLS],
