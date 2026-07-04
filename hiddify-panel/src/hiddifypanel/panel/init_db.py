@@ -14,7 +14,20 @@ from hiddifypanel.database import db, db_execute
 
 
 from loguru import logger
-MAX_DB_VERSION = 137
+MAX_DB_VERSION = 138
+
+
+def _v137(child_id):
+    """KCP (the vless-over-kcp transport option) is retired - its whole
+    value proposition (surviving high packet loss) has been superseded by
+    Hysteria2/QUIC-family transports this panel already offers, and it
+    never had an admin-facing toggle to begin with (kcp_enable has been
+    ConfigCategory.hidden all along). Force it off for every install
+    regardless of previous value, mirroring exactly how _v127 retired
+    WireGuard - force the flag, leave the (now permanently unreachable)
+    xray template/serialization code alone rather than sweeping every
+    reference, same as _v127 did for wireguard's own branches."""
+    set_hconfig(ConfigEnum.kcp_enable, False, child_id=child_id)
 
 
 def _v136(child_id):

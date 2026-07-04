@@ -291,6 +291,11 @@ class ConfigEnum(metaclass=FastEnum):
     http_ports = _StrConfigDscr(ConfigCategory.http, ApplyMode.apply_config)
     mieru_tcp_ports = _StrConfigDscr(ConfigCategory.mieru, ApplyMode.apply_config, hide_in_virtual_child=True)
     mieru_udp_ports = _StrConfigDscr(ConfigCategory.mieru, ApplyMode.apply_config, hide_in_virtual_child=True)
+    # retired (_v137 forces kcp_enable off for every install) - KCP's whole
+    # value proposition (surviving high packet loss) has been superseded by
+    # Hysteria2/QUIC-family transports; kept only so old DB rows/migrations
+    # referencing these keys don't error, same pattern as the retired
+    # wireguard_* fields.
     kcp_ports = _StrConfigDscr(ConfigCategory.hidden, ApplyMode.apply_config)
     kcp_enable = _BoolConfigDscr(ConfigCategory.hidden, ApplyMode.apply_config)
     decoy_domain = _StrConfigDscr(ConfigCategory.general, ApplyMode.apply_config, hide_in_virtual_child=True)
