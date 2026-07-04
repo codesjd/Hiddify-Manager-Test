@@ -960,6 +960,7 @@ def get_available_inbound_tags() -> list[tuple[str, str]]:
 
     child_id = Child.current().id
     choices: list[tuple[str, str]] = []
+    core_type = hconfig(ConfigEnum.core_type, child_id)
 
     def _row_tag(p) -> str | None:
         proto = str(p.proto).lower()
@@ -969,12 +970,35 @@ def get_available_inbound_tags() -> list[tuple[str, str]]:
         if 'reality' in l3:
             return None
         if proto in ('vless', 'vmess', 'trojan') and transport in ('xhttp', 'ws', 'grpc', 'tcp', 'httpupgrade'):
+            # Mirrors the exact gating in {xray,singbox}/configs/
+            # 05_inbounds_new.json.j2: xhttp only exists under the xray
+            # core (singbox's own template explicitly excludes it), every
+            # other stream only exists under whichever core is actually
+            # active; both also require the protocol's and stream's own
+            # global *_enable toggle. A Proxy row with enable=True doesn't
+            # by itself mean the shared inbound it rides actually exists.
+            if transport == 'xhttp' and core_type != 'xray':
+                return None
+            if transport != 'xhttp' and core_type not in ('xray', 'singbox'):
+                return None
+            if not (hconfig(getattr(ConfigEnum, f'{proto}_enable'), child_id) and
+                    hconfig(getattr(ConfigEnum, f'{transport}_enable'), child_id)):
+                return None
             return f'v10-{proto}-{transport}'
         if proto == 'vless' and transport == 'tcp' and 'kcp' in l3:
+            if not hconfig(ConfigEnum.kcp_enable, child_id):
+                return None
             return 'kcp'
         if proto == 'mieru' and transport in ('tcp', 'udp'):
+            # singbox/configs/05_inbounds_mieru.json.j2 also requires the
+            # matching port list to be non-empty, not just mieru_enable.
+            ports_key = ConfigEnum.mieru_tcp_ports if transport == 'tcp' else ConfigEnum.mieru_udp_ports
+            if not (hconfig(ConfigEnum.mieru_enable, child_id) and hconfig(ports_key, child_id)):
+                return None
             return f'v10-mieru-{transport}'
         if proto == 'naive':
+            if not hconfig(ConfigEnum.naive_enable, child_id):
+                return None
             return 'v10-naive'
         # tuic/hysteria2/naive-quic per-domain inbounds are keyed on Domain
         # + port too (Domain.internal_port_tuic/hysteria2/naive), not Proxy.

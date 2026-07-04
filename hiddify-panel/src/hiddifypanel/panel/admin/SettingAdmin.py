@@ -40,6 +40,13 @@ _PROXIES_CATEGORY_DUPES_ON_PROXY_PAGE = {
     ConfigEnum.httpupgrade_enable, ConfigEnum.xhttp_enable, ConfigEnum.naive_enable,
     ConfigEnum.vless_enable, ConfigEnum.trojan_enable, ConfigEnum.reality_enable,
     ConfigEnum.tcp_enable, ConfigEnum.quic_enable, ConfigEnum.h2_enable,
+    # Also a BoolConfig ending in "_enable" under ConfigCategory.proxies, so
+    # it passes ProxyAdmin.get_global_config_form()'s filter too (any
+    # non-hidden *_enable BoolConfig not in its own 4-item exclusion list) -
+    # missed in the original pass since it reads as a subscription-format
+    # toggle rather than a protocol switch, but it's still shown on both
+    # pages today.
+    ConfigEnum.sub_full_xray_json_enable,
 }
 
 
