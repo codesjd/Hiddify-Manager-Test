@@ -156,6 +156,25 @@ class ConfigEnum(metaclass=FastEnum):
     amneziawg_h2 = _StrConfigDscr(ConfigCategory.amneziawg, ApplyMode.apply_config, hide_in_virtual_child=True)
     amneziawg_h3 = _StrConfigDscr(ConfigCategory.amneziawg, ApplyMode.apply_config, hide_in_virtual_child=True)
     amneziawg_h4 = _StrConfigDscr(ConfigCategory.amneziawg, ApplyMode.apply_config, hide_in_virtual_child=True)
+    # S1-S4/I1-I5: AmneziaWG 2.0 additions on top of the Jc/Jmin/Jmax/H1-H4
+    # "classic" scheme above - S1-S4 pad the handshake messages themselves,
+    # I1-I5 are custom signature/junk packets (hex+tag templates, e.g.
+    # "<b 0xAABB><r 16>") sent to mimic a real protocol (DNS/QUIC/SIP)
+    # instead of just junk bytes. Left with no default (unlike Jc/Jmin/Jmax
+    # below, which do have one) - a canned default mimicry template shipped
+    # identically on every install would itself become a distinguishing
+    # fingerprint, defeating the point. See
+    # https://docs.amnezia.org/documentation/amnezia-wg/ for the exact
+    # tag syntax; admins opt in by filling these in themselves.
+    amneziawg_s1 = _StrConfigDscr(ConfigCategory.amneziawg, ApplyMode.apply_config, hide_in_virtual_child=True)
+    amneziawg_s2 = _StrConfigDscr(ConfigCategory.amneziawg, ApplyMode.apply_config, hide_in_virtual_child=True)
+    amneziawg_s3 = _StrConfigDscr(ConfigCategory.amneziawg, ApplyMode.apply_config, hide_in_virtual_child=True)
+    amneziawg_s4 = _StrConfigDscr(ConfigCategory.amneziawg, ApplyMode.apply_config, hide_in_virtual_child=True)
+    amneziawg_i1 = _StrConfigDscr(ConfigCategory.amneziawg, ApplyMode.apply_config, hide_in_virtual_child=True)
+    amneziawg_i2 = _StrConfigDscr(ConfigCategory.amneziawg, ApplyMode.apply_config, hide_in_virtual_child=True)
+    amneziawg_i3 = _StrConfigDscr(ConfigCategory.amneziawg, ApplyMode.apply_config, hide_in_virtual_child=True)
+    amneziawg_i4 = _StrConfigDscr(ConfigCategory.amneziawg, ApplyMode.apply_config, hide_in_virtual_child=True)
+    amneziawg_i5 = _StrConfigDscr(ConfigCategory.amneziawg, ApplyMode.apply_config, hide_in_virtual_child=True)
 
     ssh_server_redis_url = _StrConfigDscr(ConfigCategory.hidden, hide_in_virtual_child=True)
     ssh_server_port = _StrConfigDscr(ConfigCategory.ssh, ApplyMode.apply_config, hide_in_virtual_child=True)

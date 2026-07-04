@@ -72,6 +72,15 @@ PrivateKey = ${SERVER_PRIV_KEY}
 {% endif %}{% if hconfigs["amneziawg_h2"] %}H2 = {{hconfigs["amneziawg_h2"]}}
 {% endif %}{% if hconfigs["amneziawg_h3"] %}H3 = {{hconfigs["amneziawg_h3"]}}
 {% endif %}{% if hconfigs["amneziawg_h4"] %}H4 = {{hconfigs["amneziawg_h4"]}}
+{% endif %}{% if hconfigs["amneziawg_s1"] %}S1 = {{hconfigs["amneziawg_s1"]}}
+{% endif %}{% if hconfigs["amneziawg_s2"] %}S2 = {{hconfigs["amneziawg_s2"]}}
+{% endif %}{% if hconfigs["amneziawg_s3"] %}S3 = {{hconfigs["amneziawg_s3"]}}
+{% endif %}{% if hconfigs["amneziawg_s4"] %}S4 = {{hconfigs["amneziawg_s4"]}}
+{% endif %}{% if hconfigs["amneziawg_i1"] %}I1 = {{hconfigs["amneziawg_i1"]}}
+{% endif %}{% if hconfigs["amneziawg_i2"] %}I2 = {{hconfigs["amneziawg_i2"]}}
+{% endif %}{% if hconfigs["amneziawg_i3"] %}I3 = {{hconfigs["amneziawg_i3"]}}
+{% endif %}{% if hconfigs["amneziawg_i4"] %}I4 = {{hconfigs["amneziawg_i4"]}}
+{% endif %}{% if hconfigs["amneziawg_i5"] %}I5 = {{hconfigs["amneziawg_i5"]}}
 {% endif %}
 PostUp = iptables -I INPUT -p udp --dport ${SERVER_PORT} -j ACCEPT
 PostUp = iptables -I FORWARD -i ${SERVER_PUB_NIC} -o ${SERVER_AWG_NIC} -j ACCEPT

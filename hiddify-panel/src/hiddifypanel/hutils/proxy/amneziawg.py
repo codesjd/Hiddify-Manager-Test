@@ -34,6 +34,24 @@ def generate_amneziawg_config(proxy: dict) -> str:
         obfuscation_lines += f"H3 = {proxy['awg_h3']}\n"
     if proxy.get("awg_h4"):
         obfuscation_lines += f"H4 = {proxy['awg_h4']}\n"
+    if proxy.get("awg_s1"):
+        obfuscation_lines += f"S1 = {proxy['awg_s1']}\n"
+    if proxy.get("awg_s2"):
+        obfuscation_lines += f"S2 = {proxy['awg_s2']}\n"
+    if proxy.get("awg_s3"):
+        obfuscation_lines += f"S3 = {proxy['awg_s3']}\n"
+    if proxy.get("awg_s4"):
+        obfuscation_lines += f"S4 = {proxy['awg_s4']}\n"
+    if proxy.get("awg_i1"):
+        obfuscation_lines += f"I1 = {proxy['awg_i1']}\n"
+    if proxy.get("awg_i2"):
+        obfuscation_lines += f"I2 = {proxy['awg_i2']}\n"
+    if proxy.get("awg_i3"):
+        obfuscation_lines += f"I3 = {proxy['awg_i3']}\n"
+    if proxy.get("awg_i4"):
+        obfuscation_lines += f"I4 = {proxy['awg_i4']}\n"
+    if proxy.get("awg_i5"):
+        obfuscation_lines += f"I5 = {proxy['awg_i5']}\n"
     config = f"""[Interface]
 # Name = {name}
 Address= {addrs}

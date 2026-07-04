@@ -146,6 +146,15 @@ class CustomOutbound(db.Model):  # type: ignore
     awg_i3 = Column(Text, nullable=True, default='')
     awg_i4 = Column(Text, nullable=True, default='')
     awg_i5 = Column(Text, nullable=True, default='')
+    # AmneziaWG-only: H1-H4 replace WireGuard's real message-type bytes on
+    # the wire (part of the same obfuscation scheme as Jc/Jmin/Jmax above).
+    # AmneziaWG accepts either a single value or an "x-y" range here - we
+    # store/emit whatever string the admin provides verbatim, same as
+    # awg_s1-4/awg_i1-5 above.
+    awg_h1 = Column(String(50), nullable=True, default='')
+    awg_h2 = Column(String(50), nullable=True, default='')
+    awg_h3 = Column(String(50), nullable=True, default='')
+    awg_h4 = Column(String(50), nullable=True, default='')
     # Optional: raw AmneziaWG .conf paste. When non-empty, this replaces the
     # generated [Interface]/[Peer] entirely in render_amneziawg_conf() -
     # the escape hatch for admins who already have a working .conf and don't
@@ -219,10 +228,11 @@ class CustomOutbound(db.Model):  # type: ignore
             lines.append(f"Jmin = {self.jmin}")
         if self.jmax:
             lines.append(f"Jmax = {self.jmax}")
-        # S1-S4 / I1-I5: only emitted when the admin actually set them
-        # (blank = don't add the line at all, since AmneziaWG rejects empty
-        # values for these).
+        # H1-H4 / S1-S4 / I1-I5: only emitted when the admin actually set
+        # them (blank = don't add the line at all, since AmneziaWG rejects
+        # empty values for these).
         for name, value in [
+            ("H1", self.awg_h1), ("H2", self.awg_h2), ("H3", self.awg_h3), ("H4", self.awg_h4),
             ("S1", self.awg_s1), ("S2", self.awg_s2), ("S3", self.awg_s3), ("S4", self.awg_s4),
             ("I1", self.awg_i1), ("I2", self.awg_i2), ("I3", self.awg_i3), ("I4", self.awg_i4), ("I5", self.awg_i5),
         ]:

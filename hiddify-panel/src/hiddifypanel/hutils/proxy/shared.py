@@ -569,6 +569,15 @@ def make_proxy(hconfigs: dict, proxy: Proxy, domain_db: Domain, phttp=80, ptls=4
         base['awg_h2'] = hconfigs.get(ConfigEnum.amneziawg_h2)
         base['awg_h3'] = hconfigs.get(ConfigEnum.amneziawg_h3)
         base['awg_h4'] = hconfigs.get(ConfigEnum.amneziawg_h4)
+        base['awg_s1'] = hconfigs.get(ConfigEnum.amneziawg_s1)
+        base['awg_s2'] = hconfigs.get(ConfigEnum.amneziawg_s2)
+        base['awg_s3'] = hconfigs.get(ConfigEnum.amneziawg_s3)
+        base['awg_s4'] = hconfigs.get(ConfigEnum.amneziawg_s4)
+        base['awg_i1'] = hconfigs.get(ConfigEnum.amneziawg_i1)
+        base['awg_i2'] = hconfigs.get(ConfigEnum.amneziawg_i2)
+        base['awg_i3'] = hconfigs.get(ConfigEnum.amneziawg_i3)
+        base['awg_i4'] = hconfigs.get(ConfigEnum.amneziawg_i4)
+        base['awg_i5'] = hconfigs.get(ConfigEnum.amneziawg_i5)
         return base
 
     if proxy.proto in [ProxyProto.vmess]:

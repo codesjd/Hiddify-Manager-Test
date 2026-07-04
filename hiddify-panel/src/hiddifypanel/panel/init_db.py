@@ -14,7 +14,41 @@ from hiddifypanel.database import db, db_execute
 
 
 from loguru import logger
-MAX_DB_VERSION = 134
+MAX_DB_VERSION = 136
+
+
+def _v135(child_id):
+    """AmneziaWG 2.0 completion, part 2: H1-H4 range/header-obfuscation
+    columns for the Outbounds page's per-row amneziawg tunnels
+    (CustomOutbound) - _v133 added S1-S4/I1-I5 there but missed H1-H4,
+    the same oversight _v129 already fixed once for the client-facing
+    side. Existing rows get NULL, which render_amneziawg_conf() treats
+    as "omit the line", so nothing changes for outbounds that don't set
+    them."""
+    add_column(CustomOutbound.awg_h1)
+    add_column(CustomOutbound.awg_h2)
+    add_column(CustomOutbound.awg_h3)
+    add_column(CustomOutbound.awg_h4)
+
+
+def _v134(child_id):
+    """AmneziaWG 2.0 completion, part 1: S1-S4/I1-I5 obfuscation params for
+    the client-facing hiddifyawg interface - _v133 added these same
+    parameters for the Outbounds page's per-row amneziawg tunnels but
+    missed the client-facing side entirely. Seeded blank (not a shared
+    default like Jc/Jmin/Jmax below) - a canned mimicry template shipped
+    identically on every install would itself become a fingerprint, so
+    this is opt-in; an empty StrConfig row just makes the field show up
+    in Settings for an admin to fill in."""
+    add_config_if_not_exist(ConfigEnum.amneziawg_s1, "")
+    add_config_if_not_exist(ConfigEnum.amneziawg_s2, "")
+    add_config_if_not_exist(ConfigEnum.amneziawg_s3, "")
+    add_config_if_not_exist(ConfigEnum.amneziawg_s4, "")
+    add_config_if_not_exist(ConfigEnum.amneziawg_i1, "")
+    add_config_if_not_exist(ConfigEnum.amneziawg_i2, "")
+    add_config_if_not_exist(ConfigEnum.amneziawg_i3, "")
+    add_config_if_not_exist(ConfigEnum.amneziawg_i4, "")
+    add_config_if_not_exist(ConfigEnum.amneziawg_i5, "")
 
 
 def _v133(child_id):

@@ -147,7 +147,8 @@ _PROTOCOL_FIELD_SCRIPT = """
              'mux_xudp_concurrency', 'mux_xudp_proxy_udp_443',
              'hysteria_obfs_password', 'hysteria_up_mbps', 'hysteria_down_mbps',
              'awg_conf', 'awg_s1', 'awg_s2', 'awg_s3', 'awg_s4',
-             'awg_i1', 'awg_i2', 'awg_i3', 'awg_i4', 'awg_i5'];
+             'awg_i1', 'awg_i2', 'awg_i3', 'awg_i4', 'awg_i5',
+             'awg_h1', 'awg_h2', 'awg_h3', 'awg_h4'];
 
   // Every real (non-amneziawg/wireguard/freedom) protocol shares the same
   // sockopt/mux block - xray-core doesn't vary these by protocol, and the
@@ -188,6 +189,7 @@ _PROTOCOL_FIELD_SCRIPT = """
     // (Jc/Jmin/Jmax + S1-S4 + I1-I5).
     amneziawg: ['address', 'port', 'uuid_or_password', 'peer_public_key', 'preshared_key', 'local_address', 'dns',
                 'jc', 'jmin', 'jmax',
+                'awg_h1', 'awg_h2', 'awg_h3', 'awg_h4',
                 'awg_s1', 'awg_s2', 'awg_s3', 'awg_s4',
                 'awg_i1', 'awg_i2', 'awg_i3', 'awg_i4', 'awg_i5',
                 'awg_conf'],
@@ -278,6 +280,7 @@ class OutboundAdmin(AdminLTEModelView):
                      "he_interleave", "he_max_concurrent_try",
                      "mux_enabled", "mux_concurrency", "mux_xudp_concurrency", "mux_xudp_proxy_udp_443",
                      "hysteria_obfs_password", "hysteria_up_mbps", "hysteria_down_mbps",
+                     "awg_h1", "awg_h2", "awg_h3", "awg_h4",
                      "awg_s1", "awg_s2", "awg_s3", "awg_s4",
                      "awg_i1", "awg_i2", "awg_i3", "awg_i4", "awg_i5",
                      "comment", "extra_json", "protocol_field_script"]
@@ -331,6 +334,10 @@ class OutboundAdmin(AdminLTEModelView):
         "hysteria_obfs_password": _("Obfs Password (hysteria2 salamander)"),
         "hysteria_up_mbps": _("Up Mbps (hysteria2)"),
         "hysteria_down_mbps": _("Down Mbps (hysteria2)"),
+        "awg_h1": _("H1 (AmneziaWG)"),
+        "awg_h2": _("H2 (AmneziaWG)"),
+        "awg_h3": _("H3 (AmneziaWG)"),
+        "awg_h4": _("H4 (AmneziaWG)"),
         "awg_s1": _("S1 (AmneziaWG)"),
         "awg_s2": _("S2 (AmneziaWG)"),
         "awg_s3": _("S3 (AmneziaWG)"),
@@ -365,6 +372,10 @@ class OutboundAdmin(AdminLTEModelView):
         hysteria_up_mbps=_("Optional hysteria2 upload bandwidth hint in Mbps. Leave blank to let congestion control decide."),
         hysteria_down_mbps=_("Optional hysteria2 download bandwidth hint in Mbps. Leave blank to let congestion control decide."),
         awg_conf=_("Optional. Paste a complete AmneziaWG .conf here (contents of your amnezia_for_awg.conf); when set, it replaces the [Interface]/[Peer] block generated from the fields above. `Table = off` is added automatically if missing so the server default route isn't hijacked. Leave blank to build the .conf from the discrete fields instead."),
+        awg_h1=_("AmneziaWG obfuscation - replaces WireGuard's real message-1 type byte on the wire. A single value or a min-max range (e.g. \"5-10\"). Leave blank for no header obfuscation."),
+        awg_h2=_("AmneziaWG obfuscation - same as H1, for message type 2."),
+        awg_h3=_("AmneziaWG obfuscation - same as H1, for message type 3."),
+        awg_h4=_("AmneziaWG obfuscation - same as H1, for message type 4."),
         awg_s1=_("AmneziaWG obfuscation - init-packet magic byte size 1."),
         awg_s2=_("AmneziaWG obfuscation - init-packet magic byte size 2."),
         awg_s3=_("AmneziaWG obfuscation - init-packet magic byte size 3."),
