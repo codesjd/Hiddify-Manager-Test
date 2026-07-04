@@ -1,6 +1,12 @@
 "type": "vless",
 "users": [
+    {# In singbox/configs/05_inbounds_new.json.j2 the include is unwrapped
+       (no {% with flow=... %}), so `flow` is undefined when this template
+       is used for the plain (non-reality) inbound. Emitting `"flow": ""`
+       there was rejected by real sing-box builds - the field is a client-
+       side extension identifier, not a "no flow" enum. Only emit it when
+       an outer scope actually set it (Reality-tcp uses xtls-rprx-vision). #}
     {% for u in users %}
-        {"name": "{{ u['uuid'] }}", "uuid": "{{ u['uuid'] }}","flow": "{{flow}}"},
+        {"name": "{{ u['uuid'] }}", "uuid": "{{ u['uuid'] }}"{% if flow is defined and flow %},"flow": "{{flow}}"{% endif %}},
     {% endfor%}
 ]

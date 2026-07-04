@@ -131,6 +131,28 @@ class CustomOutbound(db.Model):  # type: ignore
     jc = Column(Integer, nullable=True)
     jmin = Column(Integer, nullable=True)
     jmax = Column(Integer, nullable=True)
+    # AmneziaWG-only, extended set: S1-S4 = init-packet magic byte sizes,
+    # I1-I5 = special-junk packet templates (hex-string patterns). Read as
+    # plain text (allow anything the running amneziawg version accepts) and
+    # emitted verbatim into the [Interface] block of the generated .conf;
+    # blank = don't emit that line at all. Named exactly as the AmneziaWG
+    # spec does (case-sensitive on wire).
+    awg_s1 = Column(String(200), nullable=True, default='')
+    awg_s2 = Column(String(200), nullable=True, default='')
+    awg_s3 = Column(String(200), nullable=True, default='')
+    awg_s4 = Column(String(200), nullable=True, default='')
+    awg_i1 = Column(Text, nullable=True, default='')
+    awg_i2 = Column(Text, nullable=True, default='')
+    awg_i3 = Column(Text, nullable=True, default='')
+    awg_i4 = Column(Text, nullable=True, default='')
+    awg_i5 = Column(Text, nullable=True, default='')
+    # Optional: raw AmneziaWG .conf paste. When non-empty, this replaces the
+    # generated [Interface]/[Peer] entirely in render_amneziawg_conf() -
+    # the escape hatch for admins who already have a working .conf and don't
+    # want to translate every field into the form's discrete inputs (address/
+    # port/uuid/peer_public_key/etc). The form's structured fields still act
+    # as convenient defaults if the paste field is left blank.
+    awg_conf = Column(Text, nullable=True, default='')
     # hysteria2-only. password reuses uuid_or_password; server/port reuse
     # address/port; sni reuses the shared sni field. These three cover the
     # rest of a hysteria2 outbound: Salamander obfuscation password (blank =
@@ -170,6 +192,18 @@ class CustomOutbound(db.Model):  # type: ignore
         interface only, with no routing table changes - exactly the same
         fix other/warp/wireguard/run.sh.j2 already applies to its own
         interface for the identical reason."""
+        # When the admin has pasted a full .conf, use it verbatim (they're
+        # explicitly saying "I know what this needs to look like"). Only
+        # inject `Table = off` if it isn't already there - without it,
+        # awg-quick installs a default route through this interface and
+        # takes the server offline (same disaster the from-scratch branch
+        # below already guards against).
+        pasted = (self.awg_conf or '').strip()
+        if pasted:
+            if 'table' not in pasted.lower():
+                pasted = pasted.replace('[Interface]', '[Interface]\nTable = off', 1)
+            return pasted.rstrip() + "\n"
+
         lines = [
             "[Interface]",
             f"PrivateKey = {self.uuid_or_password or ''}",
@@ -185,6 +219,15 @@ class CustomOutbound(db.Model):  # type: ignore
             lines.append(f"Jmin = {self.jmin}")
         if self.jmax:
             lines.append(f"Jmax = {self.jmax}")
+        # S1-S4 / I1-I5: only emitted when the admin actually set them
+        # (blank = don't add the line at all, since AmneziaWG rejects empty
+        # values for these).
+        for name, value in [
+            ("S1", self.awg_s1), ("S2", self.awg_s2), ("S3", self.awg_s3), ("S4", self.awg_s4),
+            ("I1", self.awg_i1), ("I2", self.awg_i2), ("I3", self.awg_i3), ("I4", self.awg_i4), ("I5", self.awg_i5),
+        ]:
+            if value:
+                lines.append(f"{name} = {value}")
         lines += [
             "",
             "[Peer]",
@@ -895,33 +938,19 @@ class CustomRoutingRule(db.Model):  # type: ignore
 
 
 def get_available_inbound_tags() -> list[tuple[str, str]]:
-    """The real xray inbound tags that will actually exist in the generated
-    config, so a routing rule can match "traffic that came in on this
-    inbound" (inboundTag) instead of only domain/IP.
+    """The list of inbounds a Routing Rule's Match Inbound(s) field can
+    target - now iterated directly from the Proxy table (same source as the
+    Inbound Overrides page), one entry per enabled Proxy row, labeled by
+    that row's own name.
 
-    Hiddify does NOT create one inbound per Proxy row (protocol/transport/
-    cdn-mode/domain combination) - most protocol+transport combinations
-    share a single inbound routed to by HAProxy/SNI regardless of which
-    domain or CDN mode the client used (see xray/configs/05_inbounds_new.
-    json.j2: tag "v10-{protocol}-{stream}"). So the underlying *value* here
-    is still "this protocol over this transport", not a specific domain/
-    mode/proxy - the closest real match to what actually exists on the
-    wire. Reality is the one exception: each reality domain gets its own
-    dedicated inbound (xray/configs/05_inbounds_02_reality_main.json.j2:
-    tag "realityin_{stream}_{port}"), so those are listed per-domain.
-
-    What DOES vary is the *label*: rather than one opaque "(any domain)"
-    catch-all per protocol+transport, list every enabled Proxy row that
-    actually rides that shared inbound individually by its own configured
-    name - same granularity as the Proxies and Inbound Override pages, even
-    though several of those rows (one per CDN mode) resolve to the exact
-    same tag under the hood. Selecting more than one that shares a tag is
-    harmless (on_model_change dedupes before storing).
-
-    Returns a list of (tag, human-readable label) tuples for use as
-    SelectField choices, mirroring the *_enable flags and loops the
-    templates themselves use so this only ever lists tags that will really
-    be generated.
+    Multiple Proxy rows resolve to the same underlying xray/singbox inbound
+    tag (e.g. every "vless ws direct/relay/CDN" row rides the shared
+    v10-vless-ws inbound - xray-core doesn't create a per-domain inbound
+    for those). The *tag* returned here still reflects that reality
+    (RoutingRuleAdmin.on_model_change dedupes tags before storing), but
+    the *label* is per-row so admins pick from the exact same list they
+    already know from Inbound Overrides, not an opaque protocol/transport
+    summary.
     """
     from hiddifypanel.models.config import hconfig
     from hiddifypanel.models.config_enum import ConfigEnum
@@ -930,72 +959,54 @@ def get_available_inbound_tags() -> list[tuple[str, str]]:
     from hiddifypanel.models.proxy import Proxy
 
     child_id = Child.current().id
-    choices = []
+    choices: list[tuple[str, str]] = []
 
-    core_type = hconfig(ConfigEnum.core_type, child_id)
-    for protocol in ['vless', 'vmess', 'trojan']:
-        if not hconfig(getattr(ConfigEnum, f'{protocol}_enable'), child_id):
-            continue
-        for stream in ['xhttp', 'ws', 'grpc', 'tcp', 'httpupgrade']:
-            if stream != 'xhttp' and core_type != 'xray':
-                continue
-            if not hconfig(getattr(ConfigEnum, f'{stream}_enable'), child_id):
-                continue
-            tag = f'v10-{protocol}-{stream}'
-            rows = [r for r in Proxy.query.filter(
-                Proxy.child_id == child_id, Proxy.enable == True, Proxy.proto == protocol).all()
-                if str(r.transport).lower() == stream]
-            if rows:
-                for r in rows:
-                    choices.append((tag, r.name))
-            else:
-                choices.append((tag, f'{protocol} / {stream} (any domain, direct+CDN+relay)'))
+    def _row_tag(p) -> str | None:
+        proto = str(p.proto).lower()
+        transport = str(p.transport).lower()
+        l3 = str(p.l3).lower()
+        # reality per-domain inbounds are keyed on Domain + port, not Proxy.
+        if 'reality' in l3:
+            return None
+        if proto in ('vless', 'vmess', 'trojan') and transport in ('xhttp', 'ws', 'grpc', 'tcp', 'httpupgrade'):
+            return f'v10-{proto}-{transport}'
+        if proto == 'vless' and transport == 'tcp' and 'kcp' in l3:
+            return 'kcp'
+        if proto == 'mieru' and transport in ('tcp', 'udp'):
+            return f'v10-mieru-{transport}'
+        if proto == 'naive':
+            return 'v10-naive'
+        # tuic/hysteria2/naive-quic per-domain inbounds are keyed on Domain
+        # + port too (Domain.internal_port_tuic/hysteria2/naive), not Proxy.
+        return None
 
-    if hconfig(ConfigEnum.vless_enable, child_id) and hconfig(ConfigEnum.kcp_enable, child_id):
-        choices.append(('kcp', 'vless / kcp'))
+    for p in Proxy.query.filter(Proxy.child_id == child_id, Proxy.enable == True).all():
+        tag = _row_tag(p)
+        if tag:
+            choices.append((tag, p.name))
 
+    # Reality inbounds are per-domain (one dedicated inbound per reality
+    # domain, unlike everything else). Same source as before.
     if hconfig(ConfigEnum.reality_enable, child_id):
         reality_streams = {
             DomainType.special_reality_tcp: 'tcp',
             DomainType.special_reality_xhttp: 'xhttp',
             DomainType.special_reality_grpc: 'grpc',
         }
-        domains = Domain.query.filter(Domain.child_id == child_id, Domain.mode.in_(list(reality_streams.keys()))).all()
-        for d in domains:
-            port = d.internal_port_special
-            if not port:
+        for d in Domain.query.filter(Domain.child_id == child_id, Domain.mode.in_(list(reality_streams.keys()))).all():
+            if not d.internal_port_special:
                 continue
             stream = reality_streams[d.mode]
-            tag = f'realityin_{stream}_{port}'
-            choices.append((tag, f'{d.domain} - reality {stream}'))
+            choices.append((f'realityin_{stream}_{d.internal_port_special}', f'{d.domain} - reality {stream}'))
 
-    # mieru/naive/tuic/hysteria2 only exist under singbox in this codebase
-    # (no xray equivalent at all - see singbox/configs/05_inbounds_mieru.
-    # json.j2 etc.), so these only ever mean anything with core_type=
-    # singbox, but are listed regardless of core_type since a routing rule
-    # picked now still applies correctly if core_type is switched later.
-    if hconfig(ConfigEnum.mieru_enable, child_id):
-        if hconfig(ConfigEnum.mieru_tcp_ports, child_id):
-            choices.append(('v10-mieru-tcp', 'mieru / tcp'))
-        if hconfig(ConfigEnum.mieru_udp_ports, child_id):
-            choices.append(('v10-mieru-udp', 'mieru / udp'))
-
-    if hconfig(ConfigEnum.naive_enable, child_id):
-        choices.append(('v10-naive', 'naive / tcp (any domain)'))
-
-    domains_for_ports = Domain.query.filter(Domain.child_id == child_id).all()
-    if hconfig(ConfigEnum.tuic_enable, child_id):
-        for d in domains_for_ports:
-            if d.internal_port_tuic:
-                choices.append((f'tuic_in_{d.internal_port_tuic}', f'{d.domain} - tuic'))
-    if hconfig(ConfigEnum.hysteria_enable, child_id):
-        for d in domains_for_ports:
-            if d.internal_port_hysteria2:
-                choices.append((f'hysteria_in_{d.internal_port_hysteria2}', f'{d.domain} - hysteria2'))
-    if hconfig(ConfigEnum.naive_enable, child_id):
-        for d in domains_for_ports:
-            if d.internal_port_naive:
-                choices.append((f'v10-naive-quic{d.internal_port_naive}', f'{d.domain} - naive quic'))
+    # Per-domain non-reality inbounds: tuic / hysteria2 / naive-quic.
+    for d in Domain.query.filter(Domain.child_id == child_id).all():
+        if hconfig(ConfigEnum.tuic_enable, child_id) and d.internal_port_tuic:
+            choices.append((f'tuic_in_{d.internal_port_tuic}', f'{d.domain} - tuic'))
+        if hconfig(ConfigEnum.hysteria_enable, child_id) and d.internal_port_hysteria2:
+            choices.append((f'hysteria_in_{d.internal_port_hysteria2}', f'{d.domain} - hysteria2'))
+        if hconfig(ConfigEnum.naive_enable, child_id) and d.internal_port_naive:
+            choices.append((f'v10-naive-quic{d.internal_port_naive}', f'{d.domain} - naive quic'))
 
     return choices
 

@@ -306,12 +306,15 @@ class UserView(FlaskView):
     def singbox_ssh_imp(self):
         if not hconfig(ConfigEnum.ssh_server_enable):
             return "The SSH server is disabled"
-        # SSH is a singbox-only inbound; under xray core the singbox service
-        # (and therefore the SSH listener) isn't running at all, so this
-        # config would connect to nothing. Refuse clearly instead of handing
-        # out a dead config.
-        if hconfig(ConfigEnum.core_type) != 'singbox':
-            return "The SSH server requires the sing-box core (set Core Type to sing-box in Settings)"
+        # (SSH is a singbox-only inbound; under xray core the singbox service
+        # isn't running so the connection would fail at TCP time. We used to
+        # explicitly block here on core_type != 'singbox', but that had false
+        # positives during core-switch transitions - the DB says singbox but
+        # something in the config-read path returned a stale value - blocking
+        # users who WERE on singbox. get_proxies() still filters SSH from the
+        # main proxy list, so nobody stumbles on this route by accident;
+        # dropping this hard block just means users mid-switch get the real
+        # underlying "connection refused" instead of a scary message.)
         # elif not hconfig(ConfigEnum.sub_singbox_ssh_enable):
         #     return "The Singbox: SSH subscription is disabled"
 

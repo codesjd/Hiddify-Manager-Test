@@ -90,8 +90,8 @@ class RoutingRuleAdmin(AdminLTEModelView):
         rules = CustomRoutingRule.query.filter_by(child_id=model.child_id).order_by(CustomRoutingRule.priority.asc()).all()
         ids = [r.id for r in rules]
         idx = ids.index(model.id) if model.id in ids else -1
-        up_url = hutils.flask.hurl_for('routingruleadmin.move_up', id=model.id)
-        down_url = hutils.flask.hurl_for('routingruleadmin.move_down', id=model.id)
+        up_url = hutils.flask.hurl_for('flask.customroutingrule.move_up', id=model.id)
+        down_url = hutils.flask.hurl_for('flask.customroutingrule.move_down', id=model.id)
         up_disabled = 'disabled' if idx <= 0 else ''
         down_disabled = 'disabled' if idx == -1 or idx >= len(ids) - 1 else ''
         return Markup(
@@ -121,7 +121,7 @@ class RoutingRuleAdmin(AdminLTEModelView):
         row up/down in the list" regardless of what the underlying integer
         values happen to be."""
         if not login_required(roles={Role.super_admin}, permissions={Permission.manage_settings})(lambda: True)():
-            return redirect(hutils.flask.hurl_for('routingruleadmin.index_view'))
+            return redirect(hutils.flask.hurl_for('flask.customroutingrule.index_view'))
         model = CustomRoutingRule.query.get(id)
         if model:
             rules = CustomRoutingRule.query.filter_by(child_id=model.child_id).order_by(CustomRoutingRule.priority.asc()).all()
@@ -134,7 +134,7 @@ class RoutingRuleAdmin(AdminLTEModelView):
                 db.session.commit()
                 hutils.apply_scope.mark_dirty(hutils.apply_scope.CORE_ONLY_SUBSYSTEMS)
                 hutils.flask.flash_config_success(restart_mode=ApplyMode.apply_config, domain_changed=False)
-        return redirect(request.referrer or hutils.flask.hurl_for('routingruleadmin.index_view'))
+        return redirect(request.referrer or hutils.flask.hurl_for('flask.customroutingrule.index_view'))
 
     def is_accessible(self):
         if login_required(roles={Role.super_admin}, permissions={Permission.manage_settings})(lambda: True)() != True:

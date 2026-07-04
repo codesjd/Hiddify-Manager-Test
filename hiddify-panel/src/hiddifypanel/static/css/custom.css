@@ -202,8 +202,12 @@ fieldset fieldset legend {
 }
 
 /* multiple-select.js's own default vertically mis-centers the dropdown
-   arrow/placeholder span inside .ms-choice on the match-inbounds widgets. */
-.ms-parent.form-control .ms-choice>span {
+   arrow/placeholder span inside .ms-choice. Applies to every multipleSelect
+   widget on the page (match-inbounds inside the Create/Edit Rule modal,
+   show_domains, download_domain) - the earlier `.ms-parent.form-control`
+   selector missed the ones where multipleSelect stripped .form-control
+   off the wrapper during init. */
+.ms-parent .ms-choice > span {
   transform: translate(1%, -50%);
 }
 

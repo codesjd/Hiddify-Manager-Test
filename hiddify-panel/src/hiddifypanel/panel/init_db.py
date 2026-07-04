@@ -14,7 +14,22 @@ from hiddifypanel.database import db, db_execute
 
 
 from loguru import logger
-MAX_DB_VERSION = 133
+MAX_DB_VERSION = 134
+
+
+def _v133(child_id):
+    """New AmneziaWG outbound fields: raw .conf paste plus S1-S4 and I1-I5
+    obfuscation parameters. All optional/blank on existing rows."""
+    add_column(CustomOutbound.awg_conf)
+    add_column(CustomOutbound.awg_s1)
+    add_column(CustomOutbound.awg_s2)
+    add_column(CustomOutbound.awg_s3)
+    add_column(CustomOutbound.awg_s4)
+    add_column(CustomOutbound.awg_i1)
+    add_column(CustomOutbound.awg_i2)
+    add_column(CustomOutbound.awg_i3)
+    add_column(CustomOutbound.awg_i4)
+    add_column(CustomOutbound.awg_i5)
 
 
 def _v132(child_id):

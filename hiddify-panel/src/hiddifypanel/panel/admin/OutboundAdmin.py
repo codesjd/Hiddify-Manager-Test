@@ -1,7 +1,10 @@
+import json
 import wtforms as wtf
 from wtforms.validators import ValidationError
 from markupsafe import Markup
 from flask_babel import lazy_gettext as _
+from flask import request, jsonify
+from flask_admin import expose
 from .adminlte import AdminLTEModelView
 from hiddifypanel.auth import login_required
 from hiddifypanel.models import *
@@ -28,6 +31,10 @@ from hiddifypanel import hutils
 class _ScriptField(wtf.Field):
     widget = None
 
+    def __init__(self, label='', script='', **kwargs):
+        super().__init__(label=label, **kwargs)
+        self._script = script
+
     def process_formdata(self, valuelist):
         pass
 
@@ -35,7 +42,78 @@ class _ScriptField(wtf.Field):
         return ''
 
     def __call__(self, **kwargs):
-        return Markup(_PROTOCOL_FIELD_SCRIPT)
+        if self._script == _IMPORT_BUTTON_SCRIPT:
+            return Markup(_import_button_script_html())
+        return Markup(self._script or _PROTOCOL_FIELD_SCRIPT)
+
+
+def _import_button_script_html() -> str:
+    """Build the Import button + AJAX handler on the fly, with the correct
+    parse_link URL for the current request's proxy_path baked in (can't be a
+    module-level constant because the URL contains the runtime proxy_path).
+    """
+    parse_url = hutils.flask.hurl_for('flask.customoutbound.parse_link_view')
+    # NOTE: uses fetch() so it works both inside the flask-admin modal and
+    # (if the create/edit form is ever navigated to standalone) full-page.
+    return """
+<script>
+(function() {
+  var link = document.querySelector('[name="import_link"]');
+  if (!link || link.dataset.importBtnBound) return;
+  link.dataset.importBtnBound = '1';
+  var wrap = link.closest('.form-group') || link.parentElement;
+  if (!wrap) return;
+  var btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'btn btn-primary btn-sm mt-1';
+  btn.textContent = 'Import';
+  btn.style.marginTop = '6px';
+  var status = document.createElement('span');
+  status.style.marginLeft = '10px';
+  status.style.fontSize = '12px';
+  wrap.appendChild(btn);
+  wrap.appendChild(status);
+  function fill(fields) {
+    Object.keys(fields).forEach(function(name) {
+      var el = document.querySelector('[name="' + name + '"]');
+      if (!el) return;
+      el.value = fields[name] == null ? '' : fields[name];
+      // Fire change so the per-protocol show/hide script sees the new
+      // protocol/security values.
+      el.dispatchEvent(new Event('change', {bubbles: true}));
+    });
+  }
+  btn.addEventListener('click', function() {
+    status.style.color = '';
+    status.textContent = 'Importing...';
+    var form = new FormData();
+    form.append('link', link.value);
+    fetch(""" + repr(parse_url) + """, {method: 'POST', body: form, credentials: 'same-origin'})
+      .then(function(r) { return r.json(); })
+      .then(function(j) {
+        if (j.ok) {
+          fill(j.fields);
+          status.style.color = 'green';
+          status.textContent = 'Imported ✓';
+        } else {
+          status.style.color = 'red';
+          status.textContent = j.error || 'Failed to parse link';
+        }
+      })
+      .catch(function(e) {
+        status.style.color = 'red';
+        status.textContent = 'Error: ' + e;
+      });
+  });
+})();
+</script>
+"""
+
+
+# The _ScriptField for import_button_script gets its HTML at render time via
+# _script - but the constant we pass in class body evaluates once, before app
+# context exists. Sentinel resolved lazily in _ScriptField.__call__ below.
+_IMPORT_BUTTON_SCRIPT = "__RUNTIME_IMPORT_BUTTON__"
 
 
 _PROTOCOL_FIELD_SCRIPT = """
@@ -54,7 +132,9 @@ _PROTOCOL_FIELD_SCRIPT = """
              'sockopt_address_port_strategy', 'he_try_delay_ms', 'he_prioritize_ipv6',
              'he_interleave', 'he_max_concurrent_try', 'mux_enabled', 'mux_concurrency',
              'mux_xudp_concurrency', 'mux_xudp_proxy_udp_443',
-             'hysteria_obfs_password', 'hysteria_up_mbps', 'hysteria_down_mbps'];
+             'hysteria_obfs_password', 'hysteria_up_mbps', 'hysteria_down_mbps',
+             'awg_conf', 'awg_s1', 'awg_s2', 'awg_s3', 'awg_s4',
+             'awg_i1', 'awg_i2', 'awg_i3', 'awg_i4', 'awg_i5'];
 
   // Every real (non-amneziawg/wireguard/freedom) protocol shares the same
   // sockopt/mux block - xray-core doesn't vary these by protocol, and the
@@ -84,7 +164,14 @@ _PROTOCOL_FIELD_SCRIPT = """
     // transport/mux selectors apply. sni is its TLS server_name.
     hysteria: ['address', 'port', 'uuid_or_password', 'sni', 'hysteria_obfs_password', 'hysteria_up_mbps', 'hysteria_down_mbps'],
     wireguard: ['address', 'port', 'uuid_or_password', 'peer_public_key', 'local_address'],
-    amneziawg: ['address', 'port', 'uuid_or_password', 'peer_public_key', 'preshared_key', 'local_address', 'dns', 'jc', 'jmin', 'jmax'],
+    // AmneziaWG has its full obfuscation params on top of the wireguard
+    // basics (Jc/Jmin/Jmax + S1-S4 + I1-I5) plus a raw .conf paste field
+    // as an escape hatch for admins who already have a working config file.
+    amneziawg: ['address', 'port', 'uuid_or_password', 'peer_public_key', 'preshared_key', 'local_address', 'dns',
+                'jc', 'jmin', 'jmax',
+                'awg_s1', 'awg_s2', 'awg_s3', 'awg_s4',
+                'awg_i1', 'awg_i2', 'awg_i3', 'awg_i4', 'awg_i5',
+                'awg_conf'],
     freedom: []
   };
   // reality_public_key/reality_short_id only ever matter when Security is
@@ -155,7 +242,7 @@ class OutboundAdmin(AdminLTEModelView):
     column_hide_backrefs = False
     list_template = 'model/outbound_list.html'
     column_list = ["tag", "protocol", "address", "port", "network", "security", "comment"]
-    form_columns = ["tag", "import_link", "protocol", "address", "port", "uuid_or_password", "ss_method",
+    form_columns = ["tag", "import_link", "import_button_script", "protocol", "address", "port", "uuid_or_password", "ss_method",
                      "peer_public_key", "preshared_key", "local_address", "dns", "jc", "jmin", "jmax",
                      "network", "security", "sni", "ws_path", "host_header", "fingerprint", "flow", "encryption",
                      "reality_public_key", "reality_short_id",
@@ -167,6 +254,8 @@ class OutboundAdmin(AdminLTEModelView):
                      "he_interleave", "he_max_concurrent_try",
                      "mux_enabled", "mux_concurrency", "mux_xudp_concurrency", "mux_xudp_proxy_udp_443",
                      "hysteria_obfs_password", "hysteria_up_mbps", "hysteria_down_mbps",
+                     "awg_s1", "awg_s2", "awg_s3", "awg_s4",
+                     "awg_i1", "awg_i2", "awg_i3", "awg_i4", "awg_i5", "awg_conf",
                      "comment", "extra_json", "protocol_field_script"]
 
     column_labels = {
@@ -218,6 +307,16 @@ class OutboundAdmin(AdminLTEModelView):
         "hysteria_obfs_password": _("Obfs Password (hysteria2 salamander)"),
         "hysteria_up_mbps": _("Up Mbps (hysteria2)"),
         "hysteria_down_mbps": _("Down Mbps (hysteria2)"),
+        "awg_s1": _("S1 (AmneziaWG)"),
+        "awg_s2": _("S2 (AmneziaWG)"),
+        "awg_s3": _("S3 (AmneziaWG)"),
+        "awg_s4": _("S4 (AmneziaWG)"),
+        "awg_i1": _("I1 (AmneziaWG)"),
+        "awg_i2": _("I2 (AmneziaWG)"),
+        "awg_i3": _("I3 (AmneziaWG)"),
+        "awg_i4": _("I4 (AmneziaWG)"),
+        "awg_i5": _("I5 (AmneziaWG)"),
+        "awg_conf": _("Raw .conf paste (AmneziaWG)"),
         "comment": _("Comment"),
         "extra_json": _("Advanced Override (JSON)"),
     }
@@ -241,6 +340,16 @@ class OutboundAdmin(AdminLTEModelView):
         hysteria_obfs_password=_("hysteria2 Salamander obfuscation password. Must match the server's obfs password. Leave blank if the server has no obfs."),
         hysteria_up_mbps=_("Optional hysteria2 upload bandwidth hint in Mbps. Leave blank to let congestion control decide."),
         hysteria_down_mbps=_("Optional hysteria2 download bandwidth hint in Mbps. Leave blank to let congestion control decide."),
+        awg_conf=_("Optional. Paste a complete AmneziaWG .conf here (contents of your amnezia_for_awg.conf); when set, it replaces the [Interface]/[Peer] block generated from the fields above. `Table = off` is added automatically if missing so the server default route isn't hijacked. Leave blank to build the .conf from the discrete fields instead."),
+        awg_s1=_("AmneziaWG obfuscation - init-packet magic byte size 1."),
+        awg_s2=_("AmneziaWG obfuscation - init-packet magic byte size 2."),
+        awg_s3=_("AmneziaWG obfuscation - init-packet magic byte size 3."),
+        awg_s4=_("AmneziaWG obfuscation - init-packet magic byte size 4."),
+        awg_i1=_("AmneziaWG obfuscation - special-junk pattern I1."),
+        awg_i2=_("AmneziaWG obfuscation - special-junk pattern I2."),
+        awg_i3=_("AmneziaWG obfuscation - special-junk pattern I3."),
+        awg_i4=_("AmneziaWG obfuscation - special-junk pattern I4."),
+        awg_i5=_("AmneziaWG obfuscation - special-junk pattern I5."),
         extra_json=_('Optional. Deep-merged on top of the generated outbound JSON for anything the form above can\'t express, '
                       'e.g. {"streamSettings": {"sockopt": {"dialerProxy": "another-tag"}}} to chain through yet another outbound.'),
     )
@@ -248,11 +357,11 @@ class OutboundAdmin(AdminLTEModelView):
     form_extra_fields = {
         "import_link": wtf.TextAreaField(
             _("Import Link"),
-            description=_('Paste a share link and save - it fills in the fields below from it (overwriting whatever was there), '
+            description=_('Paste a share link and click Import (or Save) - it fills in the fields below from it, '
                            'auto-detecting the protocol. Supports vless://, vmess://, trojan://, ss:// (shadowsocks), socks://, '
-                           'http:// and hysteria2://. AmneziaWG has no share-link format - configure it from its .conf fields '
-                           'manually. Leave blank to edit the fields directly instead.'),
+                           'http:// and hysteria2://. AmneziaWG has no share-link format - use its .conf paste field further down.'),
         ),
+        "import_button_script": _ScriptField(label="", script=_IMPORT_BUTTON_SCRIPT),
         "ss_method": wtf.SelectField(
             _("Encryption Method (shadowsocks)"),
             choices=[(m, m) for m in [
@@ -298,6 +407,25 @@ class OutboundAdmin(AdminLTEModelView):
 
     def edit_form(self, obj=None):
         return self._disable_select2(super().edit_form(obj))
+
+    @expose('/parse_link', methods=['POST'])
+    def parse_link_view(self):
+        """AJAX endpoint used by the Import button next to the Import Link
+        field: takes a raw share link and returns the CustomOutbound field
+        values it implies as JSON, so the client-side script can fill the
+        form in place without a save round-trip."""
+        if not self.is_accessible():
+            return jsonify({"ok": False, "error": "forbidden"}), 403
+        raw = (request.form.get('link') or request.json and request.json.get('link') or '').strip() if request.form or request.is_json else ''
+        try:
+            parsed = parse_share_link(raw)
+        except ValueError as e:
+            return jsonify({"ok": False, "error": str(e)})
+        # Enum values -> raw strings for the form-select values
+        out = {}
+        for k, v in parsed.items():
+            out[k] = str(v) if hasattr(v, 'value') else v
+        return jsonify({"ok": True, "fields": out})
 
     def on_model_change(self, form, model, is_created):
         model.child_id = Child.current().id
