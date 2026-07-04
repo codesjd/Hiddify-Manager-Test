@@ -152,21 +152,27 @@ _PROTOCOL_FIELD_SCRIPT = """
   // everything not listed here gets hidden. address/port double as the
   // wireguard/amneziawg Endpoint, uuid_or_password as the PrivateKey (same
   // convention the Python side uses in routing.py).
+  // import_link/import_button_script are shared by every share-link protocol
+  // parse_share_link() understands (vless/vmess/trojan/ss/socks/http/
+  // hysteria2) - listed once here so adding a protocol to IMPORT_LINK_PROTOS
+  // is the only place needed, instead of repeating it in every SHOW_FOR entry.
+  var IMPORT_LINK = ['import_link', 'import_button_script'];
   var SHOW_FOR = {
     vless: ['address', 'port', 'uuid_or_password', 'network', 'security', 'sni',
-            'ws_path', 'host_header', 'fingerprint', 'flow', 'import_link', 'encryption'].concat(SOCKOPT_MUX),
-    vmess: ['address', 'port', 'uuid_or_password', 'network', 'security', 'sni', 'ws_path', 'host_header', 'fingerprint'].concat(SOCKOPT_MUX),
-    trojan: ['address', 'port', 'uuid_or_password', 'network', 'security', 'sni', 'ws_path', 'host_header', 'fingerprint'].concat(SOCKOPT_MUX),
-    shadowsocks: ['address', 'port', 'uuid_or_password', 'ss_method', 'network', 'security', 'sni', 'ws_path', 'host_header', 'fingerprint'].concat(SOCKOPT_MUX),
-    socks: ['address', 'port', 'uuid_or_password'].concat(SOCKOPT_MUX),
-    http: ['address', 'port', 'uuid_or_password'].concat(SOCKOPT_MUX),
+            'ws_path', 'host_header', 'fingerprint', 'flow', 'encryption'].concat(IMPORT_LINK, SOCKOPT_MUX),
+    vmess: ['address', 'port', 'uuid_or_password', 'network', 'security', 'sni', 'ws_path', 'host_header', 'fingerprint'].concat(IMPORT_LINK, SOCKOPT_MUX),
+    trojan: ['address', 'port', 'uuid_or_password', 'network', 'security', 'sni', 'ws_path', 'host_header', 'fingerprint'].concat(IMPORT_LINK, SOCKOPT_MUX),
+    shadowsocks: ['address', 'port', 'uuid_or_password', 'ss_method', 'network', 'security', 'sni', 'ws_path', 'host_header', 'fingerprint'].concat(IMPORT_LINK, SOCKOPT_MUX),
+    socks: ['address', 'port', 'uuid_or_password'].concat(IMPORT_LINK, SOCKOPT_MUX),
+    http: ['address', 'port', 'uuid_or_password'].concat(IMPORT_LINK, SOCKOPT_MUX),
     // hysteria2 is QUIC/TLS with its own obfs+bandwidth knobs; no network/
     // transport/mux selectors apply. sni is its TLS server_name.
-    hysteria: ['address', 'port', 'uuid_or_password', 'sni', 'hysteria_obfs_password', 'hysteria_up_mbps', 'hysteria_down_mbps'],
+    hysteria: ['address', 'port', 'uuid_or_password', 'sni', 'hysteria_obfs_password', 'hysteria_up_mbps', 'hysteria_down_mbps'].concat(IMPORT_LINK),
     wireguard: ['address', 'port', 'uuid_or_password', 'peer_public_key', 'local_address'],
-    // AmneziaWG has its full obfuscation params on top of the wireguard
-    // basics (Jc/Jmin/Jmax + S1-S4 + I1-I5) plus a raw .conf paste field
-    // as an escape hatch for admins who already have a working config file.
+    // AmneziaWG has no share-link format (no import_link here - it gets its
+    // own raw .conf paste field instead, occupying the same spot in the
+    // form) plus its full obfuscation params on top of the wireguard basics
+    // (Jc/Jmin/Jmax + S1-S4 + I1-I5).
     amneziawg: ['address', 'port', 'uuid_or_password', 'peer_public_key', 'preshared_key', 'local_address', 'dns',
                 'jc', 'jmin', 'jmax',
                 'awg_s1', 'awg_s2', 'awg_s3', 'awg_s4',
@@ -242,7 +248,12 @@ class OutboundAdmin(AdminLTEModelView):
     column_hide_backrefs = False
     list_template = 'model/outbound_list.html'
     column_list = ["tag", "protocol", "address", "port", "network", "security", "comment"]
-    form_columns = ["tag", "import_link", "import_button_script", "protocol", "address", "port", "uuid_or_password", "ss_method",
+    # awg_conf sits right next to import_link/import_button_script - the two
+    # occupy the same spot in the form (AmneziaWG has no share-link format,
+    # so it gets a raw .conf paste instead), toggled by the same
+    # SHOW_FOR/protocol switch in _PROTOCOL_FIELD_SCRIPT so only one of the
+    # two is ever visible at a time, never both and never neither.
+    form_columns = ["tag", "import_link", "import_button_script", "awg_conf", "protocol", "address", "port", "uuid_or_password", "ss_method",
                      "peer_public_key", "preshared_key", "local_address", "dns", "jc", "jmin", "jmax",
                      "network", "security", "sni", "ws_path", "host_header", "fingerprint", "flow", "encryption",
                      "reality_public_key", "reality_short_id",
@@ -255,7 +266,7 @@ class OutboundAdmin(AdminLTEModelView):
                      "mux_enabled", "mux_concurrency", "mux_xudp_concurrency", "mux_xudp_proxy_udp_443",
                      "hysteria_obfs_password", "hysteria_up_mbps", "hysteria_down_mbps",
                      "awg_s1", "awg_s2", "awg_s3", "awg_s4",
-                     "awg_i1", "awg_i2", "awg_i3", "awg_i4", "awg_i5", "awg_conf",
+                     "awg_i1", "awg_i2", "awg_i3", "awg_i4", "awg_i5",
                      "comment", "extra_json", "protocol_field_script"]
 
     column_labels = {

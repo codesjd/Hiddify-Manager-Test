@@ -2,7 +2,7 @@
 <!-- {% from 'macros.html' import render_toast %} -->
 {% from 'macros.html' import modal %}
 <!DOCTYPE html>
-<html>
+<html lang="{{ get_locale() }}">
 
 <head>
   <title>{% block title %}{% endblock %} | {{_("master.page-title")}} | {{version}}</title>
@@ -73,7 +73,7 @@
   <link rel="stylesheet" type="text/css"
     href="https://cdn.datatables.net/responsive/2.4.0/css/responsive.bootstrap4.min.css">
 
-  <link rel="stylesheet" href="{{ static_url_for( filename='css/custom.css',version=5.23 ) }}">
+  <link rel="stylesheet" href="{{ static_url_for( filename='css/custom.css',version=5.27 ) }}">
   {% if get_locale()=='fa' %}
   <link rel="stylesheet" href="{{static_url_for(filename='css/bootstrap4-rtl.min.css')}}">
   <link rel="stylesheet" href="{{static_url_for(filename='css/adminlte.fa.css')}}">

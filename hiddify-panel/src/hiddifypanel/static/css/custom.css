@@ -201,14 +201,22 @@ fieldset fieldset legend {
   color: white;
 }
 
-/* multiple-select.js's own default vertically mis-centers the dropdown
-   arrow/placeholder span inside .ms-choice. Applies to every multipleSelect
-   widget on the page (match-inbounds inside the Create/Edit Rule modal,
-   show_domains, download_domain) - the earlier `.ms-parent.form-control`
-   selector missed the ones where multipleSelect stripped .form-control
-   off the wrapper during init. */
+/* multiple-select.js's own base CSS pins this span to `top:0` (no
+   vertical centering at all); the vendored bootstrap theme
+   (plugins/multiple-select/themes/bootstrap.min.css) overrides that with
+   `top:50%; transform:translateY(-50%)`, but only IF that theme file
+   actually loads after the base one on a given page. Setting `top` here
+   too makes the fix work even if that ordering / file ever changes -
+   don't rely on the theme alone for something this visible. Applies to
+   every multipleSelect widget on the page (Match Inbound(s) in the
+   Create/Edit Rule modal, show_domains, download_domain).
+   !important because this must beat the vendored library CSS is loaded
+   after custom.css in the page (multiple-select.min.css/bootstrap theme
+   are included in flaskadmin-layout.html's tail_js block, i.e. later in
+   the document than custom.css in master.html's <head>). */
 .ms-parent .ms-choice > span {
-  transform: translate(1%, -50%);
+  top: 50% !important;
+  transform: translate(1%, -50%) !important;
 }
 
 .dark-mode pre {

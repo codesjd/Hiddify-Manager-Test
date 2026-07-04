@@ -3113,3 +3113,79 @@ msgstr "📅每周"
 
 msgid "worker"
 msgstr "✴️ Cloudflare Worker"
+
+# --- New admin-page labels from the Outbounds/Routing/Inbound-Override features (2026) ---
+msgid "Outbounds"
+msgstr "出站"
+
+msgid "Routing Rules"
+msgstr "路由规则"
+
+msgid "Inbound Overrides"
+msgstr "入站覆盖"
+
+msgid "Xray Configs"
+msgstr "Xray 配置"
+
+msgid "Match Inbound(s)"
+msgstr "匹配入站"
+
+msgid "Source IPs"
+msgstr "源IP"
+
+msgid "Source Port"
+msgstr "源端口"
+
+msgid "Protocol"
+msgstr "协议"
+
+msgid "User"
+msgstr "用户"
+
+msgid "Import Link"
+msgstr "从链接导入"
+
+msgid "AmneziaWG"
+msgstr "AmneziaWG"
+
+msgid "Tag"
+msgstr "标签"
+
+msgid "Server Address / Endpoint Host"
+msgstr "服务器地址 / 端点主机"
+
+msgid "Port / Endpoint Port"
+msgstr "端口 / 端点端口"
+
+msgid "UUID / Password / Private Key"
+msgstr "UUID / 密码 / 私钥"
+
+msgid "Network"
+msgstr "网络"
+
+msgid "Security"
+msgstr "安全"
+
+msgid "SNI"
+msgstr "SNI"
+
+msgid "Comment"
+msgstr "备注"
+
+msgid "Priority"
+msgstr "优先级"
+
+msgid "Outbound Tag"
+msgstr "出站标签"
+
+msgid "Domains"
+msgstr "域名"
+
+msgid "IPs"
+msgstr "IP地址"
+
+msgid "Port"
+msgstr "端口"
+
+msgid "Enable"
+msgstr "启用"
