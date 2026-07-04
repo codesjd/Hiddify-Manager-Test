@@ -182,6 +182,13 @@ _PROTOCOL_FIELD_SCRIPT = """
     // hysteria2 is QUIC/TLS with its own obfs+bandwidth knobs; no network/
     // transport/mux selectors apply. sni is its TLS server_name.
     hysteria: ['address', 'port', 'uuid_or_password', 'sni', 'hysteria_obfs_password', 'hysteria_up_mbps', 'hysteria_down_mbps'].concat(IMPORT_LINK),
+    // NaiveProxy is always TLS (HTTP/2-over-TLS) with no separate transport
+    // selector; uuid_or_password is user:pass same as socks/http. No
+    // uTLS fingerprint field - NaiveProxy uses Chromium's actual network
+    // stack rather than a uTLS mimicry layer, so that field has no effect
+    // here. No share-link format support in this codebase yet either, so
+    // no IMPORT_LINK.
+    naive: ['address', 'port', 'uuid_or_password', 'sni'].concat(SOCKOPT_MUX),
     wireguard: ['address', 'port', 'uuid_or_password', 'peer_public_key', 'local_address'],
     // AmneziaWG has no share-link format (no import_link here - it gets its
     // own raw .conf paste field instead, occupying the same spot in the
@@ -354,7 +361,8 @@ class OutboundAdmin(AdminLTEModelView):
     column_descriptions = dict(
         tag=_("Unique identifier for this outbound. Reference it as the Outbound Tag in a Routing Rule to send matching traffic here."),
         address=_("The destination server's IP or domain - e.g. another one of your own servers, for chaining, or the wireguard/amneziawg peer's Endpoint host. Not used for freedom."),
-        uuid_or_password=_("UUID for vless/vmess, password for trojan/shadowsocks, user:pass for socks/http, or PrivateKey for wireguard/amneziawg. Not used for freedom."),
+        uuid_or_password=_("UUID for vless/vmess, password for trojan/shadowsocks, user:pass for socks/http/naive, or PrivateKey for wireguard/amneziawg. For a 2022-blake3-* Encryption Method, this must be the exact-length base64 PSK that method requires, not an arbitrary password. Not used for freedom."),
+        ss_method=_("Encryption method. The 2022-blake3-* methods require the password above to be an exact-length base64 pre-shared key (16 bytes for aes-128-gcm, 32 bytes for aes-256-gcm/chacha20-poly1305) - an arbitrary password will fail to connect."),
         peer_public_key=_("The remote peer's PublicKey - same value as [Peer] PublicKey in a WireGuard/AmneziaWG .conf."),
         preshared_key=_("The remote peer's PresharedKey, if it has one - same value as [Peer] PresharedKey in an AmneziaWG .conf. Leave blank if not used."),
         local_address=_("This tunnel's own address, same as [Interface] Address in a WireGuard/AmneziaWG .conf, e.g. \"10.0.0.2/32\"."),
@@ -413,7 +421,7 @@ class OutboundAdmin(AdminLTEModelView):
     }
 
     # The protocol dropdown is restricted to the approved set only
-    # (vmess/vless/trojan/shadowsocks/amneziawg/hysteria/socks/http).
+    # (vmess/vless/trojan/shadowsocks/amneziawg/hysteria/socks/http/naive).
     # OutboundProtocol still defines wireguard/freedom because existing rows
     # and internal fallbacks reference them, but they're not offered here:
     # wireguard is retired in favor of amneziawg, and freedom (plain direct)
@@ -423,7 +431,7 @@ class OutboundAdmin(AdminLTEModelView):
     _ALLOWED_PROTOCOLS = [
         OutboundProtocol.vmess, OutboundProtocol.vless, OutboundProtocol.trojan,
         OutboundProtocol.shadowsocks, OutboundProtocol.amneziawg, OutboundProtocol.hysteria,
-        OutboundProtocol.socks, OutboundProtocol.http,
+        OutboundProtocol.socks, OutboundProtocol.http, OutboundProtocol.naive,
     ]
     form_choices = {
         'protocol': [(p.value, p.value) for p in _ALLOWED_PROTOCOLS],

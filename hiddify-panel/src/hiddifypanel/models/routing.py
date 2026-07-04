@@ -16,6 +16,11 @@ class OutboundProtocol(StrEnum):
     # all, so to_xray_dict() emits a fail-closed blackhole for this protocol
     # (see there) - it only actually dials when singbox is the active core.
     hysteria = auto()
+    # NaiveProxy outbound. sing-box-only, same reasoning as hysteria above -
+    # NaiveProxy isn't part of Xray's protocol family at all (this repo's own
+    # naive inbound is singbox-only too, see singbox/configs/05_inbounds_
+    # naive.json.j2), so to_xray_dict() blackholes this the same way.
+    naive = auto()
     wireguard = auto()
     freedom = auto()
     # Not a real dialed protocol - binds outbound traffic to a standalone
@@ -335,6 +340,12 @@ class CustomOutbound(db.Model):  # type: ignore
             # dropped rather than silently leaking out the direct connection.
             return {"tag": self.tag, "protocol": "blackhole", "settings": {}}
 
+        if self.protocol == OutboundProtocol.naive:
+            # xray-core has no NaiveProxy outbound at all (not part of its
+            # protocol family) - same fail-closed blackhole treatment as
+            # hysteria above.
+            return {"tag": self.tag, "protocol": "blackhole", "settings": {}}
+
         settings: dict = {}
         stream: dict = {}
 
@@ -466,6 +477,27 @@ class CustomOutbound(db.Model):  # type: ignore
                 out["obfs"] = {"type": "salamander", "password": self.hysteria_obfs_password}
             tls: dict = {"enabled": True, "server_name": self.sni or self.address or ""}
             out["tls"] = tls
+            dial = self._singbox_dial_fields()
+            out.update(dial)
+            if self.extra_json and self.extra_json.strip() not in ('', '{}'):
+                try:
+                    out = _deep_merge(out, json.loads(self.extra_json))
+                except Exception:
+                    pass
+            return out
+
+        if self.protocol == OutboundProtocol.naive:
+            # sing-box NaiveProxy outbound. TLS is intrinsic (NaiveProxy is
+            # HTTP/2-over-TLS), so it's always emitted, same as hysteria2
+            # above.
+            out["type"] = "naive"
+            out["server"] = self.address or ""
+            out["server_port"] = self.port or 443
+            if self.uuid_or_password:
+                user, _, pw = self.uuid_or_password.partition(':')
+                out["username"] = user
+                out["password"] = pw
+            out["tls"] = {"enabled": True, "server_name": self.sni or self.address or ""}
             dial = self._singbox_dial_fields()
             out.update(dial)
             if self.extra_json and self.extra_json.strip() not in ('', '{}'):
