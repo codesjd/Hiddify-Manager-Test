@@ -47,5 +47,6 @@ class AdminLogApi(MethodView):
         resp = make_response("")
         resp.headers["Allow"] = "POST"
         resp.headers["Access-Control-Allow-Origin"] = f'*'
+        resp.headers["Access-Control-Allow-Methods"] = "POST"
         resp.headers["Access-Control-Allow-Headers"] = "Hiddify-API-Key"
         return resp
