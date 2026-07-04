@@ -77,7 +77,20 @@ def _import_button_script_html() -> str:
     Object.keys(fields).forEach(function(name) {
       var el = document.querySelector('[name="' + name + '"]');
       if (!el) return;
-      el.value = fields[name] == null ? '' : fields[name];
+      var value = fields[name] == null ? '' : fields[name];
+      // A <select> (e.g. ss_method's fixed cipher list) silently ignores
+      // assigning a value with no matching <option> - the field just goes
+      // blank even though the link really did specify that cipher. Add it
+      // as an extra option first so an unlisted-but-real value still shows
+      // up instead of vanishing.
+      if (el.tagName === 'SELECT' && value !== '' &&
+          !Array.prototype.some.call(el.options, function(o) { return o.value === value; })) {
+        var opt = document.createElement('option');
+        opt.value = value;
+        opt.textContent = value;
+        el.appendChild(opt);
+      }
+      el.value = value;
       // Fire change so the per-protocol show/hide script sees the new
       // protocol/security values.
       el.dispatchEvent(new Event('change', {bubbles: true}));
