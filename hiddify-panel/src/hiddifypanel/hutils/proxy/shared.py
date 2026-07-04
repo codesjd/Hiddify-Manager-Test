@@ -188,8 +188,6 @@ def get_proxies(child_id: int = 0, only_enabled=False) -> list['Proxy']:
         proxies = [c for c in proxies if 'v2ray' != c.proto]
     if not hconfig(ConfigEnum.shadowtls_enable, child_id):
         proxies = [c for c in proxies if c.transport != 'shadowtls']
-    if not hconfig(ConfigEnum.ssr_enable, child_id):
-        proxies = [c for c in proxies if 'ssr' != c.proto]
     if not hconfig(ConfigEnum.vmess_enable, child_id):
         proxies = [c for c in proxies if 'vmess' not in c.proto]
     if not hconfig(ConfigEnum.vless_enable, child_id):
@@ -595,19 +593,13 @@ def make_proxy(hconfigs: dict, proxy: Proxy, domain_db: Domain, phttp=80, ptls=4
         'v2ray': f'{hconfigs[ConfigEnum.path_ss]}'
     }
 
-    if base["proto"] in ['v2ray', 'ss', 'ssr']:
+    if base["proto"] in ['v2ray', 'ss']:
         base['cipher'] = hconfigs[ConfigEnum.shadowsocks2022_method]
         base['password'] = f'{hutils.encode.do_base_64(hconfigs[ConfigEnum.shared_secret].replace("-",""))}:{hutils.encode.do_base_64(g.account.uuid.replace("-",""))}'
 
     if base['proto'] == 'trojan':
         base['password'] = base['uuid']
-    if base["proto"] == "ssr":
-        base["ssr-obfs"] = "tls1.2_ticket_auth"
-        base["ssr-protocol"] = "auth_sha1_v4"
-        base["fakedomain"] = hconfigs[ConfigEnum.ssr_fakedomain]
-        base["mode"] = "FakeTLS"
-        return base
-    elif "faketls" in proxy.transport:
+    if "faketls" in proxy.transport:
         base['fakedomain'] = hconfigs[ConfigEnum.ssfaketls_fakedomain]
         base['mode'] = 'FakeTLS'
         return base
