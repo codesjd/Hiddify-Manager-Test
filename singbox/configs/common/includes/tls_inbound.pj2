@@ -1,15 +1,26 @@
 {#
-  Shared TLS inbound block — included by hysteria, tuic, anytls (and
-  formerly naive-quic) inbound templates.
+  Shared TLS inbound block — included by hysteria, tuic, anytls, and
+  naive-quic inbound templates.
 
   Caller MUST set these variables before the {% include %}:
     _tls_domain        string   e.g.  domain  or  d['domain']
     _tls_alpn          list|None  e.g.  ["h3"]  or  None (naive: omit)
     _tls_min_version   string|None  e.g.  "1.2"  or  None
     _tls_max_version   string|None  e.g.  "1.3"  or  None
+    _tls_is_tcp        bool     True only for a real TCP+TLS inbound
+                                 (currently: anytls). kTLS is a TCP-socket
+                                 kernel feature (splice(2)) - it has no
+                                 meaning for the QUIC/UDP-based protocols
+                                 here (hysteria2, tuic, naive-quic), so
+                                 those callers must pass False.
 
-  Global hconfigs['tls_kernel_offload'] controls kernel TLS offload.
-  Default False — requires Linux 5.1+ with CONFIG_TLS and TLS 1.3.
+  Global hconfigs['tls_kernel_offload'] controls kernel TLS offload -
+  kernel_tx only. kernel_rx is deliberately never emitted: sing-box's own
+  docs say it "will definitely degrade performance even if splice(2) is
+  in use", unconditionally - there's no scenario where enabling it helps.
+  kernel_tx itself only helps when splice(2) applies (plain TCP/TLS with
+  nothing else after the handshake) and requires Linux 5.1+ with TLS 1.3;
+  on an unsupported kernel it's a documented no-op/degrade, not a crash.
 #}
 "tls": {
 	"enabled": true,
@@ -23,9 +34,8 @@
 	{% if _tls_max_version %}
 	"max_version": "{{ _tls_max_version }}",
 	{% endif %}
-	{% if hconfigs['tls_kernel_offload'] %}
+	{% if _tls_is_tcp and hconfigs['tls_kernel_offload'] %}
 	"kernel_tx": true,
-	"kernel_rx": true,
 	{% endif %}
 	{% if exec("[ -f /opt/hiddify-manager/ssl/"+_tls_domain[0:64]+".crt ] && echo -n 'true' || echo -n 'false'")=='true' %}
 	"certificate_path": "/opt/hiddify-manager/ssl/{{_tls_domain[0:64]}}.crt",

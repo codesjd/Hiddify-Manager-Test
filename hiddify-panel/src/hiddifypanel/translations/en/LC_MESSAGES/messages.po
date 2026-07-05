@@ -1276,6 +1276,29 @@ msgstr ""
 msgid "config.allow_invalid_sni.label"
 msgstr "🆗 Allow Invalid SNI"
 
+msgid "config.anytls.description"
+msgstr ""
+"AnyTLS is a protocol designed to resist TLS traffic-shape fingerprinting. "
+"Off by default: the Hiddify app doesn't support it yet, only third-party "
+"sing-box clients (NekoBox, v2rayN 7.14.3+) can currently use it."
+
+msgid "config.anytls.label"
+msgstr "AnyTLS"
+
+msgid "config.anytls_enable.description"
+msgstr ""
+"Enable the AnyTLS inbound. Requires a sing-box-compatible client that "
+"supports AnyTLS - the Hiddify app does not yet."
+
+msgid "config.anytls_enable.label"
+msgstr "⚪ AnyTLS"
+
+msgid "config.anytls_port.description"
+msgstr "The port AnyTLS listens on."
+
+msgid "config.anytls_port.label"
+msgstr "AnyTLS Port"
+
 msgid "config.auto_update.description"
 msgstr ""
 "Every day at 3:00 AM, we will check for a new update. if there is a new "
@@ -2426,6 +2449,16 @@ msgstr "The time delay between Fragments"
 msgid "config.tls_fragment_sleep.label"
 msgstr "⏱ TLS Fragment Sleep"
 
+msgid "config.tls_kernel_offload.description"
+msgstr ""
+"Offloads TLS transmission to the kernel via splice(2), reducing "
+"userspace-kernel copies. Only applies to AnyTLS (the only plain TCP+TLS "
+"inbound here - QUIC-based Hysteria2/TUIC/Naive aren't affected by this "
+"setting at all). Requires Linux 5.1+ with TLS 1.3. Leave off if unsure."
+
+msgid "config.tls_kernel_offload.label"
+msgstr "🧬 Kernel TLS Offload"
+
 msgid "config.tls_mixed_case.description"
 msgstr "Enables TLS Mixed SNI Case Fragmentation"
 
@@ -2490,6 +2523,17 @@ msgstr ""
 
 msgid "config.tuic.label"
 msgstr "TUIC"
+
+msgid "config.tuic_congestion_control.description"
+msgstr ""
+"The congestion control algorithm TUIC uses. BBR often performs better than "
+"the default Cubic on lossy/high-latency links. Each side paces its own "
+"sends independently (this doesn't need to match to connect), so this is "
+"applied to both the server and the client's own generated config - "
+"otherwise only the download direction would benefit."
+
+msgid "config.tuic_congestion_control.label"
+msgstr "TUIC Congestion Control"
 
 msgid "config.tuic_enable.description"
 msgstr "It is a UDP based protocol similar to QUIC"

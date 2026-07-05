@@ -543,6 +543,12 @@ def make_proxy(hconfigs: dict, proxy: Proxy, domain_db: Domain, phttp=80, ptls=4
             base['hysteria_down_mbps'] = hconfigs.get(ConfigEnum.hysteria_down_mbps)
             base['hysteria_obfs_enable'] = hconfigs.get(ConfigEnum.hysteria_obfs_enable)
             base['hysteria_obfs_password'] = hconfigs.get(ConfigEnum.proxy_path)  # TODO: it should not be correct
+        elif proxy.proto == 'tuic':
+            # Was missing entirely - add_tuic() in singbox.py hardcoded
+            # "cubic" regardless of the admin's Settings choice, so the
+            # client's own config never matched what the server inbound
+            # actually used.
+            base['tuic_congestion_control'] = hconfigs.get(ConfigEnum.tuic_congestion_control)
         return base
     if proxy.proto in ['wireguard']:
         base['wg_pub'] = g.account.wg_pub

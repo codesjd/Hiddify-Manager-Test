@@ -89,6 +89,8 @@ class Actions(FlaskView):
             udp_ports.add(d.internal_port_tuic)
             udp_ports.add(d.internal_port_naive)
             udp_ports.add(d.internal_port_hysteria2)
+            # AnyTLS is TCP-based (unlike its QUIC/UDP siblings above).
+            tcp_ports.add(d.internal_port_anytls)
 
         def to_int(ports):
             r=set()

@@ -35,7 +35,7 @@ def _v138(child_id):
     # Seed default Proxy rows for AnyTLS (direct + relay), mirroring tuic
     for cdn in [ProxyCDN.direct, ProxyCDN.relay]:
         if not Proxy.query.filter_by(
-            proto=ProxyProto.anytls, l3=ProxyL3.tls, cdn=cdn, child_id=0
+            proto=ProxyProto.anytls, l3=ProxyL3.tls, cdn=cdn, child_id=child_id
         ).first():
             db.session.add(Proxy(
                 name=f"AnyTLS{'Relay' if cdn == ProxyCDN.relay else ''}",

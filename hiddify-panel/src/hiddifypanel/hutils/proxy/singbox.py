@@ -540,7 +540,7 @@ def add_ssh(all_base: list[dict], proxy: dict):
 
 
 def add_tuic(base: dict, proxy: dict):
-    base['congestion_control'] = "cubic"
+    base['congestion_control'] = proxy.get('tuic_congestion_control') or "cubic"
     base['udp_relay_mode'] = 'native'
     base['zero_rtt_handshake'] = True
     base['heartbeat'] = "10s"

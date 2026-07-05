@@ -32,6 +32,7 @@
                             {%set _tls_alpn=None%}
                             {%set _tls_min_version=None%}
                             {%set _tls_max_version=None%}
+                            {%set _tls_is_tcp=False%}
                             {% include '/opt/hiddify-manager/singbox/configs/common/includes/tls_inbound.pj2' %}
                         },
                         {%endif%}
