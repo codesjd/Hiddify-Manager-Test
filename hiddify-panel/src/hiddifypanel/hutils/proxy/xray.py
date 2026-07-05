@@ -128,9 +128,27 @@ def to_link(proxy: dict) -> str | dict:
             return f'{baseurl}?plugin=v2ray-plugin&mode=websocket&path={proxy["proxy_path"]}&host={proxy["sni"]}&tls&udp-over-tcp=true#{name_link}'
 
     if proxy['proto'] == 'tuic':
-        baseurl = f'tuic://{proxy["uuid"]}:{proxy["uuid"]}@{proxy["server"]}:{proxy["port"]}?congestion_control=cubic&udp_relay_mode=native&sni={proxy["sni"]}&alpn=h3'
+        # congestion_control must reflect the admin's actual
+        # tuic_congestion_control setting (see shared.py/singbox.py) - a
+        # hardcoded "cubic" here silently ignored the setting for anyone
+        # importing this link instead of the full subscription.
+        cc = proxy.get('tuic_congestion_control') or 'cubic'
+        baseurl = f'tuic://{proxy["uuid"]}:{proxy["uuid"]}@{proxy["server"]}:{proxy["port"]}?congestion_control={cc}&udp_relay_mode=native&sni={proxy["sni"]}&alpn=h3'
         if proxy['mode'] == 'Fake' or proxy['allow_insecure']:
             baseurl += "&allow_insecure=1"
+            if proxy.get('pinned_cert_sha256'):
+                baseurl += f"&pcs={proxy['pinned_cert_sha256']}"
+        return f"{baseurl}#{name_link}"
+    if proxy['proto'] == 'anytls':
+        # AnyTLS auth is a bare password - make_proxy() never sets a
+        # separate 'password' key for this proto, so proxy['uuid'] (also
+        # what singbox.py's add_anytls() uses as the password) is the
+        # actual auth token here.
+        baseurl = f'anytls://{proxy["uuid"]}@{proxy["server"]}:{proxy["port"]}?sni={proxy["sni"]}&alpn={proxy["alpn"]}'
+        if proxy.get('fingerprint', 'none') != 'none':
+            baseurl += f'&fp={proxy["fingerprint"]}'
+        if proxy['mode'] == 'Fake' or proxy['allow_insecure']:
+            baseurl += "&insecure=1&allow_insecure=1"
             if proxy.get('pinned_cert_sha256'):
                 baseurl += f"&pcs={proxy['pinned_cert_sha256']}"
         return f"{baseurl}#{name_link}"
