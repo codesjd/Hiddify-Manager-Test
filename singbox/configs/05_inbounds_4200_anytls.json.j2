@@ -1,0 +1,26 @@
+{
+	{% if hconfigs['anytls_enable'] %}
+		"inbounds": [
+			{% for d in domains if d['internal_port_anytls'] %}
+			{%set domain=d['domain']%}
+			{%set port=d['internal_port_anytls']%}
+			{
+				"type": "anytls",
+				"tag": "anytls_in_{{port}}",
+				"listen": "::",
+				"listen_port": {{ port }},
+				"users": [
+					{% for u in users %}
+						{"name": "{{ u['uuid'] }}@hiddify.com", "password": "{{ u['uuid'] }}"},
+					{% endfor%}
+				],
+				{%set _tls_domain=domain%}
+				{%set _tls_alpn=["h2", "http/1.1"]%}
+				{%set _tls_min_version="1.2"%}
+				{%set _tls_max_version="1.3"%}
+				{% include '/opt/hiddify-manager/singbox/configs/common/includes/tls_inbound.pj2' %}
+			},
+			{%endfor%}
+		]
+	{% endif %}
+}

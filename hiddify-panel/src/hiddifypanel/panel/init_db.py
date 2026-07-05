@@ -1,4 +1,4 @@
-import datetime
+﻿import datetime
 import json
 import os
 import random
@@ -14,8 +14,39 @@ from hiddifypanel.database import db, db_execute
 
 
 from loguru import logger
-MAX_DB_VERSION = 138
+MAX_DB_VERSION = 139
 
+
+def _v138(child_id):
+    """Phases A+B+C+D: kernel TLS offload flag, AnyTLS inbound, TUIC
+    congestion-control setting, and Hysteria2 description seeds.
+
+    tls_kernel_offload: default False (needs Linux 5.1+ CONFIG_TLS).
+    anytls_enable: default False (Hiddify app doesn't support AnyTLS yet;
+        only NekoBox/v2rayN >=7.14.3 can use it via singbox subscription).
+    anytls_port: random unused port (same pattern as tuic_port).
+    tuic_congestion_control: "cubic" (TUIC's own documented default).
+    Hysteria2 mbps: no schema change -- defaults already seeded by _v111.
+    AnyTLS Proxy rows: one direct + one relay, mirroring the tuic rows."""
+    add_config_if_not_exist(ConfigEnum.tls_kernel_offload, False)
+    add_config_if_not_exist(ConfigEnum.anytls_enable, False)
+    add_config_if_not_exist(ConfigEnum.anytls_port, hutils.random.get_random_unused_port())
+    add_config_if_not_exist(ConfigEnum.tuic_congestion_control, "cubic")
+    # Seed default Proxy rows for AnyTLS (direct + relay), mirroring tuic
+    for cdn in [ProxyCDN.direct, ProxyCDN.relay]:
+        if not Proxy.query.filter_by(
+            proto=ProxyProto.anytls, l3=ProxyL3.tls, cdn=cdn, child_id=0
+        ).first():
+            db.session.add(Proxy(
+                name=f"AnyTLS{'Relay' if cdn == ProxyCDN.relay else ''}",
+                proto=ProxyProto.anytls,
+                l3=ProxyL3.tls,
+                transport=ProxyTransport.custom,
+                cdn=cdn,
+                enable=True,
+                child_id=child_id,
+            ))
+    db.session.commit()
 
 def _v137(child_id):
     """KCP (the vless-over-kcp transport option) is retired - its whole
@@ -1373,3 +1404,4 @@ def migrate(db_version):
 
     upgrade_database()
     db.session.commit()
+

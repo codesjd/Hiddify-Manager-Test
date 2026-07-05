@@ -1,4 +1,4 @@
-
+﻿
 from strenum import StrEnum
 from enum import auto
 from sqlalchemy import Column, String, Integer, Boolean, Enum, ForeignKey
@@ -50,6 +50,7 @@ class ProxyProto(StrEnum):
     mieru = auto()
     dnstt = auto()
     amneziawg = auto()
+    anytls = auto()
 
 
 class ProxyL3(StrEnum):
@@ -134,3 +135,4 @@ class Proxy(db.Model):  # type: ignore
             Proxy.add_or_update(commit=False, child_id=child_id, **proxy)
         if commit:
             db.session.commit()  # type: ignore
+

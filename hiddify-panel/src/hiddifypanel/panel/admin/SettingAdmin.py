@@ -1,4 +1,4 @@
-from hiddifypanel.cache import cache
+﻿from hiddifypanel.cache import cache
 from hiddifypanel import __version__
 from hiddifypanel.panel import hiddify, custom_widgets
 from hiddifypanel.database import db
@@ -312,6 +312,13 @@ def get_config_form():
                 ]
                 field = wtf.SelectField(_("config.telegram_lib.label"), choices=libs, description=_(
                     "config.telegram_lib.description"), default=hconfig(ConfigEnum.telegram_lib))
+            elif c.key == ConfigEnum.tuic_congestion_control:
+                field = wtf.SelectField(
+                    _(f"config.{c.key}.label"),
+                    choices=[("cubic", "Cubic (default)"), ("bbr", "BBR"), ("new_reno", "New Reno")],
+                    description=_(f"config.{c.key}.description"),
+                    default=hconfig(c.key) or "cubic"
+                )
             elif c.key == ConfigEnum.mux_protocol:
                 choices = [("smux", 'smux'), ("yamux", "yamux"), ("h2mux", "h2mux")]
                 field = wtf.SelectField(_(f"config.{c.key}.label"), choices=choices, description=_(f"config.{c.key}.description"), default=hconfig(c.key))
@@ -429,3 +436,4 @@ def get_config_form():
     setattr(DynamicForm, "submit", wtf.SubmitField(_('Submit')))
 
     return DynamicForm()
+

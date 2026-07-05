@@ -1,4 +1,4 @@
-from enum import auto, Enum
+﻿from enum import auto, Enum
 import os
 from typing import Union
 
@@ -80,6 +80,7 @@ class ConfigCategory(StrEnum):
     dnstt=auto()
     webhook=auto()
     amneziawg=auto()
+    anytls = auto()
 
 
 class ApplyMode(StrEnum):
@@ -331,7 +332,23 @@ class ConfigEnum(metaclass=FastEnum):
     tuic_enable = _BoolConfigDscr(ConfigCategory.tuic, ApplyMode.apply_config)
     tuic_port = _StrConfigDscr(ConfigCategory.tuic, ApplyMode.apply_config, hide_in_virtual_child=True)
 
+    # TUIC inbound congestion control (server-global).
+    # Choices: `cubic` / `bbr` / `new_reno`.
+    # Distinct from CustomOutbound.tuic_congestion_control (per-outbound dialer).
+    tuic_congestion_control = _StrConfigDscr(ConfigCategory.tuic, ApplyMode.apply_config)
+
+    # AnyTLS inbound -- sing-box 1.12+, gated off by default.
+    # Hiddify app does not yet support AnyTLS (issues #1810/#2077/#2222);
+    # only NekoBox / v2rayN >=7.14.3 consume the singbox subscription.
+    anytls_enable = _BoolConfigDscr(ConfigCategory.anytls, ApplyMode.apply_config)
+    anytls_port = _StrConfigDscr(ConfigCategory.anytls, ApplyMode.apply_config, hide_in_virtual_child=True)
+
     # the hysteria is refereing to hysteria2
+
+    # Kernel TLS offload (kTLS) for sing-box TLS-terminating inbounds.
+    # Requires Linux 5.1+ with CONFIG_TLS and TLS 1.3. Default off.
+    # Enabling on a kernel without kTLS will silently break all TLS inbounds.
+    tls_kernel_offload = _BoolConfigDscr(ConfigCategory.tls, ApplyMode.apply_config)
     hysteria_enable = _BoolConfigDscr(ConfigCategory.hysteria, ApplyMode.apply_config)
     hysteria_port = _StrConfigDscr(ConfigCategory.hidden, ApplyMode.apply_config, hide_in_virtual_child=True)
     # if be enable hysteria2 will be use salamander as obfs

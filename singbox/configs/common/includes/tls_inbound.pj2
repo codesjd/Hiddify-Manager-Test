@@ -1,0 +1,38 @@
+{#
+  Shared TLS inbound block — included by hysteria, tuic, anytls (and
+  formerly naive-quic) inbound templates.
+
+  Caller MUST set these variables before the {% include %}:
+    _tls_domain        string   e.g.  domain  or  d['domain']
+    _tls_alpn          list|None  e.g.  ["h3"]  or  None (naive: omit)
+    _tls_min_version   string|None  e.g.  "1.2"  or  None
+    _tls_max_version   string|None  e.g.  "1.3"  or  None
+
+  Global hconfigs['tls_kernel_offload'] controls kernel TLS offload.
+  Default False — requires Linux 5.1+ with CONFIG_TLS and TLS 1.3.
+#}
+"tls": {
+	"enabled": true,
+	"server_name": "{{_tls_domain}}",
+	{% if _tls_alpn %}
+	"alpn": {{ _tls_alpn | tojson }},
+	{% endif %}
+	{% if _tls_min_version %}
+	"min_version": "{{ _tls_min_version }}",
+	{% endif %}
+	{% if _tls_max_version %}
+	"max_version": "{{ _tls_max_version }}",
+	{% endif %}
+	{% if hconfigs['tls_kernel_offload'] %}
+	"kernel_tx": true,
+	"kernel_rx": true,
+	{% endif %}
+	{% if exec("[ -f /opt/hiddify-manager/ssl/"+_tls_domain[0:64]+".crt ] && echo -n 'true' || echo -n 'false'")=='true' %}
+	"certificate_path": "/opt/hiddify-manager/ssl/{{_tls_domain[0:64]}}.crt",
+	"key_path": "/opt/hiddify-manager/ssl/{{_tls_domain[0:64]}}.crt.key"
+	{%else %}
+	{%set _tls_cert=exec("ls /opt/hiddify-manager/ssl/*.crt | tail -1").strip()%}
+	"certificate_path": "{{_tls_cert}}",
+	"key_path": "{{_tls_cert}}.key"
+	{%endif%}
+}

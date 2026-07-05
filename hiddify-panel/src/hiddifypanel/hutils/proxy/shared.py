@@ -102,6 +102,8 @@ def get_port(proxy: Proxy, hconfigs: dict, domain_db: Domain, ptls: int, phttp: 
         port = domain_db.internal_port_tuic
     elif proxy.proto == "hysteria2":
         port = domain_db.internal_port_hysteria2
+    elif proxy.proto == "anytls":
+        port = domain_db.internal_port_anytls
     elif l3 == 'ssh':
         port = hconfigs[ConfigEnum.ssh_server_port]
     elif proxy.proto==ProxyProto.naive and proxy.l3==ProxyL3.h3_quic:
@@ -179,6 +181,8 @@ def get_proxies(child_id: int = 0, only_enabled=False) -> list['Proxy']:
         proxies = [c for c in proxies if c.proto != ProxyProto.ssh]
     if not hconfig(ConfigEnum.hysteria_enable, child_id):
         proxies = [c for c in proxies if c.proto != ProxyProto.hysteria2]
+    if not hconfig(ConfigEnum.anytls_enable, child_id):
+        proxies = [c for c in proxies if c.proto != ProxyProto.anytls]
     if not hconfig(ConfigEnum.shadowsocks2022_enable, child_id):
         proxies = [c for c in proxies if 'shadowsocks' != c.transport]
 
@@ -258,7 +262,7 @@ def get_valid_proxies(domains: list[Domain]) -> list[dict]:
             options = []
             key = f'{proxy.proto}{proxy.transport}{proxy.cdn}{proxy.l3}'
 
-            if proxy.proto in [ProxyProto.dnstt,ProxyProto.ssh, ProxyProto.tuic, ProxyProto.hysteria2, ProxyProto.wireguard, ProxyProto.amneziawg, ProxyProto.ss,ProxyProto.mieru] \
+            if proxy.proto in [ProxyProto.dnstt,ProxyProto.ssh, ProxyProto.tuic, ProxyProto.hysteria2, ProxyProto.anytls, ProxyProto.wireguard, ProxyProto.amneziawg, ProxyProto.ss,ProxyProto.mieru] \
                 or (proxy.proto==ProxyProto.naive and proxy.l3==ProxyL3.h3_quic) :
                 if noDomainProxies and all([x in added_ip[key] for x in ips]):
                     continue
@@ -289,6 +293,8 @@ def get_valid_proxies(domains: list[Domain]) -> list[dict]:
                     options = [{'pport': hconfigs[ConfigEnum.naive_port]}]
                 elif proxy.proto == ProxyProto.hysteria2:
                     options = [{'pport': hconfigs[ConfigEnum.hysteria_port]}]
+                elif proxy.proto == ProxyProto.anytls:
+                    options = [{'pport': hconfigs[ConfigEnum.anytls_port]}]
             else:
                 protos = ['http', 'tls'] if hconfigs.get(ConfigEnum.http_proxy_enable) else ['tls']
                 for t in protos:
@@ -714,5 +720,8 @@ class ProxyJsonEncoder(json.JSONEncoder):
         if isinstance(obj, IPv4Address) or isinstance(obj, IPv6Address):
             return str(obj)
         return super().default(obj)
+
+
+
 
 

@@ -1,4 +1,4 @@
-from flask import render_template, request, g
+﻿from flask import render_template, request, g
 import json
 
 from hiddifypanel import hutils
@@ -71,7 +71,7 @@ def to_singbox(proxy: dict) -> list[dict] | dict:
     base = {}
     all_base.append(base)
     # vmess ws
-    base["tag"] = f"""{proxy['extra_info']} {proxy["name"]} § {proxy['port']} {proxy["dbdomain"].id}"""
+    base["tag"] = f"""{proxy['extra_info']} {proxy["name"]} Â§ {proxy['port']} {proxy["dbdomain"].id}"""
     if is_xray_proxy(proxy):
         if hutils.flask.is_client_version(hutils.flask.ClientVersion.hiddify_next, 1, 9, 0):
             base['type'] = "xray"
@@ -149,6 +149,8 @@ def to_singbox(proxy: dict) -> list[dict] | dict:
 
     if proxy["proto"] == "tuic":
         add_tuic(base, proxy)
+    elif proxy["proto"] == "anytls":
+        add_anytls(base, proxy)
     elif proxy["proto"] == "hysteria2":
         add_hysteria(base, proxy)
     else:
@@ -328,7 +330,7 @@ def add_dnstt(all_base:list,proxy:dict):
         if v:= proxy.get(s):
             all_base[0][s.replace("_","-")]=v
     tag=all_base[0]["tag"]
-    all_base[0]["tag"]+="§hide§"
+    all_base[0]["tag"]+="Â§hideÂ§"
     all_base.append({
         "type":"socks",
         "username":proxy['uuid'],
@@ -503,7 +505,7 @@ def add_shadowsocks_base(all_base: list[dict], proxy: dict):
         base["plugin_opts"] = f'mode=websocket;path={proxy["path"]};host={proxy["host"]};tls'
 
     if proxy["transport"] == "shadowtls":
-        base['detour'] = base['tag'] + "_shadowtls-out §hide§"
+        base['detour'] = base['tag'] + "_shadowtls-out Â§hideÂ§"
 
         shadowtls_base = {
             "type": "shadowtls",
@@ -544,6 +546,14 @@ def add_tuic(base: dict, proxy: dict):
     base['heartbeat'] = "10s"
     base['password'] = proxy['uuid']
     base['uuid'] = proxy['uuid']
+
+
+
+def add_anytls(base: dict, proxy: dict):
+    # AnyTLS inbound uses uuid directly as the password.
+    # Schema: {type: anytls, users:[{name, password}], tls:{...}}
+    # No extra per-proxy fields needed beyond what add_tls() already sets.
+    base['password'] = proxy['uuid']
 
 
 def add_hysteria(base: dict, proxy: dict):
