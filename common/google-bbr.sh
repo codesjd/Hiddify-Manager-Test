@@ -258,6 +258,28 @@ sysctl_config() {
     sed -i '/net.ipv4.tcp_congestion_control/d' /etc/sysctl.conf
     echo "net.core.default_qdisc = fq" >> /etc/sysctl.conf
     echo "net.ipv4.tcp_congestion_control = bbr" >> /etc/sysctl.conf
+
+    # BBR needs deep enough socket buffers to actually fill a high
+    # bandwidth-delay-product path - the kernel defaults (a few hundred KB)
+    # cap throughput on exactly the long-haul/high-latency links this is
+    # meant to help. 16MiB is the standard, widely-used ceiling for this
+    # tuning (matches Google's own BBR recommendations); the tcp_rmem/
+    # tcp_wmem triplets are (min, default, max) - only the max actually
+    # changes here, min/default are left at their existing safe values.
+    sed -i '/net.core.rmem_max/d' /etc/sysctl.conf
+    sed -i '/net.core.wmem_max/d' /etc/sysctl.conf
+    sed -i '/net.ipv4.tcp_rmem/d' /etc/sysctl.conf
+    sed -i '/net.ipv4.tcp_wmem/d' /etc/sysctl.conf
+    sed -i '/fs.file-max/d' /etc/sysctl.conf
+    echo "net.core.rmem_max = 16777216" >> /etc/sysctl.conf
+    echo "net.core.wmem_max = 16777216" >> /etc/sysctl.conf
+    echo "net.ipv4.tcp_rmem = 4096 87380 16777216" >> /etc/sysctl.conf
+    echo "net.ipv4.tcp_wmem = 4096 65536 16777216" >> /etc/sysctl.conf
+    # Raises the system-wide fd ceiling that the proxy services' own
+    # per-process LimitNOFILE=infinity (see their systemd units) draws
+    # from - infinity is only as good as this global cap allows.
+    echo "fs.file-max = 1000000" >> /etc/sysctl.conf
+
     sysctl -p >/dev/null 2>&1
 }
 
