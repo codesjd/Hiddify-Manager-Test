@@ -181,7 +181,8 @@ def get_proxies(child_id: int = 0, only_enabled=False) -> list['Proxy']:
         proxies = [c for c in proxies if c.proto != ProxyProto.ssh]
     if not hconfig(ConfigEnum.hysteria_enable, child_id):
         proxies = [c for c in proxies if c.proto != ProxyProto.hysteria2]
-    if not hconfig(ConfigEnum.anytls_enable, child_id):
+    # AnyTLS is singbox-only (xray-core has no anytls inbound support)
+    if not (hconfig(ConfigEnum.anytls_enable, child_id) and hconfig(ConfigEnum.core_type, child_id) == 'singbox'):
         proxies = [c for c in proxies if c.proto != ProxyProto.anytls]
     if not hconfig(ConfigEnum.shadowsocks2022_enable, child_id):
         proxies = [c for c in proxies if 'shadowsocks' != c.transport]
