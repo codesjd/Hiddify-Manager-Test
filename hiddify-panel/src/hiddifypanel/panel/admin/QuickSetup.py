@@ -261,6 +261,11 @@ def get_quick_setup_form(empty=False):
         # enable_vmess = SwitchField(_("config.vmess_enable.label"), description=_("config.vmess_enable.description"), default=hconfig(ConfigEnum.vmess_enable))
         decoy_domain = wtf.StringField(_("config.decoy_domain.label"), description=_("config.decoy_domain.description"), default=hconfig(
             ConfigEnum.decoy_domain), validators=[wtf.validators.Regexp(domain_regex, re.IGNORECASE, _("config.Invalid_domain")), hutils.flask.validate_domain_exist])
+        preferred_domain = wtf.SelectField(
+            _('quicksetup.preferred_domain.label'),
+            choices=[('direct', _('quicksetup.preferred_domain.direct')), ('cdn', _('quicksetup.preferred_domain.cdn'))],
+            description=_('quicksetup.preferred_domain.description'),
+            default='direct')
         submit = wtf.SubmitField(_('Submit'))
 
         def post(self, view):
@@ -281,19 +286,14 @@ def get_quick_setup_form(empty=False):
                     db.session.add(Domain(domain=cdn_domain, mode=DomainType.cdn))
             set_hconfig(ConfigEnum.block_iran_sites, self.block_iran_sites.data)
             set_hconfig(ConfigEnum.decoy_domain, self.decoy_domain.data)
-            # hiddify.bulk_register_configs([
-            #     # {"key": ConfigEnum.telegram_enable, "value": quick_form.enable_telegram.data == True},
-            #     # {"key": ConfigEnum.vmess_enable, "value": quick_form.enable_vmess.data == True},
-            #     # {"key": ConfigEnum.firewall, "value": quick_form.enable_firewall.data == True},
-            #     {"key": ConfigEnum.block_iran_sites, "value": quick_form.block_iran_sites.data == True},
-            #     # {"key":ConfigEnum.decoy_domain,"value":quick_form.decoy_domain.data}
-            # ])
+
+            from flask import session as flask_session
+            flask_session['qs_preferred_domain'] = self.preferred_domain.data
 
             return render_template(
                 'quick_setup.html', form=view.current_form(next=True),
-                # ipv4=hutils.network.get_ip_str(4),
-                # ipv6=hutils.network.get_ip_str(6),
                 admin_link=admin_link(),
+                preferred_domain=self.preferred_domain.data,
                 show_domain_info=False)
 
     form = BasicConfigs(None) if empty else BasicConfigs()

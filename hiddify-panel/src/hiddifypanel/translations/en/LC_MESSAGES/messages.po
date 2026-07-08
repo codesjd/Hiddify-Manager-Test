@@ -3451,3 +3451,19 @@ msgstr "Signing Key (optional)"
 
 msgid "config.webhook_signing_key.description"
 msgstr "Optional. Any text you choose. If set, requests include an X-Hiddify-Signature header (HMAC-SHA256 of the JSON body with this key) so your receiver can verify the request came from this panel. Leave empty to skip signing."
+
+msgid "quicksetup.preferred_domain.label"
+msgstr "Preferred Domain for Panel Access"
+
+msgid "quicksetup.preferred_domain.description"
+msgstr "After setup, the panel will redirect to this domain type."
+
+msgid "quicksetup.preferred_domain.direct"
+msgstr "Direct Domain"
+
+msgid "quicksetup.preferred_domain.cdn"
+msgstr "CDN Domain"
+
+msgid "Default credentials"
+msgstr "Default credentials"
+

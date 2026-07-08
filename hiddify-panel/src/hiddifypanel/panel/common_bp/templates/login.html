@@ -284,6 +284,15 @@ input::placeholder { color: var(--text-secondary); opacity: 1; }
     <form method="POST" action="" class="login-fields">
       {{ form.hidden_tag() }}
 
+      {% if hconfig(ConfigEnum.first_setup) %}
+      <div style="background:oklch(0.85 0.12 55 / 0.18);border:1px solid oklch(0.68 0.15 55 / 0.45);border-radius:10px;padding:12px 14px;font-size:12.5px;color:var(--text-primary);">
+        <strong>{{ _('Default credentials') }}:</strong>
+        {{ _('Username') }}: <code style="background:var(--track);border-radius:4px;padding:1px 5px;">admin</code>
+        &nbsp;/&nbsp;
+        {{ _('Password') }}: <code style="background:var(--track);border-radius:4px;padding:1px 5px;">admin</code>
+      </div>
+      {% endif %}
+
       <div>
         <label class="login-field-label" for="secret_textbox">{{ _('Username') }}</label>
         <div class="login-input-wrap">

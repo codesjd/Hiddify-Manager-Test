@@ -96,7 +96,8 @@ def configs_as_json(domains: list[Domain], user: User, expire_days: int, remarks
 
 
 def to_xray(proxy: dict) -> dict:
-    if proxy['proto'] in {ProxyProto.naive,ProxyProto.mieru}:
+    # anytls is singbox-only; xray-core has no anytls support
+    if proxy['proto'] in {ProxyProto.naive, ProxyProto.mieru, ProxyProto.anytls}:
         return {}
     outbound = {
         'tag': f'{proxy["extra_info"]} {proxy["name"]}',
