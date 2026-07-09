@@ -131,14 +131,19 @@ class Actions(FlaskView):
         # return render_template("result.html")
         # hiddify.add_temporary_access()
         domains = Domain.get_domains()
-        redirect_host = domains[0] if domains else hutils.network.get_ip_str(4)
         # Quick Setup stores the user's preferred domain type in session; use it for redirect
         from flask import session as flask_session
-        preferred_type = flask_session.pop('qs_preferred_domain', None) or request.args.get('preferred_domain', 'direct')
+        preferred_type = flask_session.pop('qs_preferred_domain', None) or request.args.get('preferred_domain', 'ip')
+        
+        redirect_host = hutils.network.get_ip_str(4)
         if preferred_type == 'cdn':
             cdn_domains = [d for d in domains if d.mode in ['cdn', 'auto_cdn_ip']]
             if cdn_domains:
                 redirect_host = cdn_domains[0]
+        elif preferred_type == 'direct':
+            direct_domains = [d for d in domains if d.mode not in ['cdn', 'auto_cdn_ip']]
+            if direct_domains:
+                redirect_host = direct_domains[0]
         redirect_url = hiddify.get_admin_login_link(redirect_host)
 
         resp = render_template("result.html",

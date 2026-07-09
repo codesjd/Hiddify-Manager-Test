@@ -263,9 +263,9 @@ def get_quick_setup_form(empty=False):
             ConfigEnum.decoy_domain), validators=[wtf.validators.Regexp(domain_regex, re.IGNORECASE, _("config.Invalid_domain")), hutils.flask.validate_domain_exist])
         preferred_domain = wtf.SelectField(
             _('quicksetup.preferred_domain.label'),
-            choices=[('direct', _('quicksetup.preferred_domain.direct')), ('cdn', _('quicksetup.preferred_domain.cdn'))],
+            choices=[('ip', _('IP')), ('direct', _('quicksetup.preferred_domain.direct')), ('cdn', _('quicksetup.preferred_domain.cdn'))],
             description=_('quicksetup.preferred_domain.description'),
-            default='direct')
+            default='ip')
         submit = wtf.SubmitField(_('Submit'))
 
         def post(self, view):
