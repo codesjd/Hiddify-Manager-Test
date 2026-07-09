@@ -103,7 +103,7 @@ def get_password_form(empty=False):
         admin_username = wtf.StringField(
             _("Username"),
             description=_("Used to log in to the admin panel."),
-            default=(AdminUser.current_admin_or_owner().username or ''),
+            default=(AdminUser.current_admin_or_owner().username or 'admin'),
             validators=[
                 InputRequired(message=_("Username is required.")),
                 Length(min=3, max=100, message=_("Username must be between 3 and 100 characters.")),
@@ -112,10 +112,10 @@ def get_password_form(empty=False):
         admin_pass = wtf.PasswordField(
             _("user.password.title"),
             description=_("user.password.description"),
-            default="",validators=[
+            default="admin",validators=[
 
                 InputRequired(message=_("user.password.validation-required")),
-                Length(min=8, message=_("user.password.validation-lenght"))
+                Length(min=3, message=_("user.password.validation-lenght"))
 
             ])
         password_submit = wtf.SubmitField(_('Submit'))
