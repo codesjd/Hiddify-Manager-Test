@@ -136,7 +136,10 @@ class Actions(FlaskView):
         from flask import session as flask_session
         preferred_type = flask_session.pop('qs_preferred_domain', None) or request.args.get('preferred_domain', None)
         
-        def is_ip(host):
+        def is_ip_or_auto_ip_domain(host):
+            host = (host or '').lower()
+            if host.endswith(('.sslip.io', '.nip.io')):
+                return True
             try:
                 ipaddress.ip_address(host)
                 return True
@@ -151,7 +154,7 @@ class Actions(FlaskView):
                 redirect_host = cdn_domains[0].domain
         elif preferred_type == 'direct':
             direct_domains = [d for d in domains if d.mode == 'direct']
-            direct_domain = next((d for d in direct_domains if not is_ip(d.domain)), None)
+            direct_domain = next((d for d in direct_domains if not is_ip_or_auto_ip_domain(d.domain)), None)
             if direct_domain:
                 redirect_host = direct_domain.domain
         else:
