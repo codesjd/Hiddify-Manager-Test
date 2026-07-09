@@ -10,15 +10,17 @@ from hiddifypanel.cache import cache
 from hiddifypanel.models import Proxy, ProxyProto, ProxyL3, ProxyTransport, ProxyCDN, Domain, DomainType, ConfigEnum, hconfig, get_hconfigs
 from hiddifypanel import hutils
 
-# Protocols that only work with sing-box and have NO standard URI format
-# recognized by xray-core clients (v2rayN, NekoRay, etc.).
-# hysteria2/tuic/naive/wireguard/mieru all have URI schemes that v2rayN
-# supports natively, so they stay in the plain-link subscription.
-SINGBOX_ONLY_PROTOS = frozenset({
+# Protocols that only work with sing-box (server side).
+# If the server core is Xray, these should be filtered out from all subscriptions
+# (both sing-box and plain-link) because the server isn't running them.
+SERVER_SINGBOX_ONLY_PROTOS = frozenset({
     ProxyProto.anytls,
     ProxyProto.ssh,
     ProxyProto.amneziawg,
     ProxyProto.dnstt,
+    ProxyProto.tuic,
+    ProxyProto.naive,
+    ProxyProto.mieru,
 })
 
 

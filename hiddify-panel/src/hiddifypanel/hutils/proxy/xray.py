@@ -347,10 +347,15 @@ def make_v2ray_configs(domains: list[Domain], user: User, expire_days: int, ip_d
     core_is_singbox = hconfig(ConfigEnum.core_type) == 'singbox'
 
     for pinfo in hutils.proxy.get_valid_proxies(domains):
-        # Skip sing-box-only protocols in the plain-link subscription; xray
-        # clients cannot use them and they just show as broken configs.
-        if pinfo['proto'] in hutils.proxy.SINGBOX_ONLY_PROTOS:
+        # If server is running Xray, filter out protocols that Xray doesn't support.
+        if not core_is_singbox and pinfo['proto'] in hutils.proxy.SERVER_SINGBOX_ONLY_PROTOS:
             continue
+            
+        # Even if server is sing-box, skip protocols that have no URI scheme 
+        # (anytls, ssh, amneziawg, dnstt) from the plain-link sub.
+        if core_is_singbox and pinfo['proto'] in {ProxyProto.anytls, ProxyProto.ssh, ProxyProto.amneziawg, ProxyProto.dnstt}:
+            continue
+            
         # xhttp is xray-specific; singbox has no xhttp inbound so these links
         # always time out when core_type == singbox.
         if core_is_singbox and pinfo.get('transport') == 'xhttp':
