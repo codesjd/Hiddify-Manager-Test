@@ -93,7 +93,15 @@ def to_link(proxy: dict) -> str | dict:
             if proxy.get('ech'):
                 vmess_data['ech'] = proxy['ech']
             if proxy.get('mode') == 'Fake' or proxy.get('allow_insecure'):
-                vmess_data['allowInsecure'] = True
+                # Xray-core >= 26.2.6 hard-rejects allowInsecure in its own
+                # JSON schema (see xrayjson.py's _add_security for the full
+                # story) - only emit it here if we don't have a
+                # pinnedPeerCertSha256 pin to prefer instead, same fallback
+                # order as the raw-JSON path.
+                if proxy.get('pinned_cert_sha256'):
+                    vmess_data['pcs'] = proxy['pinned_cert_sha256']
+                else:
+                    vmess_data['allowInsecure'] = True
         add_tls_tricks_to_dict(vmess_data, proxy)
         add_mux_to_dict(vmess_data, proxy)
 
