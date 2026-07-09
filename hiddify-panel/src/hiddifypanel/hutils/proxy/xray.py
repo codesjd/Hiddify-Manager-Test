@@ -338,6 +338,10 @@ def make_v2ray_configs(domains: list[Domain], user: User, expire_days: int, ip_d
         return "\n".join(res)
 
     for pinfo in hutils.proxy.get_valid_proxies(domains):
+        # Skip sing-box-only protocols in the plain-link subscription; xray
+        # clients cannot use them and they just show as broken configs.
+        if pinfo['proto'] in hutils.proxy.SINGBOX_ONLY_PROTOS:
+            continue
         link = to_link(pinfo)
         if 'msg' not in link:
             res.append(link)
