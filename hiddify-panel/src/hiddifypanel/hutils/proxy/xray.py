@@ -150,9 +150,13 @@ def to_link(proxy: dict) -> str | dict:
         cc = proxy.get('tuic_congestion_control') or 'cubic'
         baseurl = f'tuic://{proxy["uuid"]}:{proxy["uuid"]}@{proxy["server"]}:{proxy["port"]}?congestion_control={cc}&udp_relay_mode=native&sni={proxy["sni"]}&alpn=h3'
         if proxy['mode'] == 'Fake' or proxy['allow_insecure']:
-            baseurl += "&allow_insecure=1"
+            # Same allowInsecure removal as xrayjson.py/_add_security() -
+            # prefer pcs, only fall back to the deprecated field when we
+            # don't have a pin yet (see the vmess/generic-link fixes above).
             if proxy.get('pinned_cert_sha256'):
                 baseurl += f"&pcs={proxy['pinned_cert_sha256']}"
+            else:
+                baseurl += "&allow_insecure=1"
         return f"{baseurl}#{name_link}"
     if proxy['proto'] == 'anytls':
         # AnyTLS auth is a bare password - make_proxy() never sets a
@@ -163,9 +167,13 @@ def to_link(proxy: dict) -> str | dict:
         if proxy.get('fingerprint', 'none') != 'none':
             baseurl += f'&fp={proxy["fingerprint"]}'
         if proxy['mode'] == 'Fake' or proxy['allow_insecure']:
-            baseurl += "&insecure=1&allow_insecure=1"
+            # Same allowInsecure removal as xrayjson.py/_add_security() -
+            # prefer pcs, only fall back to the deprecated fields when we
+            # don't have a pin yet (see the vmess/generic-link fixes above).
             if proxy.get('pinned_cert_sha256'):
                 baseurl += f"&pcs={proxy['pinned_cert_sha256']}"
+            else:
+                baseurl += "&insecure=1&allow_insecure=1"
         return f"{baseurl}#{name_link}"
     if proxy['proto'] == 'hysteria2':
         baseurl = f'hysteria2://{proxy["uuid"]}@{proxy["server"]}:{proxy["port"]}?hiddify=1&sni={proxy["sni"]}'
@@ -177,9 +185,13 @@ def to_link(proxy: dict) -> str | dict:
         if proxy.get('hysteria_obfs_enable'):
             baseurl += f'&obfs=salamander&obfs-password={proxy["hysteria_obfs_password"]}'
         if proxy['mode'] == 'Fake' or proxy['allow_insecure']:
-            baseurl += "&insecure=1&allow_insecure=1"
+            # Same allowInsecure removal as xrayjson.py/_add_security() -
+            # prefer pcs, only fall back to the deprecated fields when we
+            # don't have a pin yet (see the vmess/generic-link fixes above).
             if proxy.get('pinned_cert_sha256'):
                 baseurl += f"&pcs={proxy['pinned_cert_sha256']}"
+            else:
+                baseurl += "&insecure=1&allow_insecure=1"
         return f"{baseurl}#{name_link}"
     if proxy['proto'] == ProxyProto.wireguard:
         if g.user_agent.get('is_streisand'):
