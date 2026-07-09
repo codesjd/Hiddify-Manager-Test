@@ -286,10 +286,17 @@ def to_link(proxy: dict) -> str | dict:
             q['headerType'] = 'http'
 
     if proxy['mode'] == 'Fake' or proxy['allow_insecure']:
-        q['allowInsecure'] = 'true'
-        q['insecure'] = 'true'
+        # Same allowInsecure removal as xrayjson.py/_add_security() and the
+        # vmess branch above - some clients (confirmed: v2rayN) forward this
+        # query param straight into their embedded Xray-core's deprecated
+        # JSON field with no pcs/vcn migration of their own, so this can't
+        # be set unconditionally alongside pcs like before. Prefer pcs; only
+        # fall back to the deprecated fields when we don't have a pin yet.
         if proxy.get('pinned_cert_sha256'):
             q['pcs'] = proxy['pinned_cert_sha256']
+        else:
+            q['allowInsecure'] = 'true'
+            q['insecure'] = 'true'
     if proxy.get('flow'):
         q['flow'] = proxy["flow"]
 
