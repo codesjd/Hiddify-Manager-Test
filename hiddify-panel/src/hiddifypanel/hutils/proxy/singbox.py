@@ -313,15 +313,7 @@ def _add_xhttp_details(base: dict, proxy: dict):
             'host': pdl.get("server"),
             "headers":pdl.get("headers")            
         }
-        dls={
-            'sni': proxy.get('sni'),
-            'ech': proxy.get('ech'),
-            'alpn': proxy.get('alpn'),
-            'l3':proxy['l3'],
-            'proto':proxy['proto'],
-            "transport":proxy['transport'],
-            **proxy['download']
-        }
+        dls = {**proxy, **proxy['download']}
         add_tls(base['transport']['downloadSettings'],dls)
         
 
