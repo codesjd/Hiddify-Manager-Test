@@ -37,9 +37,9 @@
 							],
 							"privateKey": "{{hconfigs['reality_private_key']}}",
 							"shortIds": [ 
-								"", 
+								"" 
 								{%for sid in hconfigs['reality_short_ids'].split(',') %}
-								"{{sid}}",
+								,"{{sid}}"
 								{%endfor%}
 							]
 						},
