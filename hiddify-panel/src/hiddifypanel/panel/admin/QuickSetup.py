@@ -11,7 +11,6 @@ from flask_bootstrap import SwitchField
 from hiddifypanel.panel import hiddify
 from flask_classful import FlaskView
 from wtforms.validators import ValidationError, Length, InputRequired
-# from gettext import gettext as _
 
 from hiddifypanel.models import Domain, DomainType, StrConfig, ConfigEnum, get_hconfigs
 from hiddifypanel.database import db
@@ -35,24 +34,20 @@ class QuickSetup(FlaskView):
         return form[step](empty=empty or next)
 
     def index(self):
-
         return render_template(
             'quick_setup.html',
             form=self.current_form(),
-            # ipv4=hutils.network.get_ip_str(4),
-            # ipv6=hutils.network.get_ip_str(6),
             admin_link=admin_link(),
             show_domain_info=True)
 
     def post(self):
         if request.args.get('changepw') == "true":
             AdminUser.current_admin_or_owner().uuid = str(uuid.uuid4())
-            # AdminUser.current_admin_or_owner().password = hutils.random.get_random_password()
             db.session.commit()
 
         set_hconfig(ConfigEnum.first_setup, False)
         form = self.current_form()
-        if not form.validate_on_submit() or form.step.data not in ["1", "2", "3","4"]:
+        if not form.validate_on_submit() or form.step.data not in ["1", "2", "3", "4"]:
             hutils.flask.flash(_('config.validation-error'), 'danger')
             return render_template(
                 'quick_setup.html', form=form,
@@ -70,7 +65,6 @@ def get_lang_form(empty=False):
             _("config.admin_lang.label"), choices=[("en", _("lang.en")), ("fa", _("lang.fa")), ("pt", _("lang.pt")), ("zh", _("lang.zh")), ("ru", _("lang.ru")), ("my", _("lang.my"))],
             description=_("config.admin_lang.description"),
             default=hconfig(ConfigEnum.admin_lang))
-        # lang=wtf.SelectField(_("config.lang.label"),choices=[("en",_("lang.en")),("fa",_("lang.fa"))],description=_("config.lang.description"),default=hconfig(ConfigEnum.lang))
         country = wtf.SelectField(
             _("config.country.label"), choices=[("ir", _("Iran")), ("zh", _("China")), ("ru", _("Russia")),  ("other", "Others")],
             description=_("config.country.description"),
@@ -87,12 +81,9 @@ def get_lang_form(empty=False):
 
             return render_template(
                 'quick_setup.html', form=view.current_form(next=True),
-                # admin_link=admin_link(),
-                # ipv4=hutils.network.get_ip_str(4),
-                # ipv6=hutils.network.get_ip_str(6),
                 show_domain_info=False)
 
-    form = LangForm(None)if empty else LangForm()
+    form = LangForm(None) if empty else LangForm()
     form.step.data = "1"
     return form
 
@@ -112,11 +103,9 @@ def get_password_form(empty=False):
         admin_pass = wtf.PasswordField(
             _("user.password.title"),
             description=_("user.password.description"),
-            default="admin",validators=[
-
+            default="admin", validators=[
                 InputRequired(message=_("user.password.validation-required")),
                 Length(min=3, message=_("user.password.validation-lenght"))
-
             ])
         password_submit = wtf.SubmitField(_('Submit'))
 
@@ -132,17 +121,13 @@ def get_password_form(empty=False):
                 ipv6=hutils.network.get_ip_str(6),
                 show_domain_info=False)
 
-    form = PasswordForm(None)if empty else PasswordForm()
+    form = PasswordForm(None) if empty else PasswordForm()
     form.step.data = "2"
     return form
 
 
 def validate_username_unique(form, field):
     admin = AdminUser.current_admin_or_owner()
-    # Query directly instead of temporarily assigning field.data onto the
-    # live tracked `admin` instance - excluding admin.id here means this
-    # only flags a genuine collision with a *different* admin, not the
-    # unchanged value of this same one.
     with db.session.no_autoflush:
         existing = AdminUser.query.filter(
             AdminUser.username == field.data.strip(),
@@ -158,32 +143,27 @@ def get_proxy_form(empty=False):
         preferred_domain = wtf.HiddenField(default="")
 
         def post(self, view):
-
             for k, vs in self.data.items():
                 ek = ConfigEnum[k]
                 if ek != ConfigEnum.not_found:
                     set_hconfig(ek, vs, commit=False)
 
             db.session.commit()
-            flask_session['qs_preferred_domain'] = flask_session.get('qs_preferred_domain') or self.preferred_domain.data or 'ip'
-            # print(cat,vs)
+            # Prefer the value submitted by the form; fall back to existing session or 'ip'
+            flask_session['qs_preferred_domain'] = (self.preferred_domain.data or flask_session.get('qs_preferred_domain', 'ip') or 'ip')
+
             hutils.proxy.get_proxies.invalidate_all()
             if hutils.node.is_child():
                 hutils.node.run_node_op_in_bg(hutils.node.child.sync_with_parent, *[hutils.node.child.SyncFields.hconfigs])
 
             from .Actions import Actions
             return Actions().reinstall(domain_changed=True)
-    # Toggles we want pinned adjacent to each other regardless of DB
-    # insertion order (e.g. WireGuard next to SSH Proxy); everything else
-    # falls back to grouping by its ConfigCategory.
+
     pinned_order = [ConfigEnum.wireguard_enable, ConfigEnum.ssh_server_enable]
 
     def _proxy_toggle_sort_key(cf):
         if cf.key in pinned_order:
             return (0, pinned_order.index(cf.key))
-        # ConfigEnum uses a custom FastEnum metaclass with no ordering
-        # support (unlike a plain StrEnum) - cf.key.name is the same
-        # member's plain string name, which sorts fine.
         return (1, cf.key.category, cf.key.name)
 
     boolconfigs = sorted(
@@ -196,12 +176,9 @@ def get_proxy_form(empty=False):
             continue
         if cf.key.startswith("sub_") or cf.key.startswith("mux_"):
             continue
-        # wireguard_enable: retired in favor of AmneziaWG - forced off by
-        # migration _v127, excluded here so there's no toggle to turn it
-        # back on.
         if not cf.key.endswith("_enable") or cf.key in [ConfigEnum.hysteria_obfs_enable, ConfigEnum.tls_padding_enable, ConfigEnum.wireguard_enable]:
             continue
-        
+
         field = SwitchField(_(f'config.{cf.key}.label'), default=cf.value, description=_(f'config.{cf.key}.description'))
         setattr(ProxyForm, f'{cf.key}', field)
     setattr(ProxyForm, "submit_global", wtf.fields.SubmitField(_('Submit')))
@@ -257,11 +234,8 @@ def get_quick_setup_form(empty=False):
                 "pattern": domain_validators[0].regex.pattern,
                 "title": domain_validators[0].message,
                 "placeholder": "sub.domain.com"})
-        # enable_telegram = SwitchField(_("config.telegram_enable.label"), description=_("config.telegram_enable.description"), default=hconfig(ConfigEnum.telegram_enable))
-        # enable_firewall = SwitchField(_("config.firewall.label"), description=_("config.firewall.description"), default=hconfig(ConfigEnum.firewall))
         block_iran_sites = SwitchField(_("config.block_iran_sites.label"), description=_(
             "config.block_iran_sites.description"), default=hconfig(ConfigEnum.block_iran_sites))
-        # enable_vmess = SwitchField(_("config.vmess_enable.label"), description=_("config.vmess_enable.description"), default=hconfig(ConfigEnum.vmess_enable))
         decoy_domain = wtf.StringField(_("config.decoy_domain.label"), description=_("config.decoy_domain.description"), default=hconfig(
             ConfigEnum.decoy_domain), validators=[wtf.validators.Regexp(domain_regex, re.IGNORECASE, _("config.Invalid_domain")), hutils.flask.validate_domain_exist])
         preferred_domain = wtf.SelectField(
@@ -273,16 +247,10 @@ def get_quick_setup_form(empty=False):
 
         def post(self, view):
             Domain.query.filter(Domain.domain == f'{hutils.network.get_ip_str(4)}.sslip.io').delete()
-            # Insert-if-missing rather than always-insert: a domain already
-            # sitting here in the *same* mode is a harmless resubmission of
-            # this same step (e.g. Quick Setup run more than once, or a
-            # retried request after a slow/dropped connection) - the
-            # validators above already reject a genuine conflict (the
-            # domain existing in a *different* mode), so reaching this line
-            # with an existing same-mode row means there's nothing to do.
-            domain = self.domain.data.lower()
-            if not Domain.query.filter(Domain.domain == domain).first():
-                db.session.add(Domain(domain=domain, mode=DomainType.direct))
+            domain = (self.domain.data or '').lower()
+            if domain:
+                if not Domain.query.filter(Domain.domain == domain).first():
+                    db.session.add(Domain(domain=domain, mode=DomainType.direct))
             if self.cdn_domain.data:
                 cdn_domain = self.cdn_domain.data.lower()
                 if not Domain.query.filter(Domain.domain == cdn_domain).first():
@@ -290,6 +258,7 @@ def get_quick_setup_form(empty=False):
             set_hconfig(ConfigEnum.block_iran_sites, self.block_iran_sites.data)
             set_hconfig(ConfigEnum.decoy_domain, self.decoy_domain.data)
 
+            # Save preferred domain selection to session (form value preferred)
             flask_session['qs_preferred_domain'] = self.preferred_domain.data
 
             return render_template(
@@ -305,9 +274,6 @@ def get_quick_setup_form(empty=False):
 
 
 def validate_domain_not_conflicting(mode):
-    '''A domain already registered in `mode` is a harmless resubmission
-    (Quick Setup run more than once, or a retried request) - only a domain
-    registered under a *different* mode is a genuine conflict.'''
     def _validator(form, field):
         submitted = (field.data or '').lower()
         if not submitted:
@@ -325,7 +291,6 @@ def validate_domain(form, field):
         raise ValidationError(_("Domain can not be resolved! there is a problem in your domain"))
 
     myips = hutils.network.get_ips()
-      # Fixed: Changed from get_ip(4) to get_ip(6)
     if dip not in myips:
         raise ValidationError(_("Domain (%(domain)s)-> IP=%(domain_ip)s is not matched with your ip=%(server_ip)s which is required in direct mode",
                               server_ip=myips, domain_ip=dip, domain=domain))
