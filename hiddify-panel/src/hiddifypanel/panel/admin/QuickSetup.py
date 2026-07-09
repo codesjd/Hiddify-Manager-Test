@@ -183,7 +183,8 @@ def get_proxy_form(empty=False):
         setattr(ProxyForm, f'{cf.key}', field)
     setattr(ProxyForm, "submit_global", wtf.fields.SubmitField(_('Submit')))
     form = ProxyForm(None) if empty else ProxyForm()
-    form.preferred_domain.data = flask_session.get('qs_preferred_domain', 'ip')
+    if empty:
+        form.preferred_domain.data = flask_session.get('qs_preferred_domain', 'ip')
     form.step.data = "4"
     return form
 
@@ -268,7 +269,8 @@ def get_quick_setup_form(empty=False):
                 show_domain_info=False)
 
     form = BasicConfigs(None) if empty else BasicConfigs()
-    form.preferred_domain.data = flask_session.get('qs_preferred_domain', 'ip')
+    if empty:
+        form.preferred_domain.data = flask_session.get('qs_preferred_domain', 'ip')
     form.step.data = "3"
     return form
 
