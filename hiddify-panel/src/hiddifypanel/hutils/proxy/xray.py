@@ -122,7 +122,7 @@ def to_link(proxy: dict) -> str | dict:
             'authentication': 0,
             'passphrase': '',
         }
-        return f"ssh://***@{proxy['server']}:{proxy['port']}/?{urlencode(q, quote_via=quote)}#{name_link}"
+        return f"ssh://{proxy['uuid']}@{proxy['server']}:{proxy['port']}/?{urlencode(q, quote_via=quote)}#{name_link}"
         # baseurl += f'{proxy["uuid"]}@{proxy["server"]}:{proxy["port"]}/?file=ssh&pk={pk}&hk={hk}&private_key={pk}&authentication=0&passphrase#{name_link}'
 
         # return baseurl
