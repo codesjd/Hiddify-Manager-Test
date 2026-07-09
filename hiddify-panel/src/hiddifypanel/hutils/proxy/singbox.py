@@ -205,8 +205,8 @@ def add_tls(base: dict, proxy: dict):
     if proxy.get("ech"):
         base["tls"]['ech'] = {
             "enabled": True,
-            "config":f"-----BEGIN ECH CONFIGS-----\\n{proxy.get("ech")}\\n-----END ECH CONFIGS-----"
-        }   
+            "config":f"-----BEGIN ECH CONFIGS-----\n{proxy.get('ech')}\n-----END ECH CONFIGS-----"
+        }
     if proxy['proto']=="naive":
         return
     if proxy['proto'] not in ["tuic", "hysteria2"] and proxy['transport']!="xhttp":
@@ -314,6 +314,9 @@ def _add_xhttp_details(base: dict, proxy: dict):
             "headers":pdl.get("headers")            
         }
         dls={
+            'sni': proxy.get('sni'),
+            'ech': proxy.get('ech'),
+            'alpn': proxy.get('alpn'),
             'l3':proxy['l3'],
             'proto':proxy['proto'],
             "transport":proxy['transport'],
