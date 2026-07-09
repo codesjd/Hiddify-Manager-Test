@@ -1,4 +1,5 @@
 import json
+import ipaddress
 from flask_classful import FlaskView, route
 from flask import render_template, request, redirect, g
 from hiddifypanel.hutils.flask import hurl_for
@@ -135,15 +136,23 @@ class Actions(FlaskView):
         from flask import session as flask_session
         preferred_type = flask_session.pop('qs_preferred_domain', None) or request.args.get('preferred_domain', 'ip')
         
+        def is_ip(host):
+            try:
+                ipaddress.ip_address(host)
+                return True
+            except ValueError:
+                return False
+
         redirect_host = hutils.network.get_ip_str(4)
         if preferred_type == 'cdn':
             cdn_domains = [d for d in domains if d.mode in ['cdn', 'auto_cdn_ip']]
             if cdn_domains:
                 redirect_host = cdn_domains[0].domain
         elif preferred_type == 'direct':
-            direct_domains = [d for d in domains if d.mode not in ['cdn', 'auto_cdn_ip']]
-            if direct_domains:
-                redirect_host = direct_domains[0].domain
+            direct_domains = [d for d in domains if d.mode == 'direct']
+            direct_domain = next((d for d in direct_domains if not is_ip(d.domain)), None)
+            if direct_domain:
+                redirect_host = direct_domain.domain
         redirect_url = hiddify.get_admin_login_link(redirect_host)
 
         resp = render_template("result.html",
