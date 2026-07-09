@@ -139,11 +139,11 @@ class Actions(FlaskView):
         if preferred_type == 'cdn':
             cdn_domains = [d for d in domains if d.mode in ['cdn', 'auto_cdn_ip']]
             if cdn_domains:
-                redirect_host = cdn_domains[0]
+                redirect_host = cdn_domains[0].domain
         elif preferred_type == 'direct':
             direct_domains = [d for d in domains if d.mode not in ['cdn', 'auto_cdn_ip']]
             if direct_domains:
-                redirect_host = direct_domains[0]
+                redirect_host = direct_domains[0].domain
         redirect_url = hiddify.get_admin_login_link(redirect_host)
 
         resp = render_template("result.html",
