@@ -155,7 +155,7 @@ def validate_username_unique(form, field):
 def get_proxy_form(empty=False):
     class ProxyForm(FlaskForm):
         step = wtf.HiddenField(default="3")
-        preferred_domain = wtf.HiddenField(default="ip")
+        preferred_domain = wtf.HiddenField(default="")
 
         def post(self, view):
 
@@ -165,7 +165,7 @@ def get_proxy_form(empty=False):
                     set_hconfig(ek, vs, commit=False)
 
             db.session.commit()
-            flask_session['qs_preferred_domain'] = self.preferred_domain.data or flask_session.get('qs_preferred_domain', 'ip')
+            flask_session['qs_preferred_domain'] = self.preferred_domain.data or flask_session.get('qs_preferred_domain') or 'ip'
             # print(cat,vs)
             hutils.proxy.get_proxies.invalidate_all()
             if hutils.node.is_child():
