@@ -134,7 +134,7 @@ class Actions(FlaskView):
         domains = Domain.get_domains()
         # Quick Setup stores the user's preferred domain type in session; use it for redirect
         from flask import session as flask_session
-        preferred_type = flask_session.pop('qs_preferred_domain', None) or request.args.get('preferred_domain', 'ip')
+        preferred_type = flask_session.pop('qs_preferred_domain', None) or request.args.get('preferred_domain', None)
         
         def is_ip(host):
             try:
@@ -144,6 +144,7 @@ class Actions(FlaskView):
                 return False
 
         redirect_host = hutils.network.get_ip_str(4)
+        
         if preferred_type == 'cdn':
             cdn_domains = [d for d in domains if d.mode in ['cdn', 'auto_cdn_ip']]
             if cdn_domains:
@@ -153,6 +154,13 @@ class Actions(FlaskView):
             direct_domain = next((d for d in direct_domains if not is_ip(d.domain)), None)
             if direct_domain:
                 redirect_host = direct_domain.domain
+        else:
+            # If no preference is specified (e.g. standard Apply Configs button),
+            # stay on the same host the admin is currently using, if valid.
+            current_host = request.host.split(':')[0]
+            if any(d.domain == current_host for d in domains):
+                redirect_host = current_host
+
         redirect_url = hiddify.get_admin_login_link(redirect_host)
 
         resp = render_template("result.html",
