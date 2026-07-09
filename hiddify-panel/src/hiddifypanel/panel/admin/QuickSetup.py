@@ -2,7 +2,7 @@ import re
 import flask_babel
 import uuid
 # from flask_babelex import lazy_gettext as _
-from flask import render_template, g, request
+from flask import render_template, g, request, session as flask_session
 from flask_babel import gettext as _
 from markupsafe import Markup
 import wtforms as wtf
@@ -155,6 +155,7 @@ def validate_username_unique(form, field):
 def get_proxy_form(empty=False):
     class ProxyForm(FlaskForm):
         step = wtf.HiddenField(default="3")
+        preferred_domain = wtf.HiddenField(default="ip")
 
         def post(self, view):
 
@@ -164,6 +165,7 @@ def get_proxy_form(empty=False):
                     set_hconfig(ek, vs, commit=False)
 
             db.session.commit()
+            flask_session['qs_preferred_domain'] = self.preferred_domain.data or flask_session.get('qs_preferred_domain', 'ip')
             # print(cat,vs)
             hutils.proxy.get_proxies.invalidate_all()
             if hutils.node.is_child():
@@ -204,6 +206,7 @@ def get_proxy_form(empty=False):
         setattr(ProxyForm, f'{cf.key}', field)
     setattr(ProxyForm, "submit_global", wtf.fields.SubmitField(_('Submit')))
     form = ProxyForm(None) if empty else ProxyForm()
+    form.preferred_domain.data = flask_session.get('qs_preferred_domain', 'ip')
     form.step.data = "4"
     return form
 
@@ -287,7 +290,6 @@ def get_quick_setup_form(empty=False):
             set_hconfig(ConfigEnum.block_iran_sites, self.block_iran_sites.data)
             set_hconfig(ConfigEnum.decoy_domain, self.decoy_domain.data)
 
-            from flask import session as flask_session
             flask_session['qs_preferred_domain'] = self.preferred_domain.data
 
             return render_template(
@@ -297,6 +299,7 @@ def get_quick_setup_form(empty=False):
                 show_domain_info=False)
 
     form = BasicConfigs(None) if empty else BasicConfigs()
+    form.preferred_domain.data = flask_session.get('qs_preferred_domain', 'ip')
     form.step.data = "3"
     return form
 
