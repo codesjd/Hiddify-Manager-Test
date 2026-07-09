@@ -179,7 +179,24 @@
     },
     "dns": {
         "servers": [
-            {% if g.user_agent['is_singbox'] and (g.user_agent['singbox_version'][0] > 1 or (g.user_agent['singbox_version'][0] == 1 and g.user_agent['singbox_version'][1] >= 12)) %}
+            {% if g.user_agent['is_singbox'] and g.user_agent['singbox_version'][0] == 1 and g.user_agent['singbox_version'][1] < 12 %}
+            {
+                "address": "tcp://1.1.1.1",
+                "address_resolver": "dns-local",
+                "strategy": "prefer_ipv4",
+                "tag": "dns-remote",
+                "detour": "Select"
+            },
+            {
+                "address": "8.8.8.8",
+                "detour": "direct",
+                "tag": "dns-local"
+            },
+            {
+                "address": "rcode:\/\/success",
+                "tag": "dns-block"
+            }
+            {% else %}
             {
                 "tag": "dns-remote",
                 "type": "tcp",
@@ -196,23 +213,6 @@
                 "tag": "dns-block",
                 "type": "rcode",
                 "rcode": "success"
-            }
-            {% else %}
-            {
-                "address": "tcp://1.1.1.1",
-                "address_resolver": "dns-local",
-                "strategy": "prefer_ipv4",
-                "tag": "dns-remote",
-                "detour": "Select"
-            },
-            {
-                "address": "8.8.8.8",
-                "detour": "direct",
-                "tag": "dns-local"
-            },
-            {
-                "address": "rcode:\/\/success",
-                "tag": "dns-block"
             }
             {% endif %}
         ],

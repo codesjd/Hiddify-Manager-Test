@@ -208,6 +208,7 @@ def add_tls(base: dict, proxy: dict):
             "config":f"-----BEGIN ECH CONFIGS-----\n{proxy.get('ech')}\n-----END ECH CONFIGS-----"
         }
     if proxy['proto']=="naive":
+        base["tls"]['insecure'] = proxy['allow_insecure'] or (proxy["mode"] == "Fake")
         return
     if proxy['proto'] not in ["tuic", "hysteria2"] and proxy['transport']!="xhttp":
         base["tls"]["utls"] = {

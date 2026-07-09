@@ -37,9 +37,13 @@ def to_link(proxy: dict) -> str | dict:
         dnstt=f'dnstt://?{urlencode(params, quote_via=quote)}&{resolvers}'
         return f'socks://{proxy["uuid"]}:{proxy["password"]}@localhost:0#{name_link} -> {dnstt}'
     if proxy['proto'] == "naive":
-        naive = f'naive://{proxy["uuid"]}:{proxy["password"]}@{proxy["server"]}:{proxy["port"]}/?security=tls&sni={proxy["sni"]}&uot=1&header=hiddify-naive-secret:{proxy["path"]}'
+        naive = f'naive://{proxy["uuid"]}:{proxy["password"]}@{proxy["server"]}:{proxy["port"]}/?security=tls&sni={proxy["sni"]}&uot=1'
+        if proxy.get('mode') == 'Fake' or proxy.get('allow_insecure'):
+            naive += "&allow_insecure=1"
         if proxy.get('quic'):
             naive += "&quic=1"
+        else:
+            naive += f'&header=hiddify-naive-secret:{proxy["path"]}'
         return f'{naive}#{name_link}'
 
     if proxy['proto'] == "mieru":
@@ -85,8 +89,11 @@ def to_link(proxy: dict) -> str | dict:
         if proxy.get('transport') in {ProxyTransport.xhttp}:
             vmess_data['core'] = 'xray'
             _add_xhttp_extra(vmess_data, proxy)
-        if vmess_data.get('tls') == 'tls' and proxy.get('ech'):
-            vmess_data['ech'] = proxy['ech']
+        if vmess_data.get('tls') == 'tls':
+            if proxy.get('ech'):
+                vmess_data['ech'] = proxy['ech']
+            if proxy.get('mode') == 'Fake' or proxy.get('allow_insecure'):
+                vmess_data['allowInsecure'] = True
         add_tls_tricks_to_dict(vmess_data, proxy)
         add_mux_to_dict(vmess_data, proxy)
 
@@ -337,10 +344,16 @@ def make_v2ray_configs(domains: list[Domain], user: User, expire_days: int, ip_d
             res.append('trojan://1@1.1.1.1#' + hutils.encode.url_encode('✖ Package Ended'))
         return "\n".join(res)
 
+    core_is_singbox = hconfig(ConfigEnum.core_type) == 'singbox'
+
     for pinfo in hutils.proxy.get_valid_proxies(domains):
         # Skip sing-box-only protocols in the plain-link subscription; xray
         # clients cannot use them and they just show as broken configs.
         if pinfo['proto'] in hutils.proxy.SINGBOX_ONLY_PROTOS:
+            continue
+        # xhttp is xray-specific; singbox has no xhttp inbound so these links
+        # always time out when core_type == singbox.
+        if core_is_singbox and pinfo.get('transport') == 'xhttp':
             continue
         link = to_link(pinfo)
         if 'msg' not in link:
