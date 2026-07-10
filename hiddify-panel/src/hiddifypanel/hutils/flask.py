@@ -39,6 +39,17 @@ def static_url_for(**values):
     return orig.split("user_secret")[0]
 
 
+def is_safe_redirect_target(url: str | None) -> bool:
+    """Only same-origin, path-relative targets are safe to hand to
+    redirect() for an already-authenticated request. A value like
+    'https://evil.test', the protocol-relative '//evil.test', or the
+    backslash variant '/\\evil.test' (some browsers treat '\\' like '/' in
+    URLs) would otherwise be a phishing/token-bounce open redirect. Used
+    both for explicit ?redirect=/?next= query params and for
+    request.referrer, which is attacker-controlled the same way."""
+    return bool(url) and url.startswith('/') and not url.startswith('//') and '\\' not in url
+
+
 # Small reusable cell-content components for the modern table design system
 # (see .hf-chip/.hf-pill/.hf-status-circle/.hf-usage/.hf-track in
 # admin-layout.html) - shared across UserAdmin/AdminstratorAdmin/DomainAdmin/

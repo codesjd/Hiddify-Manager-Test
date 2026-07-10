@@ -28,6 +28,7 @@
                 <td>
                     {% if not child.is_active %}
                     <form method="post" action="remove_child">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
                         <input type="hidden" name="child_id" value="{{child.id}}" />
                         <button type="submit" class="btn btn-xs btn-danger"><i class="fa fa-trash"></i></a>
                     </form>

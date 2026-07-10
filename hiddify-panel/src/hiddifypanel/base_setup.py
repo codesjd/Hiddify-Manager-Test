@@ -64,6 +64,13 @@ def init_app(app):
         from hiddifypanel import hutils
         app.jinja_env.filters['b64encode'] = hutils.encode.do_base_64
         app.jinja_env.filters['sanitize_html'] = hutils.encode.sanitize_html
+        # csrf_token(): exposes Flask-WTF's session-tied token generator to
+        # every template, independent of whether a given view uses a
+        # FlaskForm (which already gets CSRF via its own hidden field) - the
+        # admin blueprint's raw <form method="post"> actions (see
+        # panel/admin/__init__.py's before_request CSRF check) need it too.
+        from flask_wtf.csrf import generate_csrf
+        app.jinja_env.globals['csrf_token'] = generate_csrf
         app.view_functions['admin.static'] = {}  # fix bug in apiflask
         flask_bootstrap.Bootstrap4(app)
 

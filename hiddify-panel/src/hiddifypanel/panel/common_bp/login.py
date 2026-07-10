@@ -16,15 +16,6 @@ import datetime
 import re
 
 
-def _is_safe_redirect(url: str | None) -> bool:
-    """Only same-origin, path-relative targets are safe to hand to
-    redirect() for an already-authenticated request. A value like
-    'https://evil.test', the protocol-relative '//evil.test', or the
-    backslash variant '/\\evil.test' (some browsers treat '\\' like '/' in
-    URLs) would otherwise be a phishing/token-bounce open redirect."""
-    return bool(url) and url.startswith('/') and not url.startswith('//') and '\\' not in url
-
-
 class LoginForm(FlaskForm):
     secret_textbox = wtf.fields.StringField(_('Username'), default='',
         description=_('Enter your username'), render_kw={'required': ""})
@@ -49,7 +40,7 @@ class LoginView(FlaskView):
 
             # abort(401, "Unauthorized1")
 
-        if _is_safe_redirect(redirect_arg):
+        if hutils.flask.is_safe_redirect_target(redirect_arg):
             return redirect(redirect_arg)
         if hutils.flask.is_admin_proxy_path() and g.account.role in {Role.super_admin, Role.admin, Role.agent}:
             return redirect(hurl_for('admin.Dashboard:index'))
@@ -96,7 +87,7 @@ class LoginView(FlaskView):
 
             return render_template("redirect.html", url=loginurl), 401
             # abort(401, "Unauthorized1")
-        if _is_safe_redirect(redirect_arg):
+        if hutils.flask.is_safe_redirect_target(redirect_arg):
             return redirect(redirect_arg)
 
         if hutils.flask.is_admin_proxy_path() and g.account.role in {Role.super_admin, Role.admin, Role.agent}:

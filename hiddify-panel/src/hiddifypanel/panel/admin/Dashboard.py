@@ -199,8 +199,12 @@ class Dashboard(FlaskView):
     @ login_required(roles={Role.super_admin})
     @ route('remove_child', methods=['POST'])
     def remove_child(self):
-        child_id = request.form['child_id']
+        child_id = hutils.convert.to_int(request.form.get('child_id'))
+        if not child_id:
+            abort(400, "Invalid child_id")
         child = Child.query.filter(Child.id == child_id).first()
+        if not child:
+            abort(404, "child not found")
         db.session.delete(child)
         db.session.commit()
         hutils.flask.flash(_("child has been removed!"), "success")  # type: ignore

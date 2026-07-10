@@ -1,5 +1,6 @@
 import json
 import ipaddress
+from urllib.parse import urlparse
 from flask_classful import FlaskView, route
 from flask import render_template, request, redirect, g
 from hiddifypanel.hutils.flask import hurl_for
@@ -41,7 +42,15 @@ class Actions(FlaskView):
             set_hconfig(ConfigEnum.lang, lang)
             set_hconfig(ConfigEnum.admin_lang, lang)
             flask_babel.refresh()
-        return redirect(request.referrer or hurl_for('admin.Dashboard:index'))
+        # request.referrer is attacker-controlled the same way a ?redirect=
+        # query param is (a crafted Referer header on a cross-site POST) -
+        # only redirect back to it if it's actually a local, path-relative
+        # target, otherwise this is an open redirect after a state-changing
+        # admin POST.
+        referrer = request.referrer
+        if referrer and not hutils.flask.is_safe_redirect_target(urlparse(referrer).path):
+            referrer = None
+        return redirect(referrer or hurl_for('admin.Dashboard:index'))
 
     @route('reset', methods=['POST'])
     @login_required(roles={Role.super_admin})

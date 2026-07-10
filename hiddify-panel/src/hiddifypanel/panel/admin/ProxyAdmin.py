@@ -52,8 +52,18 @@ class ProxyAdmin(FlaskView):
                     for proxy_id, enable in v.items():
                         if not proxy_id.startswith("p_"):
                             continue
-                        id = int(proxy_id.split('_')[-1])
-                        Proxy.query.filter(Proxy.id == id).first().enable = enable
+                        try:
+                            id = int(proxy_id.split('_')[-1])
+                        except ValueError:
+                            continue
+                        # id can be stale (proxy deleted by another request
+                        # since this form was rendered) - .first() then
+                        # returns None, and dereferencing .enable on it
+                        # crashed the whole submit with an AttributeError.
+                        proxy = Proxy.query.filter(Proxy.id == id).first()
+                        if proxy is None:
+                            continue
+                        proxy.enable = enable
 
                 # print(cat,vs)
             db.session.commit()
