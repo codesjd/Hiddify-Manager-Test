@@ -24,8 +24,17 @@ class AdminUsersApi(MethodView):
         if 'uuid' in data and AdminUser.by_uuid(data['uuid']):
             abort(400, "The admin exists")
 
-        if not data.get('added_by_uuid'):
-            data['added_by_uuid'] = g.account.uuid
+        parent = data.get('parent_admin_uuid')
+        if parent:
+            # A caller-supplied parent_admin_uuid must resolve to an admin
+            # the caller actually owns (self or a sub-admin) - otherwise any
+            # admin could create a sub-admin under a tree they don't control
+            # just by guessing/knowing another admin's uuid. add_or_update()
+            # itself only reads parent_admin_uuid, not added_by_uuid, and
+            # applies no such check.
+            target_admin = AdminUser.by_uuid(parent)
+            if not target_admin or target_admin.id not in g.account.recursive_sub_admins_ids():
+                abort(403, "You don't have permission to add an admin under this parent")
 
         admin = AdminUser.add_or_update(**data) or abort(502, "Unknown issue: Admin is not added")
         return admin

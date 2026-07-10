@@ -73,13 +73,13 @@ class InfoAPI(MethodView):
 
     @app.input(UserInfoChangableSchema, arg_name='data')
     def patch(self, data: UserInfoChangableSchema):
-        if data['telegram_id'] and hutils.convert.is_int(data['telegram_id']):
+        if data.get('telegram_id') and hutils.convert.is_int(data['telegram_id']):
             user = User.by_uuid(g.account.uuid)
             if user.telegram_id != data['telegram_id']:
                 user.telegram_id = data['telegram_id']
                 db.session.commit()
 
-        if data['language']:
+        if data.get('language'):
             user = User.by_uuid(g.account.uuid)
             if user.lang != data['language']:
                 user.lang = data['language']

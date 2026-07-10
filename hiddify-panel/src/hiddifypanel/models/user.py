@@ -218,7 +218,8 @@ class User(BaseAccount):
     @classmethod
     def remove_by_uuid(cls, uuid: str, commit=True):
         dbuser = User.by_uuid(uuid)
-        dbuser.remove(dbuser, commit)
+        if dbuser:
+            dbuser.remove(commit)
 
     @classmethod
     def add_or_update(cls, commit: bool = True, **data):

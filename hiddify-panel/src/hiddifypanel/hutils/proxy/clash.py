@@ -125,7 +125,7 @@ def to_clash(proxy, meta_or_normal):
             }
         return base
     base['alpn'] = proxy['alpn'].split(',')
-    base["skip-cert-verify"] = proxy["mode"] == "Fake"
+    base["skip-cert-verify"] = proxy["mode"] == "Fake" or proxy['allow_insecure']
     if meta_or_normal == "meta" and proxy.get('fingerprint'):
         base['client-fingerprint'] = proxy['fingerprint']
 

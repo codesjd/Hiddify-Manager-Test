@@ -254,12 +254,17 @@
   // breakdown bars below it were only ever set once at page load - so
   // "Hiddify: 9%" could sit there unchanged for as long as the tab was open
   // while the live ring gauge moved on to a completely different number.
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
   function setBreakdown(key, rows) {
     var el = document.getElementById('breakdown-' + key);
     if (!el) return;
     var color = el.getAttribute('data-color');
     el.innerHTML = rows.map(function (r) {
-      return '<div><div class="res-row-label"><span>' + r.name + '</span><span class="res-row-val">' +
+      return '<div><div class="res-row-label"><span>' + escapeHtml(r.name) + '</span><span class="res-row-val">' +
         Math.round(r.pct) + '%</span></div><div class="res-bar-track"><div class="res-bar-fill" style="width:' +
         Math.max(0, Math.min(100, r.pct)) + '%; background:var(--accent-' + color + ');"></div></div></div>';
     }).join('');

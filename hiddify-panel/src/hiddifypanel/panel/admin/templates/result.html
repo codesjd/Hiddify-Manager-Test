@@ -137,8 +137,13 @@ page."),temp_link(),show=False)}}
             const progress = lastMatch.groups.progress;
             const title = lastMatch.groups.title;
             const subtitle = lastMatch.groups.subtitle;
-            $("#process-details").html(subtitle)
-            $("#process-title").html(title)
+            // title/subtitle come from a lazy regex match against the raw
+            // log stream (####progress####title####subtitle####) - they're
+            // meant to be short plain-text status labels, not markup, so a
+            // log line that happens to contain HTML in that position must
+            // not be rendered as HTML.
+            $("#process-details").text(subtitle)
+            $("#process-title").text(title)
             set_progress(Number(progress))
           }
 

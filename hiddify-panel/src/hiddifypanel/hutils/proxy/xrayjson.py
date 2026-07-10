@@ -96,8 +96,13 @@ def configs_as_json(domains: list[Domain], user: User, expire_days: int, remarks
 
 
 def to_xray(proxy: dict) -> dict:
-    # anytls is singbox-only; xray-core has no anytls support
-    if proxy['proto'] in {ProxyProto.naive, ProxyProto.mieru, ProxyProto.anytls}:
+    # naive/mieru/anytls/tuic are all sing-box-only; xray-core has no
+    # protocol implementation for any of them. tuic was previously only
+    # filtered conditionally for v2rayng user agents (see the
+    # unsupported_protos set above) - every other/unknown client requesting
+    # the full-Xray-JSON subscription format fell through to here and got a
+    # `{"protocol": "tuic", "settings": {}}` outbound, which is invalid.
+    if proxy['proto'] in {ProxyProto.naive, ProxyProto.mieru, ProxyProto.anytls, ProxyProto.tuic}:
         return {}
     outbound = {
         'tag': f'{proxy["extra_info"]} {proxy["name"]}',

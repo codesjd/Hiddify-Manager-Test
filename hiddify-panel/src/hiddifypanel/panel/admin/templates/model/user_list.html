@@ -139,7 +139,14 @@
                             res = '{{_("Hover the user to see the reason")}}'
                             for (const uuid in data['res']) {
                                 element = data['res'][uuid]
-                                res += `<span class='badge badge-info' title='${element["error"]}'>${element['name']}</span>`
+                                // $('<div>').text(x).html() (used elsewhere in this file) only
+                                // escapes &/</> - it leaves quote characters untouched, which
+                                // would still let a hostile name/error value break out of the
+                                // single-quoted title attribute below. Escape quotes too.
+                                const escAttr = (s) => String(s).replace(/[&<>"']/g, (c) => ({
+                                    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+                                }[c]))
+                                res += `<span class='badge badge-info' title='${escAttr(element["error"])}'>${escAttr(element['name'])}</span>`
                             }
 
                             $(document).Toasts('create', {
