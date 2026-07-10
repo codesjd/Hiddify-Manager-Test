@@ -17,6 +17,19 @@ def configs_as_json(domains: list[Domain], **kwargs) -> dict:
         base_config['dns']['rules'][0]['domain'].append(d.domain)
     endpoints=[]
     for pinfo in hutils.proxy.get_valid_proxies(domains):
+        # xhttp is an Xray-core transport with no sing-box equivalent -
+        # to_singbox()/_add_xhttp_details() below still emitted a
+        # "transport":{"type":"xhttp",...} block for it regardless, which
+        # sing-box's JSON parser rejects outright ("unknown transport type:
+        # xhttp") - a single unparseable outbound made the ENTIRE config
+        # fail to load, not just this one proxy. is_xray_proxy() was meant
+        # to route these through a raw-embedding fallback for Hiddify Next
+        # specifically, but its actual check is commented out (always
+        # False), so nothing currently protects generic sing-box clients
+        # (v2rayN, etc) from this - skip xhttp here the same way the
+        # plain-link subscription already does in make_v2ray_configs().
+        if pinfo.get('transport') == ProxyTransport.xhttp:
+            continue
         sing = to_singbox(pinfo)
         if 'msg' not in sing:
             if hutils.flask.is_client_version(hutils.flask.ClientVersion.hiddify_next, 4, 0, 0) and sing[0]['type']=="wireguard":
