@@ -135,7 +135,24 @@ class Domain(db.Model):
 
     @property
     def need_valid_ssl(self):
-        return self.mode in [DomainType.direct, DomainType.cdn, DomainType.worker, DomainType.relay, DomainType.auto_cdn_ip, DomainType.old_xtls_direct, DomainType.sub_link_only]
+        if self.mode not in [DomainType.direct, DomainType.cdn, DomainType.worker, DomainType.relay, DomainType.auto_cdn_ip, DomainType.old_xtls_direct, DomainType.sub_link_only]:
+            return False
+        try:
+            # A bare IP address (e.g. the auto-seeded "external_ip" bootstrap
+            # domain from init_db.py's _v1) can never get a real CA-signed
+            # cert - acme.sh/Let's Encrypt don't issue certs for IPs here -
+            # so it always ends up self-signed. Claiming it "needs" a valid
+            # cert both (a) triggered a doomed ACME issuance attempt on
+            # every save (DomainAdmin.after_model_change) and (b) left
+            # allow_insecure/pinned-cert-hash off when generating its
+            # tuic/naive/hysteria2/anytls links (shared.py), so those
+            # clients did strict CA validation against a self-signed cert
+            # and failed outright instead of falling back to pinning like
+            # every other self-signed domain does.
+            ipaddress.ip_address(self.domain)
+            return False
+        except ValueError:
+            return True
 
     @property
     def port_index(self):
