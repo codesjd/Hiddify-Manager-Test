@@ -92,6 +92,11 @@ class Actions(FlaskView):
             udp_ports.add(d.internal_port_hysteria2)
             # AnyTLS is TCP-based (unlike its QUIC/UDP siblings above).
             tcp_ports.add(d.internal_port_anytls)
+            # tcp+vision REALITY now binds directly instead of only being
+            # reachable via HAProxy on 443 (see get_port() in
+            # hutils/proxy/shared.py) - needs its own firewall opening too.
+            if d.mode == DomainType.special_reality_tcp:
+                tcp_ports.add(d.internal_port_special)
 
         def to_int(ports):
             r=set()

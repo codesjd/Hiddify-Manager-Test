@@ -117,6 +117,14 @@ def get_port(proxy: Proxy, hconfigs: dict, domain_db: Domain, ptls: int, phttp: 
         port = domain_db.internal_port_hysteria2
     elif proxy.proto == "anytls":
         port = domain_db.internal_port_anytls
+    elif domain_db.mode == DomainType.special_reality_tcp:
+        # tcp+vision REALITY binds directly (see xray/configs/
+        # 05_inbounds_02_reality_main.json.j2) instead of routing through
+        # HAProxy's SNI frontend on ptls (443) - the extra hop widened
+        # REALITY's own validation-vs-decoy-response race closely enough to
+        # cause "received real certificate" failures. grpc/xhttp reality
+        # still shares ptls via HAProxy, so this only applies to the tcp mode.
+        port = domain_db.internal_port_special
     elif l3 == 'ssh':
         port = hconfigs[ConfigEnum.ssh_server_port]
     elif proxy.proto==ProxyProto.naive and proxy.l3==ProxyL3.h3_quic:
