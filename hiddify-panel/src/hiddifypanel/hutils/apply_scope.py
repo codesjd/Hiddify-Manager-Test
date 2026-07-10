@@ -79,9 +79,23 @@ CATEGORY_SUBSYSTEMS: dict[ConfigCategory, frozenset[str]] = {
 # install.sh footprint (e.g. ssfaketls_enable is filed under
 # ConfigCategory.shadowsocks but is really its own other/ssfaketls
 # subsystem), or that span more than their category alone would suggest.
+#
+# ssfaketls/telegram/shadowtls all also have their own SNI-based routing
+# rule in haproxy/fronts/sni_proxy.cfg.pj2 (use_backend ssfake/telegram/
+# shadowtls if req.ssl_sni matches these exact *_fakedomain values, gated
+# on the matching *_enable flag too) - haproxy has to be included or it
+# keeps routing on the stale fakedomain/gate indefinitely, even though the
+# backend service itself picks up the change correctly. This was the
+# actual cause of "changed the Telegram fake domain and it stopped
+# working" - the mtproxy service had the new domain, haproxy was still
+# looking for the old one.
 KEY_SUBSYSTEM_OVERRIDES: dict[ConfigEnum, frozenset[str]] = {
-    ConfigEnum.ssfaketls_enable: frozenset({Subsystem.ssfaketls}),
-    ConfigEnum.ssfaketls_fakedomain: frozenset({Subsystem.ssfaketls}),
+    ConfigEnum.ssfaketls_enable: frozenset({Subsystem.ssfaketls, Subsystem.haproxy}),
+    ConfigEnum.ssfaketls_fakedomain: frozenset({Subsystem.ssfaketls, Subsystem.haproxy}),
+    ConfigEnum.telegram_enable: frozenset({Subsystem.telegram, Subsystem.haproxy}),
+    ConfigEnum.telegram_fakedomain: frozenset({Subsystem.telegram, Subsystem.haproxy}),
+    ConfigEnum.shadowtls_enable: frozenset({Subsystem.xray, Subsystem.singbox, Subsystem.haproxy}),
+    ConfigEnum.shadowtls_fakedomain: frozenset({Subsystem.xray, Subsystem.singbox, Subsystem.haproxy}),
     # core_type toggles which of xray/singbox actually runs, and other/ssh's
     # own .env.j2 reads core_type too (its SOCKS_PROXY port differs by core).
     ConfigEnum.core_type: frozenset({Subsystem.xray, Subsystem.singbox, Subsystem.ssh}),
