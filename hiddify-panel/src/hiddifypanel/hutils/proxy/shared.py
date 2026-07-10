@@ -366,7 +366,19 @@ def sni_host_server_extractor(domain_db: Domain, hconfigs):
         # Xray-core >= 26.2.6 removed allowInsecure; pinnedPeerCertSha256 is
         # the replacement. We only bother fetching it when we would have set
         # allow_insecure=True, since valid-CA domains don't need pinning.
-        'pinned_cert_sha256': hutils.network.get_pinned_cert_sha256(server) if allow_insecure else None,
+        #
+        # Deliberately pins against `sni`, not `server`: when resolve_ip is
+        # on, `server` above got overwritten with a resolved IP for the
+        # connection target, but get_pinned_cert_sha256() sends whatever
+        # host it's given as BOTH the dial target and the TLS SNI
+        # (server_hostname). Fetching with the IP sends that IP as SNI too,
+        # which doesn't match haproxy's `req.ssl_sni -i <domain>` routing
+        # rule at all - it falls through to the panel's own default
+        # backend/cert, so the pin ends up describing a completely
+        # different certificate than what real client connections (which
+        # correctly send the domain as SNI) actually get. sni matches what
+        # clients present, so pin against that instead.
+        'pinned_cert_sha256': hutils.network.get_pinned_cert_sha256(sni) if allow_insecure else None,
         'cdn': is_cdn,
     }
     if 'reality' in domain_db.mode:
