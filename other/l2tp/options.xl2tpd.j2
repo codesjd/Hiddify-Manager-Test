@@ -1,0 +1,25 @@
+# pppd options for the L2TP sessions xl2tpd spawns. Rendered by
+# common/jinja.py -> options.xl2tpd, then run.sh copies it to
+# /etc/ppp/options.xl2tpd (the pppoptfile referenced from xl2tpd.conf).
+#
+# require-mschap-v2 is what the stock OS L2TP clients (Windows/macOS/iOS/
+# Android) negotiate; the plaintext secret in chap-secrets works for it.
+require-mschap-v2
+refuse-pap
+refuse-chap
+refuse-mschap
+ipcp-accept-local
+ipcp-accept-remote
+# Push the panel's configured resolver (same one WireGuard hands out) so
+# tunnelled clients don't leak DNS to their local network's resolver.
+ms-dns {{ hconfigs['dns_server'] or '1.1.1.1' }}
+ms-dns 8.8.8.8
+noccp
+auth
+hide-password
+mtu 1280
+mru 1280
+proxyarp
+lcp-echo-interval 30
+lcp-echo-failure 4
+connect-delay 5000

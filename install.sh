@@ -140,7 +140,16 @@ function main() {
         
         update_progress "${PROGRESS_ACTION}" "HiddifyCli" 80
         install_run other/hiddify-cli $(hconfig "hiddifycli_enable") &
-        
+
+        # L2TP/IPsec (strongSwan+xl2tpd). Deliberately inside the
+        # non-apply_users block, unlike wireguard/amneziawg below: its
+        # per-user credentials (chap-secrets) refresh on a full Apply
+        # Configs, not on the per-user fast-path - restarting strongswan/
+        # xl2tpd on every user add would drop every live tunnel, and
+        # jinja.py doesn't re-render other/l2tp on apply_users anyway.
+        update_progress "${PROGRESS_ACTION}" "L2TP/IPsec" 82
+        install_run other/l2tp $(hconfig "l2tp_enable") &
+
     fi
 
 

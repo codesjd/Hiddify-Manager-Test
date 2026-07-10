@@ -81,6 +81,7 @@ class ConfigCategory(StrEnum):
     webhook=auto()
     amneziawg=auto()
     anytls = auto()
+    l2tp = auto()
 
 
 class ApplyMode(StrEnum):
@@ -342,6 +343,17 @@ class ConfigEnum(metaclass=FastEnum):
     # only NekoBox / v2rayN >=7.14.3 consume the singbox subscription.
     anytls_enable = _BoolConfigDscr(ConfigCategory.anytls, ApplyMode.apply_config)
     anytls_port = _StrConfigDscr(ConfigCategory.anytls, ApplyMode.apply_config, hide_in_virtual_child=True)
+
+    # L2TP/IPsec inbound - a standalone strongSwan+xl2tpd subsystem (see
+    # other/l2tp/), NOT an xray/singbox protocol. Legacy access method for
+    # the built-in OS VPN clients; each user authenticates with their UUID
+    # and the shared l2tp_psk. Default off. PPTP is deliberately not offered
+    # (broken MS-CHAPv2 crypto). reinstall because enabling installs the
+    # strongswan/xl2tpd packages.
+    l2tp_enable = _BoolConfigDscr(ConfigCategory.l2tp, ApplyMode.reinstall)
+    # The IPsec pre-shared key. hide_in_virtual_child: L2TP terminates on the
+    # host that runs the daemon, not a virtual child.
+    l2tp_psk = _StrConfigDscr(ConfigCategory.l2tp, ApplyMode.apply_config, hide_in_virtual_child=True)
 
     # the hysteria is refereing to hysteria2
 

@@ -88,7 +88,13 @@ class Actions(FlaskView):
                 udp_ports.add(p)
         if hconfig(ConfigEnum.ssh_server_enable):
             tcp_ports.add(hconfig(ConfigEnum.ssh_server_port))
-        
+        if hconfig(ConfigEnum.l2tp_enable):
+            # L2TP/IPsec: IKE (500), NAT-T (4500) and the L2TP tunnel (1701),
+            # all UDP. ESP (IP proto 50) rides inside UDP/4500 for the NAT'd
+            # clients this is aimed at, so no extra rule is needed for it.
+            for p in (500, 4500, 1701):
+                udp_ports.add(p)
+
         for p in (hconfig(ConfigEnum.tls_ports)).split(','):
             tcp_ports.add(p)
             udp_ports.add(p)

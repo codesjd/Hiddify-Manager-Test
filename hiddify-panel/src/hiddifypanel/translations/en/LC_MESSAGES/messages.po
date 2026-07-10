@@ -1299,6 +1299,36 @@ msgstr "The port AnyTLS listens on."
 msgid "config.anytls_port.label"
 msgstr "AnyTLS Port"
 
+msgid "config.l2tp.description"
+msgstr ""
+"L2TP/IPsec is a legacy VPN every stock OS (Windows/macOS/iOS/Android) can "
+"connect to with its built-in client, no app needed. Off by default - it "
+"runs its own strongSwan+xl2tpd daemons rather than through the proxy core, "
+"so it has no per-user usage tracking. (PPTP is deliberately not offered - "
+"its crypto has been broken since 2012.)"
+
+msgid "config.l2tp.label"
+msgstr "L2TP/IPsec"
+
+msgid "config.l2tp_enable.description"
+msgstr ""
+"Enable the L2TP/IPsec inbound. Each user connects with the server's IP, the "
+"pre-shared key below, and their own UUID as both username and password. "
+"Newly added users get access on the next Apply Configs (not instantly like "
+"proxy protocols)."
+
+msgid "config.l2tp_enable.label"
+msgstr "🔒 L2TP/IPsec"
+
+msgid "config.l2tp_psk.description"
+msgstr ""
+"The IPsec pre-shared key (PSK) every L2TP client must enter alongside their "
+"username/password. Shared by all users - give it out together with their "
+"UUID."
+
+msgid "config.l2tp_psk.label"
+msgstr "🔑 L2TP Pre-Shared Key"
+
 msgid "config.auto_update.description"
 msgstr ""
 "Every day at 3:00 AM, we will check for a new update. if there is a new "

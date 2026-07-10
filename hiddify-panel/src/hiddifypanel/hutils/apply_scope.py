@@ -32,6 +32,7 @@ class Subsystem(StrEnum):
     telegram = 'other/telegram'
     ssfaketls = 'other/ssfaketls'
     hiddifycli = 'other/hiddify-cli'
+    l2tp = 'other/l2tp'
 
 
 # Domain records aren't ConfigEnum-backed (see DomainAdmin), but this is the
@@ -72,6 +73,10 @@ CATEGORY_SUBSYSTEMS: dict[ConfigCategory, frozenset[str]] = {
     ConfigCategory.telegram: frozenset({Subsystem.telegram}),
     ConfigCategory.dnstt: frozenset({Subsystem.dnstt}),
     ConfigCategory.warp: frozenset({Subsystem.warp}),
+    # L2TP/IPsec is its own strongSwan+xl2tpd subsystem (other/l2tp), not an
+    # xray/singbox protocol, so both l2tp_enable and l2tp_psk only need that
+    # one subsystem re-run on Apply Configs.
+    ConfigCategory.l2tp: frozenset({Subsystem.l2tp}),
     **{cat: frozenset({Subsystem.xray, Subsystem.singbox}) for cat in _PROTOCOL_CATEGORIES},
     # ConfigCategory.proxies holds the {vless,vmess,trojan}_enable and
     # {ws,grpc,tcp,httpupgrade,xhttp}_enable toggles. haproxy/maps/path_v10.j2

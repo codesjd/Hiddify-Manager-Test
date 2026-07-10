@@ -14,7 +14,19 @@ from hiddifypanel.database import db, db_execute
 
 
 from loguru import logger
-MAX_DB_VERSION = 140
+MAX_DB_VERSION = 141
+
+
+def _v140(child_id):
+    """L2TP/IPsec inbound (other/l2tp subsystem).
+
+    l2tp_enable: default False - it's a standalone strongSwan+xl2tpd
+        subsystem that installs its own packages, so opt-in only.
+    l2tp_psk: a strong random IPsec pre-shared key, generated once here so
+        every install ships a unique one rather than a shared default the
+        admin might never rotate."""
+    add_config_if_not_exist(ConfigEnum.l2tp_enable, False)
+    add_config_if_not_exist(ConfigEnum.l2tp_psk, hutils.random.get_random_password(24))
 
 
 def _v139(child_id):
