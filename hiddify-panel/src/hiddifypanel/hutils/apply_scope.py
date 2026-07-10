@@ -73,6 +73,16 @@ CATEGORY_SUBSYSTEMS: dict[ConfigCategory, frozenset[str]] = {
     ConfigCategory.dnstt: frozenset({Subsystem.dnstt}),
     ConfigCategory.warp: frozenset({Subsystem.warp}),
     **{cat: frozenset({Subsystem.xray, Subsystem.singbox}) for cat in _PROTOCOL_CATEGORIES},
+    # ConfigCategory.proxies holds the {vless,vmess,trojan}_enable and
+    # {ws,grpc,tcp,httpupgrade,xhttp}_enable toggles. haproxy/maps/path_v10.j2
+    # and haproxy/fronts/in_tcpmode.cfg.pj2 branch on these exact same flags
+    # to decide which v10-{protocol}-{stream} backends and path-map entries
+    # even exist, so scoping a protocol/transport toggle to xray/singbox only
+    # left haproxy routing against a stale backend/map set - a just-enabled
+    # transport had no map entry yet (falls through to nginx's own,
+    # separately-stale dispatch -> 502), and a just-disabled one kept being
+    # served. Overrides the broader _PROTOCOL_CATEGORIES entry above.
+    ConfigCategory.proxies: frozenset({Subsystem.xray, Subsystem.singbox, Subsystem.haproxy}),
 }
 
 # Per-key overrides for keys whose ConfigCategory doesn't match their real
