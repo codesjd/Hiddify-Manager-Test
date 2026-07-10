@@ -473,12 +473,19 @@ def make_proxy(hconfigs: dict, proxy: Proxy, domain_db: Domain, phttp=80, ptls=4
     if 'reality' in proxy.l3:
         alpn = "h2" if proxy.transport in ['h2', "grpc"] else 'http/1.1'
     else:
-        alpn="http/1.1"
-        if proxy.l3 in ['tls_h2'] or proxy.transport in ["grpc", 'h2']:
-            alpn = "h2"    
+        # alpn must be derived from l3 alone - it's the field that names the
+        # config variant to the user (see ProxyL3), so a config labeled
+        # "tls" must always negotiate h1 and one labeled "tls_h2" must
+        # always negotiate h2, regardless of transport. get_proxy_rows_v1()
+        # deliberately seeds both "tls grpc ..." and "tls_h2 grpc ..." as
+        # distinct rows; overriding alpn by transport collapsed that
+        # distinction and made the "tls" (h1) variant silently emit h2.
+        alpn = "http/1.1"
+        if proxy.l3 in ['tls_h2']:
+            alpn = "h2"
         if proxy.l3 == 'tls_h2_h1':
-            alpn='h2,http/1.1' 
-        
+            alpn='h2,http/1.1'
+
         if proxy.l3 in [ProxyL3.h3_quic]:
             alpn = "h3"
 
