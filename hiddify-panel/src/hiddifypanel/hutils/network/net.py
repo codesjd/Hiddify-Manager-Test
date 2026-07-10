@@ -119,12 +119,28 @@ def get_pinned_cert_sha256(host: str, port: int = 443) -> Union[str, None]:
     import time
     key = f"{host}:{port}"
     cached = _pinned_cert_cache.get(key)
-    if cached and (time.time() - cached[1]) < 3600:
+    # A 1-hour TTL with no invalidation hook meant a pin fetched before a
+    # domain's cert finished issuing (e.g. right after the domain is added,
+    # hitting whatever cert HAProxy defaults to for an unmatched SNI) kept
+    # being served as fact for up to an hour after the real cert appeared -
+    # every hysteria2/tuic/anytls/naive-quic connection pinned to that host
+    # would fail with a cert mismatch the whole time. 300s (matching
+    # get_domain_ips_cached's TTL below) bounds that staleness window to
+    # minutes instead of up to an hour.
+    if cached and (time.time() - cached[1]) < 300:
         return cached[0]
     if key not in _pinned_cert_inflight:
         _pinned_cert_inflight.add(key)
         threading.Thread(target=_background_fetch_cert, args=(host, port, key), daemon=True).start()
     return None
+
+
+def invalidate_pinned_cert_cache(host: str, port: int = 443):
+    """Drop a cached pin so the next get_pinned_cert_sha256() call re-fetches
+    it instead of serving a stale value for up to 300s. Call this whenever a
+    domain's cert is known to have just changed (added/edited domain, cert
+    reissue) so the very next subscription request already reflects it."""
+    _pinned_cert_cache.pop(f"{host}:{port}", None)
 
 
 

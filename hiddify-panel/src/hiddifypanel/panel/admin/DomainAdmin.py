@@ -195,6 +195,13 @@ class DomainAdmin(AdminLTEModelView):
     def on_model_change(self, form, model, is_created):
         # Sanitize domain input
         model.domain = (model.domain or '').lower().strip()
+        # A domain's cert can be mid-issuance right when it's added/edited
+        # (ACME runs async, after this request). Busting any stale pin here
+        # means the next subscription request re-fetches instead of serving
+        # whatever cert happened to be live at the moment this domain was
+        # first touched for up to 300s afterward - see get_pinned_cert_sha256.
+        if model.domain:
+            hutils.network.invalidate_pinned_cert_cache(model.domain)
         if model.download_domain and model.domain==model.download_domain.domain:
             model.download_domain_id=None
             model.download_domain=None
