@@ -70,11 +70,11 @@
             <p class="quicksetup-step-note">{{ _('quicksetup.proxy_cat.description') }}</p>
             {% endif %}
             <div class="row">
-                <div class="card-columns{% if form.step.data == '3' %} quicksetup-domain-outer{% endif %}">
+                <div class="card-columns{% if form.step.data in ('3', '4') %} quicksetup-domain-outer{% endif %}">
                     {% if ipv4 or ipv6 %}
-                    {{_('admin.quicksetup_intro',ipv4=ip_btn(ipv4),ipv6=ip_btn(ipv6))}}
+                    <div class="quicksetup-ip-intro">{{_('admin.quicksetup_intro',ipv4=ip_btn(ipv4),ipv6=ip_btn(ipv6))}}</div>
                     {%endif%}
-                    {{render_form(form,form_type="",extra_classes="card-columns1 quicksetup-domain-form" if form.step.data == "3" else "card-columns1")}}
+                    {{render_form(form,form_type="",extra_classes="card-columns1 quicksetup-domain-form" if form.step.data in ('3', '4') else "card-columns1")}}
                 </div>
             </div>
         </div>
@@ -120,7 +120,13 @@
        is why the CDN field's position kept moving. Pin it explicitly instead
        of relying on column-balancing: two real grid columns, domain first
        row left, CDN first row right, regardless of what else is on the
-       page. */
+       page. Also used for the final proxy-toggle step: CSS multi-column
+       flows items down one column then the next with no row relationship
+       between the two columns at all, so a left field with a longer
+       description (e.g. SSH Proxy) pushed everything below it in that
+       column down without the right column's paired field moving in step -
+       an actual grid auto-sizes each row to its tallest cell, keeping
+       left/right pairs (SSH Proxy/TCP, Trojan/VLess, ...) on the same row. */
     .card-columns.quicksetup-domain-outer {
         column-count: 1;
     }
@@ -135,6 +141,25 @@
         .quicksetup-domain-form {
             grid-template-columns: 1fr;
         }
+    }
+
+    /* Wider gap between the IPv4/IPv6 lines than a bare <br> gives. */
+    .quicksetup-ip-intro {
+        line-height: 2.4;
+        margin-bottom: 12px;
+    }
+
+    /* The submit button is just the last field in the form, so under both
+       the multi-column and grid layouts above it landed wherever the
+       column/row flow happened to put it (usually pinned to one side)
+       instead of being centered on its own full-width row. column-span
+       breaks it out of column-count flow; grid-column spans it across the
+       grid layout; either way it's then centered within that full width. */
+    .card-columns1 .form-group:has(> input[type="submit"]),
+    .card-columns1 .form-group:has(> button[type="submit"]) {
+        column-span: all;
+        grid-column: 1 / -1;
+        text-align: center;
     }
 </style>
 {% endblock %}

@@ -1,10 +1,7 @@
 import json
 import wtforms as wtf
-from wtforms.validators import ValidationError
 from markupsafe import Markup
 from flask_babel import lazy_gettext as _
-from flask import request, jsonify
-from flask_admin import expose
 from .adminlte import AdminLTEModelView
 from hiddifypanel.auth import login_required
 from hiddifypanel.models import *
@@ -42,91 +39,7 @@ class _ScriptField(wtf.Field):
         return ''
 
     def __call__(self, **kwargs):
-        if self._script == _IMPORT_BUTTON_SCRIPT:
-            return Markup(_import_button_script_html())
         return Markup(self._script or _PROTOCOL_FIELD_SCRIPT)
-
-
-def _import_button_script_html() -> str:
-    """Build the Import button + AJAX handler on the fly, with the correct
-    parse_link URL for the current request's proxy_path baked in (can't be a
-    module-level constant because the URL contains the runtime proxy_path).
-    """
-    parse_url = hutils.flask.hurl_for('flask.customoutbound.parse_link_view')
-    # NOTE: uses fetch() so it works both inside the flask-admin modal and
-    # (if the create/edit form is ever navigated to standalone) full-page.
-    return """
-<script>
-(function() {
-  var link = document.querySelector('[name="import_link"]');
-  if (!link || link.dataset.importBtnBound) return;
-  link.dataset.importBtnBound = '1';
-  var wrap = link.closest('.form-group') || link.parentElement;
-  if (!wrap) return;
-  var btn = document.createElement('button');
-  btn.type = 'button';
-  btn.className = 'btn btn-primary btn-sm mt-1';
-  btn.textContent = 'Import';
-  btn.style.marginTop = '6px';
-  var status = document.createElement('span');
-  status.style.marginLeft = '10px';
-  status.style.fontSize = '12px';
-  wrap.appendChild(btn);
-  wrap.appendChild(status);
-  function fill(fields) {
-    Object.keys(fields).forEach(function(name) {
-      var el = document.querySelector('[name="' + name + '"]');
-      if (!el) return;
-      var value = fields[name] == null ? '' : fields[name];
-      // A <select> (e.g. ss_method's fixed cipher list) silently ignores
-      // assigning a value with no matching <option> - the field just goes
-      // blank even though the link really did specify that cipher. Add it
-      // as an extra option first so an unlisted-but-real value still shows
-      // up instead of vanishing.
-      if (el.tagName === 'SELECT' && value !== '' &&
-          !Array.prototype.some.call(el.options, function(o) { return o.value === value; })) {
-        var opt = document.createElement('option');
-        opt.value = value;
-        opt.textContent = value;
-        el.appendChild(opt);
-      }
-      el.value = value;
-      // Fire change so the per-protocol show/hide script sees the new
-      // protocol/security values.
-      el.dispatchEvent(new Event('change', {bubbles: true}));
-    });
-  }
-  btn.addEventListener('click', function() {
-    status.style.color = '';
-    status.textContent = 'Importing...';
-    var form = new FormData();
-    form.append('link', link.value);
-    fetch(""" + repr(parse_url) + """, {method: 'POST', body: form, credentials: 'same-origin'})
-      .then(function(r) { return r.json(); })
-      .then(function(j) {
-        if (j.ok) {
-          fill(j.fields);
-          status.style.color = 'green';
-          status.textContent = 'Imported ✓';
-        } else {
-          status.style.color = 'red';
-          status.textContent = j.error || 'Failed to parse link';
-        }
-      })
-      .catch(function(e) {
-        status.style.color = 'red';
-        status.textContent = 'Error: ' + e;
-      });
-  });
-})();
-</script>
-"""
-
-
-# The _ScriptField for import_button_script gets its HTML at render time via
-# _script - but the constant we pass in class body evaluates once, before app
-# context exists. Sentinel resolved lazily in _ScriptField.__call__ below.
-_IMPORT_BUTTON_SCRIPT = "__RUNTIME_IMPORT_BUTTON__"
 
 
 _PROTOCOL_FIELD_SCRIPT = """
@@ -136,7 +49,7 @@ _PROTOCOL_FIELD_SCRIPT = """
   function wrapper(el) { return el ? (el.closest('.form-group') || el.parentElement) : null; }
 
   var ALL = ['address', 'port', 'uuid_or_password', 'network', 'security', 'sni',
-             'ws_path', 'host_header', 'fingerprint', 'flow', 'import_link', 'encryption', 'ss_method',
+             'ws_path', 'host_header', 'fingerprint', 'flow', 'encryption', 'ss_method',
              'peer_public_key', 'preshared_key', 'local_address', 'dns', 'jc', 'jmin', 'jmax',
              'sockopt_mark', 'sockopt_tcp_fast_open', 'sockopt_tproxy', 'sockopt_domain_strategy',
              'sockopt_dialer_proxy', 'sockopt_interface', 'sockopt_tcp_keep_alive_interval',
@@ -167,28 +80,22 @@ _PROTOCOL_FIELD_SCRIPT = """
   // everything not listed here gets hidden. address/port double as the
   // wireguard/amneziawg Endpoint, uuid_or_password as the PrivateKey (same
   // convention the Python side uses in routing.py).
-  // import_link/import_button_script are shared by every share-link protocol
-  // parse_share_link() understands (vless/vmess/trojan/ss/socks/http/
-  // hysteria2) - listed once here so adding a protocol to IMPORT_LINK_PROTOS
-  // is the only place needed, instead of repeating it in every SHOW_FOR entry.
-  var IMPORT_LINK = ['import_link', 'import_button_script'];
   var SHOW_FOR = {
     vless: ['address', 'port', 'uuid_or_password', 'network', 'security', 'sni',
-            'ws_path', 'host_header', 'fingerprint', 'flow', 'encryption'].concat(IMPORT_LINK, SOCKOPT_MUX),
-    vmess: ['address', 'port', 'uuid_or_password', 'network', 'security', 'sni', 'ws_path', 'host_header', 'fingerprint'].concat(IMPORT_LINK, SOCKOPT_MUX),
-    trojan: ['address', 'port', 'uuid_or_password', 'network', 'security', 'sni', 'ws_path', 'host_header', 'fingerprint'].concat(IMPORT_LINK, SOCKOPT_MUX),
-    shadowsocks: ['address', 'port', 'uuid_or_password', 'ss_method', 'network', 'security', 'sni', 'ws_path', 'host_header', 'fingerprint'].concat(IMPORT_LINK, SOCKOPT_MUX),
-    socks: ['address', 'port', 'uuid_or_password'].concat(IMPORT_LINK, SOCKOPT_MUX),
-    http: ['address', 'port', 'uuid_or_password'].concat(IMPORT_LINK, SOCKOPT_MUX),
+            'ws_path', 'host_header', 'fingerprint', 'flow', 'encryption'].concat(SOCKOPT_MUX),
+    vmess: ['address', 'port', 'uuid_or_password', 'network', 'security', 'sni', 'ws_path', 'host_header', 'fingerprint'].concat(SOCKOPT_MUX),
+    trojan: ['address', 'port', 'uuid_or_password', 'network', 'security', 'sni', 'ws_path', 'host_header', 'fingerprint'].concat(SOCKOPT_MUX),
+    shadowsocks: ['address', 'port', 'uuid_or_password', 'ss_method', 'network', 'security', 'sni', 'ws_path', 'host_header', 'fingerprint'].concat(SOCKOPT_MUX),
+    socks: ['address', 'port', 'uuid_or_password'].concat(SOCKOPT_MUX),
+    http: ['address', 'port', 'uuid_or_password'].concat(SOCKOPT_MUX),
     // hysteria2 is QUIC/TLS with its own obfs+bandwidth knobs; no network/
     // transport/mux selectors apply. sni is its TLS server_name.
-    hysteria: ['address', 'port', 'uuid_or_password', 'sni', 'hysteria_obfs_password', 'hysteria_up_mbps', 'hysteria_down_mbps'].concat(IMPORT_LINK),
+    hysteria: ['address', 'port', 'uuid_or_password', 'sni', 'hysteria_obfs_password', 'hysteria_up_mbps', 'hysteria_down_mbps'],
     // NaiveProxy is always TLS (HTTP/2-over-TLS) with no separate transport
     // selector; uuid_or_password is user:pass same as socks/http. No
     // uTLS fingerprint field - NaiveProxy uses Chromium's actual network
     // stack rather than a uTLS mimicry layer, so that field has no effect
-    // here. No share-link format support in this codebase yet either, so
-    // no IMPORT_LINK.
+    // here.
     naive: ['address', 'port', 'uuid_or_password', 'sni'].concat(SOCKOPT_MUX),
     // TUIC: uuid_or_password is "uuid:password". Always TLS, no separate
     // transport selector.
@@ -197,10 +104,8 @@ _PROTOCOL_FIELD_SCRIPT = """
     // - Mieru does its own obfuscation, not a TLS wrapper.
     mieru: ['address', 'port', 'uuid_or_password', 'mieru_transport', 'mieru_multiplexing'].concat(SOCKOPT_MUX),
     wireguard: ['address', 'port', 'uuid_or_password', 'peer_public_key', 'local_address'],
-    // AmneziaWG has no share-link format (no import_link here - it gets its
-    // own raw .conf paste field instead, occupying the same spot in the
-    // form) plus its full obfuscation params on top of the wireguard basics
-    // (Jc/Jmin/Jmax + S1-S4 + I1-I5).
+    // AmneziaWG gets a raw .conf paste field plus its full obfuscation
+    // params on top of the wireguard basics (Jc/Jmin/Jmax + S1-S4 + I1-I5).
     amneziawg: ['address', 'port', 'uuid_or_password', 'peer_public_key', 'preshared_key', 'local_address', 'dns',
                 'jc', 'jmin', 'jmax',
                 'awg_h1', 'awg_h2', 'awg_h3', 'awg_h4',
@@ -277,12 +182,7 @@ class OutboundAdmin(AdminLTEModelView):
     column_hide_backrefs = False
     list_template = 'model/outbound_list.html'
     column_list = ["tag", "protocol", "address", "port", "network", "security", "comment"]
-    # awg_conf sits right next to import_link/import_button_script - the two
-    # occupy the same spot in the form (AmneziaWG has no share-link format,
-    # so it gets a raw .conf paste instead), toggled by the same
-    # SHOW_FOR/protocol switch in _PROTOCOL_FIELD_SCRIPT so only one of the
-    # two is ever visible at a time, never both and never neither.
-    form_columns = ["tag", "import_link", "import_button_script", "awg_conf", "protocol", "address", "port", "uuid_or_password", "ss_method",
+    form_columns = ["tag", "awg_conf", "protocol", "address", "port", "uuid_or_password", "ss_method",
                      "peer_public_key", "preshared_key", "local_address", "dns", "jc", "jmin", "jmax",
                      "network", "security", "sni", "ws_path", "host_header", "fingerprint", "flow", "encryption",
                      "reality_public_key", "reality_short_id",
@@ -412,13 +312,6 @@ class OutboundAdmin(AdminLTEModelView):
     )
 
     form_extra_fields = {
-        "import_link": wtf.TextAreaField(
-            _("Import Link"),
-            description=_('Paste a share link and click Import (or Save) - it fills in the fields below from it, '
-                           'auto-detecting the protocol. Supports vless://, vmess://, trojan://, ss:// (shadowsocks), socks://, '
-                           'http:// and hysteria2://. AmneziaWG has no share-link format - use its .conf paste field further down.'),
-        ),
-        "import_button_script": _ScriptField(label="", script=_IMPORT_BUTTON_SCRIPT),
         "ss_method": wtf.SelectField(
             _("Encryption Method (shadowsocks)"),
             choices=[(m, m) for m in [
@@ -445,7 +338,6 @@ class OutboundAdmin(AdminLTEModelView):
 
     form_widget_args = {
         'extra_json': {'rows': 4},
-        'import_link': {'rows': 3, 'style': 'font-family: monospace'},
     }
 
     # The protocol dropdown is restricted to the approved set only
@@ -481,36 +373,8 @@ class OutboundAdmin(AdminLTEModelView):
     def edit_form(self, obj=None):
         return self._disable_select2(super().edit_form(obj))
 
-    @expose('/parse_link', methods=['POST'])
-    def parse_link_view(self):
-        """AJAX endpoint used by the Import button next to the Import Link
-        field: takes a raw share link and returns the CustomOutbound field
-        values it implies as JSON, so the client-side script can fill the
-        form in place without a save round-trip."""
-        if not self.is_accessible():
-            return jsonify({"ok": False, "error": "forbidden"}), 403
-        raw = (request.form.get('link') or request.json and request.json.get('link') or '').strip() if request.form or request.is_json else ''
-        try:
-            parsed = parse_share_link(raw)
-        except ValueError as e:
-            return jsonify({"ok": False, "error": str(e)})
-        # Enum values -> raw strings for the form-select values
-        out = {}
-        for k, v in parsed.items():
-            out[k] = str(v) if hasattr(v, 'value') else v
-        return jsonify({"ok": True, "fields": out})
-
     def on_model_change(self, form, model, is_created):
         model.child_id = Child.current().id
-
-        raw_link = (form.import_link.data or '').strip()
-        if raw_link:
-            try:
-                parsed = parse_share_link(raw_link)
-            except ValueError as e:
-                raise ValidationError(str(e))
-            for key, value in parsed.items():
-                setattr(model, key, value)
 
     def after_model_change(self, form, model, is_created):
         hutils.apply_scope.mark_dirty(hutils.apply_scope.OUTBOUND_CHANGE_SUBSYSTEMS)
