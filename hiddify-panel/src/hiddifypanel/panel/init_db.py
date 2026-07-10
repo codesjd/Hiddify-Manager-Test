@@ -14,7 +14,27 @@ from hiddifypanel.database import db, db_execute
 
 
 from loguru import logger
-MAX_DB_VERSION = 139
+MAX_DB_VERSION = 140
+
+
+def _v139(child_id):
+    """make_proxy_rows() used to seed an xhttp Proxy row's download-channel
+    alpn (params.download.alpn) crossed against every l3 - e.g. a "tls"
+    (h1) row also got dl=h2/dl=h3 variants, "tls_h2" got a dl=h3 variant,
+    and h3_quic got dl=h1/dl=h2 variants - so the download channel could
+    silently negotiate a different protocol than the row's own l3 label
+    promised (confirmed live: a "tls_h2 xhttp direct vless dl=h3" row).
+    Delete the mismatched rows; the one correctly-matching variant for
+    each l3 (already seeded alongside them, e.g. "... dl=h1" for tls) is
+    left untouched, as is every non-xhttp row."""
+    expected_dl = {ProxyL3.h3_quic: 'h3', ProxyL3.tls_h2: 'h2', ProxyL3.tls: 'http/1.1'}
+    for p in Proxy.query.filter_by(transport=ProxyTransport.xhttp, child_id=child_id).all():
+        if p.l3 not in expected_dl:
+            continue
+        dl = (p.params or {}).get('download', {}).get('alpn')
+        if dl and dl != expected_dl[p.l3]:
+            db.session.delete(p)
+    db.session.commit()
 
 
 def _v138(child_id):
@@ -1020,23 +1040,19 @@ def make_proxy_rows(cfgs):
             # is_exist = Proxy.query.filter(Proxy.name == name).first() or Proxy.query.filter(            #     Proxy.l3 == l3, Proxy.transport == transport, Proxy.cdn == cdn, Proxy.proto == proto).first()
             # if not is_exist:
             params_list=[('',{})]
-            
+
             if transport=="xhttp" and l3 not in [ProxyL3.reality,ProxyL3.http]:
-                params_list=[]
-                # for up in ['http/1.1"','h2','h3']:
-                if l3=="http":
-                    alpn=['http/1.1']
-                else:
-                    alpns=['http/1.1','h2','h3']
-                for dl in alpns:
-                    name_postfix=f' dl={dl}'.replace("http/1.1",'h1')
-                    params={
-                            'download':{
-                                'alpn':f'{dl}'
-                            }                    
-                        }
-                    params_list.append((name_postfix,params))
-                        
+                # The download-channel alpn must match this row's own l3,
+                # not every possible alpn - seeding all three (h1/h2/h3) for
+                # every l3 produced e.g. a "tls" (h1) row whose download
+                # channel negotiated h2/h3, and a "tls_h2" row that
+                # negotiated h3, silently contradicting the row's own l3
+                # label. Only the one variant that actually matches this
+                # row's l3 is generated.
+                dl = 'h3' if l3 == ProxyL3.h3_quic else ('h2' if l3 == 'tls_h2' else 'http/1.1')
+                name_postfix = f' dl={dl}'.replace("http/1.1", 'h1')
+                params_list = [(name_postfix, {'download': {'alpn': dl}})]
+
             for name_postfix,params in params_list:
                 yield Proxy(l3=l3, transport=transport, cdn=cdn, proto=proto, enable=enable, name=name+name_postfix, params=params)
 
