@@ -10,19 +10,6 @@ from hiddifypanel.cache import cache
 from hiddifypanel.models import Proxy, ProxyProto, ProxyL3, ProxyTransport, ProxyCDN, Domain, DomainType, ConfigEnum, hconfig, get_hconfigs
 from hiddifypanel import hutils
 
-# Protocols that only work with sing-box (server side).
-# If the server core is Xray, these should be filtered out from all subscriptions
-# (both sing-box and plain-link) because the server isn't running them.
-SERVER_SINGBOX_ONLY_PROTOS = frozenset({
-    ProxyProto.anytls,
-    ProxyProto.ssh,
-    ProxyProto.amneziawg,
-    ProxyProto.dnstt,
-    ProxyProto.tuic,
-    ProxyProto.naive,
-    ProxyProto.mieru,
-})
-
 
 def get_ssh_hostkeys(hconfigs, dojson=False) -> list[str] | str:
     host_keys = [
@@ -193,11 +180,10 @@ def get_proxies(child_id: int = 0, only_enabled=False) -> list['Proxy']:
         proxies = [c for c in proxies if c.proto != ProxyProto.amneziawg]
     # SSH is only ever a singbox inbound (05_inbounds_ssh.json.j2) - xray-core
     # has no SSH inbound support at all (there's no ssh entry anywhere under
-    # xray/configs/), so under the default xray core nothing is listening on
-    # Surface SSH/AnyTLS if they are enabled in settings.
-    # Note: Xray-only plain-link subscriptions filter out singbox-only protocols
-    # downstream (via SINGBOX_ONLY_PROTOS in make_v2ray_configs) so we don't
-    # need to filter by core_type here at the database retrieval level.
+    # xray/configs/). sing-box now always runs alongside xray regardless of
+    # core_type (see install.sh), so it's actually listening either way;
+    # ssh just has no standard URI scheme plain-link clients recognize,
+    # which is filtered downstream in make_v2ray_configs instead of here.
     if not hconfig(ConfigEnum.ssh_server_enable, child_id):
         proxies = [c for c in proxies if c.proto != ProxyProto.ssh]
     if not hconfig(ConfigEnum.hysteria_enable, child_id):

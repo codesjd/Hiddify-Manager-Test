@@ -374,15 +374,18 @@ def make_v2ray_configs(domains: list[Domain], user: User, expire_days: int, ip_d
     core_is_singbox = hconfig(ConfigEnum.core_type) == 'singbox'
 
     for pinfo in hutils.proxy.get_valid_proxies(domains):
-        # If server is running Xray, filter out protocols that Xray doesn't support.
-        if not core_is_singbox and pinfo['proto'] in hutils.proxy.SERVER_SINGBOX_ONLY_PROTOS:
+        # sing-box now always runs alongside xray (see install.sh - it used
+        # to be disabled whenever core_type=='xray', which killed every
+        # singbox-only inbound's server side entirely) so these protocols'
+        # servers are always up regardless of the primary core. The only
+        # remaining reason to skip one here is a client-recognizability
+        # problem, not a server-availability one: ssh/amneziawg/dnstt have
+        # no standard URI scheme plain-link clients (v2rayN, NekoBox, etc)
+        # know how to parse. anytls/tuic/naive/mieru all have working
+        # schemes built below in to_link(), so they stay.
+        if pinfo['proto'] in {ProxyProto.ssh, ProxyProto.amneziawg, ProxyProto.dnstt}:
             continue
-            
-        # Even if server is sing-box, skip protocols that have no URI scheme 
-        # (anytls, ssh, amneziawg, dnstt) from the plain-link sub.
-        if core_is_singbox and pinfo['proto'] in {ProxyProto.anytls, ProxyProto.ssh, ProxyProto.amneziawg, ProxyProto.dnstt}:
-            continue
-            
+
         # xhttp is xray-specific; singbox has no xhttp inbound so these links
         # always time out when core_type == singbox.
         if core_is_singbox and pinfo.get('transport') == 'xhttp':
