@@ -114,16 +114,22 @@ function main() {
             install_run other/warp 0 &
         fi
 
-        # core_type decides which proxy core actually runs as a service.
-        # Previously xray was hardcoded to 1 and singbox had no flag at all,
-        # so switching core_type in the panel never stopped the unused core -
-        # both kept running and could fight over the same ports/sockets.
+        # core_type only decides the PRIMARY core. The two cores are
+        # complementary, not redundant: xray serves vless/vmess/trojan/reality,
+        # while hysteria2/tuic/shadowsocks2022/anytls/mieru/naive exist ONLY as
+        # singbox inbounds (there is no xray/configs/ template for them). So on
+        # an xray-core install singbox must ALSO run, or every one of those
+        # protocols points at a dead port. They don't collide: singbox's
+        # overlapping inbounds (vless/vmess/trojan/reality) self-exclude via
+        # `{% if core_type=="singbox" %}` gates, and the two cores use distinct
+        # control/socks ports (xray 10085/1234, singbox 10086/2000). The panel
+        # also polls singbox on 10086 for usage stats, so it must be up.
+        # Only the SINGBOX-primary case can safely drop xray (xhttp is the sole
+        # xray-only transport and is already filtered from singbox subs).
         CORE_TYPE=$(hconfig "core_type")
         XRAY_ENABLE=1
         SINGBOX_ENABLE=1
-        if [[ "$CORE_TYPE" == "xray" ]]; then
-            SINGBOX_ENABLE=0
-        elif [[ "$CORE_TYPE" == "singbox" ]]; then
+        if [[ "$CORE_TYPE" == "singbox" ]]; then
             XRAY_ENABLE=0
         fi
 
