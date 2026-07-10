@@ -61,7 +61,10 @@ class Dashboard(FlaskView):
             hutils.flask.flash(_('outdated_panel'), "danger")  # type: ignore
 
         childs = None
-        admin_id = request.args.get("admin_id") or g.account.id
+        # request.args.get() returns a string; recursive_sub_admins_ids()
+        # returns ints, so an unconverted "?admin_id=1" would never match
+        # even the caller's own id and always 403 - cast before checking.
+        admin_id = hutils.convert.to_int(request.args.get("admin_id")) or g.account.id
         if admin_id not in g.account.recursive_sub_admins_ids():
             abort(403, _("Access Denied!"))
 

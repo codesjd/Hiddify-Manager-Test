@@ -153,7 +153,7 @@ class AdminUser(BaseAccount):
         if self.mode == AdminMode.super_admin:
             return True
         users_count = self.recursive_users_query().count()
-        if self.max_users < users_count:
+        if users_count >= self.max_users:
             return False
         if users_count <= self.max_active_users:
             return True

@@ -61,7 +61,11 @@ class InfoAPI(MethodView):
         dto.lang = (c['user'].lang) or Lang(hconfig(ConfigEnum.lang))
         dto.brand_icon_url = "" if hconfig(ConfigEnum.branding_title) else hutils.flask.static_url_for(filename="images/favicon.ico")
         # with force_locale("fa"):
-        dto.admin_message_html = hconfig(ConfigEnum.branding_freetext) or _("Join our Hiddify Telegram channel to get the latest updates on Hiddify.")
+        # branding_freetext is admin-authored rich text (CKEditor) rendered
+        # as raw HTML - sanitize it (not the hardcoded suffix below, which
+        # is our own trusted markup) before it goes out as API data a
+        # client is expected to render as HTML.
+        dto.admin_message_html = hutils.encode.sanitize_html(hconfig(ConfigEnum.branding_freetext)) or _("Join our Hiddify Telegram channel to get the latest updates on Hiddify.")
         if not hconfig(ConfigEnum.branding_freetext) and auth.admin_session_is_exist():
             dto.admin_message_html += "<p style='font-style: italic;font-size:8px'>" + \
                 _("[Admin only visible message:] You can change this message from settings") + "</p>"

@@ -11,9 +11,9 @@ class Report(db.Model):
     asn_id = db.Column(db.String(200), nullable=False, unique=False)
     city = db.Column(db.String(200))
     country = db.Column(db.String(200))
-    latitude = Column(Float,)
-    longitude = Column(Float, )
-    accuracy_radius = Column(Float, )
+    latitude = db.Column(db.Float)
+    longitude = db.Column(db.Float)
+    accuracy_radius = db.Column(db.Float)
 
     date = db.Column(db.DateTime, nullable=False, default=datetime.datetime.min)
     details = db.relationship('ReportDetail', cascade="all,delete", backref='report', lazy='dynamic',)

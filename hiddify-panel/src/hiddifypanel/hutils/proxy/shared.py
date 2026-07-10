@@ -132,6 +132,9 @@ def ports_to_ranges(csv_ports: str) -> list[str]:
         return []
 
     ports = sorted(set(int(p.strip()) for p in csv_ports.split(",") if p.strip()))
+    for port in ports:
+        if not (1 <= port <= 65535):
+            raise ValueError(f"Invalid port {port}: must be between 1 and 65535")
 
     ranges = []
     start = prev = ports[0]

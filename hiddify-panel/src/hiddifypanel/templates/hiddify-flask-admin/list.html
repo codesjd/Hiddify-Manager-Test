@@ -219,7 +219,7 @@ actions_confirmation) }}
         var filter = new AdminFilters(
             '#filter_form', '.field-filters',
             {{ filter_groups| tojson | safe }},
-    { { active_filters | tojson | safe } }
+            {{ active_filters | tojson | safe }}
                 );
     {% endif %}
         }) (jQuery);

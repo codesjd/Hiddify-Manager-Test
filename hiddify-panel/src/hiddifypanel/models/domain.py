@@ -295,6 +295,8 @@ class Domain(db.Model):
                 dbdldomain=Domain.query.filter(Domain.domain == dl_domain).first()
             assert dbdldomain
             dbdomain.download_domain_id=dbdldomain.id
+        else:
+            dbdomain.download_domain_id = None
         if commit:
             db.session.commit()
 

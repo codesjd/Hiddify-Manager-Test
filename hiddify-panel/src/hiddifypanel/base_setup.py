@@ -63,6 +63,7 @@ def init_app(app):
         app.jinja_env.line_statement_prefix = '%'
         from hiddifypanel import hutils
         app.jinja_env.filters['b64encode'] = hutils.encode.do_base_64
+        app.jinja_env.filters['sanitize_html'] = hutils.encode.sanitize_html
         app.view_functions['admin.static'] = {}  # fix bug in apiflask
         flask_bootstrap.Bootstrap4(app)
 
