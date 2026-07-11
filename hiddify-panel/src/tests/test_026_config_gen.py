@@ -46,3 +46,20 @@ def test_template_render(app):
     if u:
         sg_json = singbox_configs(u.uuid)
         assert json.loads(sg_json.json) # asserts it parses
+
+
+def test_sqlite_usage_increment(app):
+    '''Verify Plan 015 Phase 2: add_usage_json SQLite fallback increments counter.'''
+    from uuid import uuid4
+    from hiddifypanel.panel.usage import add_users_usage_new
+    from hiddifypanel.models import User, db
+    
+    uid = str(uuid4())
+    u = User(uuid=uid, name='smoke_test_026', usage_limit_GB=10, package_days=30, current_usage=0)
+    db.session.add(u)
+    db.session.commit()
+    
+    usage_before = u.current_usage
+    add_users_usage_new([{'uuid': uid, 'usage': 1024}], child_id=0)
+    db.session.refresh(u)
+    assert u.current_usage == 1024, f"Expected 1024, got {u.current_usage} (SQLite fallback failed)"
