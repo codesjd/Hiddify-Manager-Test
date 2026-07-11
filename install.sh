@@ -247,9 +247,19 @@ function install_run() {
     fi
     echo "======================$1====================================={"
    if [ "$DO_NOT_INSTALL" != "true" ];then
+        # ponytail: gate install.sh on subsystem enable flag (last arg)
+        # when the flag is 0/false/False, skip package installation entirely
+        # but still run run.sh so the subsystem is stopped/cleaned up
+        _ENABLED=true
+        _LAST_ARG="${@: -1}"
+        case "$_LAST_ARG" in
+            0|false|False|"") _ENABLED=false ;;
+        esac
+        if [ "$_ENABLED" == "true" ]; then
             runsh install.sh $@
-        if [ "$MODE" != "apply_users" ] && [ "$MODE" != "docker"  ]; then
-            systemctl daemon-reload
+            if [ "$MODE" != "apply_users" ] && [ "$MODE" != "docker"  ]; then
+                systemctl daemon-reload
+            fi
         fi
     fi
     if [ "$DO_NOT_RUN" != "true" ];then
