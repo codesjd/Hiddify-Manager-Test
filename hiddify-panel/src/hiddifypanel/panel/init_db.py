@@ -463,7 +463,8 @@ END
 
     """
 
-    db_execute(add_usage_proc,commit=True)
+    if db.engine.dialect.name == 'mysql':
+        db_execute(add_usage_proc,commit=True)
     
 
 def _v101(child_id):
