@@ -1,6 +1,6 @@
 
 user  nginx;
-worker_processes  auto;
+worker_processes  1;
 
 # error_log  /opt/hiddify-manager/log/system/nginx.err.log notice;
 {%if hconfigs['log_level']=="CRITICAL"%}
