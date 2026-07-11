@@ -1348,7 +1348,8 @@ def migrate(db_version):
         execute('update str_config set `key`="path_xhttp" where `key`="path_splithttp";')
         execute("UPDATE proxy SET transport = 'xhttp' WHERE transport = 'splithttp';")
     if db_version < 97:
-        execute('ALTER TABLE str_config MODIFY value VARCHAR(3072);')
+        if db.engine.dialect.name == 'mysql':
+            execute('ALTER TABLE str_config MODIFY value VARCHAR(3072);')
     if db_version < 82:
         if db.engine.dialect.name == 'mysql':
             execute('ALTER TABLE child DROP INDEX `name`;')
@@ -1359,13 +1360,13 @@ def migrate(db_version):
             execute('update user_detail set connected_devices="" where connected_devices IS NULL')
 
     if db_version < 70:
-        execute('CREATE INDEX date ON daily_usage (date);')
-        execute('CREATE INDEX username ON user (username);')
-        execute('CREATE INDEX username ON admin_user (username);')
-        execute('CREATE INDEX telegram_id ON user (telegram_id);')
-        execute('CREATE INDEX telegram_id ON admin_user (telegram_id);')
-
-        execute('ALTER TABLE proxy DROP INDEX `name`;')
+        if db.engine.dialect.name == 'mysql':
+            execute('CREATE INDEX date ON daily_usage (date);')
+            execute('CREATE INDEX username ON user (username);')
+            execute('CREATE INDEX username ON admin_user (username);')
+            execute('CREATE INDEX telegram_id ON user (telegram_id);')
+            execute('CREATE INDEX telegram_id ON admin_user (telegram_id);')
+            execute('ALTER TABLE proxy DROP INDEX `name`;')
 
         if db.engine.dialect.name == 'mysql':
             execute("ALTER TABLE user MODIFY COLUMN telegram_id BIGINT;")
