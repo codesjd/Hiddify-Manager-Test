@@ -33,7 +33,7 @@ def test_apply_scope_logic(app):
     assert pending is not None
 
 def test_outbound_serialization(app):
-    out = CustomOutbound(protocol=OutboundProtocol.vless, tag='test_vless', params={'host': 'example.com'}, transport=ProxyTransport.WS)
+    out = CustomOutbound(protocol=OutboundProtocol.vless, tag='test_vless', address='example.com', port=443, uuid_or_password='test')
     xray_dict = out.to_xray_dict()
     assert isinstance(xray_dict, dict)
     singbox_dict = out.to_singbox_dict()
@@ -46,7 +46,8 @@ def test_migration_smoke(app):
 def test_sqlite_usage_increment(app):
     '''Verify Plan 015 Phase 2: SQLite usage path replicates all three stored-procedure effects.'''
     from hiddifypanel.panel.usage import add_users_usage_new
-    from hiddifypanel.models import User, db
+    from hiddifypanel.database import db
+    from hiddifypanel.models import User
 
     u1 = User(uuid=str(uuid4()), name='smoke_a', usage_limit_GB=10, package_days=30, current_usage=0, last_online=datetime.min, start_date=None)
     u2 = User(uuid=str(uuid4()), name='smoke_b', usage_limit_GB=10, package_days=30, current_usage=0, last_online=datetime.min, start_date=date.today() - timedelta(days=5))
