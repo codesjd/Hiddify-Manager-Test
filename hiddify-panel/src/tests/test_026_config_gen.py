@@ -9,7 +9,7 @@ from hiddifypanel.models.proxy import ProxyTransport
 
 @pytest.fixture
 def app():
-    app = create_app(SQLALCHEMY_DATABASE_URI='sqlite:///:memory:', TESTING=True)
+    app = create_app(SQLALCHEMY_DATABASE_URI='sqlite:///:memory:', TESTING=True, REDIS_URI_MAIN='', REDIS_URI_SSE='')
     with app.app_context():
         from hiddifypanel.database import db
         db.create_all()
