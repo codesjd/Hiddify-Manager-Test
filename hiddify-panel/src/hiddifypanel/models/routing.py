@@ -814,6 +814,8 @@ def parse_vmess_link(link: str) -> dict:
         data = json.loads(base64.b64decode(b64).decode('utf-8', 'ignore'))
     except Exception:
         raise ValueError('vmess link is not valid base64-encoded JSON')
+    if not isinstance(data, dict):
+        raise ValueError('vmess link JSON is not an object')
     if not data.get('add'):
         raise ValueError('vmess link is missing the server address ("add")')
 

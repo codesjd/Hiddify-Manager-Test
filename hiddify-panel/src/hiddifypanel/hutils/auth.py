@@ -42,7 +42,7 @@ def parse_login_id(raw_id: str) -> Tuple[Any | None, str | None]:
             and the ID is a string. If the raw ID cannot be parsed, None is returned
             for both the account type and ID.
     """
-    splitted = raw_id.split('_')
+    splitted = raw_id.split('_', 1)
     if len(splitted) < 2:
         return None, None
     admin_or_user, id = splitted

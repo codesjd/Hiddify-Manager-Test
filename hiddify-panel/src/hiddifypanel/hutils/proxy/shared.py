@@ -128,10 +128,12 @@ def get_port(proxy: Proxy, hconfigs: dict, domain_db: Domain, ptls: int, phttp: 
 
 
 def ports_to_ranges(csv_ports: str) -> list[str]:
-    if not csv_ports.strip():
+    if not (csv_ports or '').strip():
         return []
 
     ports = sorted(set(int(p.strip()) for p in csv_ports.split(",") if p.strip()))
+    if not ports:
+        return []
     for port in ports:
         if not (1 <= port <= 65535):
             raise ValueError(f"Invalid port {port}: must be between 1 and 65535")

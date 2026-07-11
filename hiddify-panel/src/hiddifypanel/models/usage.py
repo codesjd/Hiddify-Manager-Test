@@ -11,7 +11,7 @@ from hiddifypanel.database import db
 
 class DailyUsage(db.Model):
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    date = db.Column(db.Date, default=datetime.date.today(), index=True)
+    date = db.Column(db.Date, default=datetime.date.today, index=True)
     usage = db.Column(db.BigInteger, default=0, nullable=False)
     online = db.Column(db.Integer, default=0, nullable=False)
     admin_id = db.Column(db.Integer, db.ForeignKey('admin_user.id'), default=0, nullable=False)

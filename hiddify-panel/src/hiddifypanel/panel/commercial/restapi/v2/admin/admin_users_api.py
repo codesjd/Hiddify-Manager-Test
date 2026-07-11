@@ -5,7 +5,7 @@ from flask.views import MethodView
 from hiddifypanel.auth import login_required
 from hiddifypanel.models.role import Role
 from .admin_user_api import AdminSchema
-from hiddifypanel.models import AdminUser
+from hiddifypanel.models import AdminUser, AdminMode
 from apiflask import fields
 
 class AdminUsersApi(MethodView):
@@ -21,6 +21,8 @@ class AdminUsersApi(MethodView):
     @app.output(AdminSchema)  # type: ignore
     def post(self, data):
         """Admin: Create an admin"""
+        if not (g.account.mode == AdminMode.super_admin or g.account.can_add_admin):
+            abort(403, "You don't have permission to add an admin")
         if 'uuid' in data and AdminUser.by_uuid(data['uuid']):
             abort(400, "The admin exists")
 

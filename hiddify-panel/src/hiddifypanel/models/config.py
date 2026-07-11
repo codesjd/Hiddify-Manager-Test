@@ -82,7 +82,11 @@ def hconfig(key: ConfigEnum, child_id: Optional[int] = None):  # -> str | int | 
         raise
     if value is not None:
         if key.type == int:
-            return int(value)
+            try:
+                return int(value)
+            except (TypeError, ValueError):
+                logger.warning(f'{key} has non-numeric int-typed value {value!r}; defaulting to 0')
+                return 0
         elif hasattr(key.type, 'from_str'):
             return key.type.from_str(value)
 
@@ -133,13 +137,21 @@ def set_hconfig(key: ConfigEnum, value: str | int | bool, child_id: int | None =
         db.session.commit()
 
 
+def _safe_int_config(key, value):
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        logger.warning(f'{key} has non-numeric int-typed value {value!r}; defaulting to 0')
+        return 0
+
+
 @cache.cache(ttl=500,)
 def get_hconfigs(child_id: int | None = None, json=False) -> dict:
     if child_id is None:
         child_id = Child.current().id
 
     return {**{f'{u.key}' if json else u.key: u.value for u in BoolConfig.query.filter(BoolConfig.child_id == child_id).all() if u.key.type == bool},
-            **{f'{u.key}' if json else u.key: int(u.value) if u.key.type == int and u.value != None else u.value for u in StrConfig.query.filter(StrConfig.child_id == child_id).all() if u.key.type != bool},
+            **{f'{u.key}' if json else u.key: _safe_int_config(u.key, u.value) if u.key.type == int and u.value != None else u.value for u in StrConfig.query.filter(StrConfig.child_id == child_id).all() if u.key.type != bool},
             }
 
 

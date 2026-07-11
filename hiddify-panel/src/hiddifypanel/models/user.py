@@ -74,7 +74,7 @@ class User(BaseAccount):
     monthly = db.Column(db.Boolean, default=False)  # removed
     start_date = db.Column(db.Date, nullable=True)
     current_usage = db.Column(db.BigInteger, default=0, nullable=False)
-    last_reset_time = db.Column(db.Date, default=datetime.date.today())
+    last_reset_time = db.Column(db.Date, default=datetime.date.today)
     added_by = db.Column(db.Integer, db.ForeignKey('admin_user.id'), default=1)
     max_ips = db.Column(db.Integer, default=100, nullable=False)
     details = db.relationship('UserDetail', cascade="all,delete", backref='user', lazy='dynamic',)
@@ -226,7 +226,7 @@ class User(BaseAccount):
         from hiddifypanel import hutils
         dbuser: User = super().add_or_update(commit=commit, **data)
         if data.get('added_by_uuid'):
-            admin = AdminUser.by_uuid(data.get('added_by_uuid'), create=True) or AdminUser.current_admin_or_owner()  # type: ignore
+            admin = AdminUser.by_uuid(data.get('added_by_uuid')) or AdminUser.current_admin_or_owner()  # type: ignore
             dbuser.added_by = admin.id
         elif not dbuser.added_by:
             dbuser.added_by = 1
@@ -282,6 +282,8 @@ class User(BaseAccount):
 
         if data.get('last_online') is not None:
             dbuser.last_online = hutils.convert.json_to_time(data.get('last_online')) or datetime.datetime.min
+        if data.get('last_reset_time') is not None:
+            dbuser.last_reset_time = hutils.convert.json_to_date(data['last_reset_time'])
         if commit:
             db.session.commit()
         return dbuser

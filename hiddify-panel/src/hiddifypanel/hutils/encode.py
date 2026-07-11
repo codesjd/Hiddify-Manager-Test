@@ -1,3 +1,4 @@
+import re
 import urllib.parse
 import base64
 import uuid
@@ -48,6 +49,10 @@ _SANITIZE_ALLOWED_ATTRS = {
     'a': {'href', 'title', 'target', 'rel'},
 }
 _SANITIZE_UNSAFE_URL_SCHEMES = ('javascript:', 'data:', 'vbscript:')
+# Browsers strip ASCII C0 controls (tab/LF/CR and friends) from *inside* a
+# URL before resolving its scheme, so a naive .strip() (leading/trailing
+# only) lets "java\tscript:" through as if it weren't a javascript: URL.
+_CONTROL_CHARS_RE = re.compile(r'[\x00-\x1f]')
 
 
 class _HTMLSanitizer(HTMLParser):
@@ -68,7 +73,7 @@ class _HTMLSanitizer(HTMLParser):
         for name, value in attrs:
             if name not in _SANITIZE_ALLOWED_ATTRS.get(tag, set()):
                 continue
-            if name == 'href' and (value or '').strip().lower().startswith(_SANITIZE_UNSAFE_URL_SCHEMES):
+            if name == 'href' and _CONTROL_CHARS_RE.sub('', (value or '')).strip().lower().startswith(_SANITIZE_UNSAFE_URL_SCHEMES):
                 continue
             kept.append(f'{name}="{html_escape(value or "", quote=True)}"')
         attr_str = (' ' + ' '.join(kept)) if kept else ''

@@ -142,6 +142,8 @@ class LoginView(FlaskView):
         domain = request.host
         admin_call=hutils.flask.is_admin_panel_call()
         account=AdminUser.by_uuid(g.uuid) if admin_call else User.by_uuid(g.uuid)
+        if not admin_call and not account:
+            abort(404)
         name = (domain if admin_call  else account.name)
         return jsonify({
             "name": f"Hiddify {name}",
