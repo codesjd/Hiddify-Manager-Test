@@ -1,0 +1,52 @@
+name: CI checks
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install check tools
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install black flake8 jinja2
+
+      - name: Python lint and format
+        continue-on-error: true
+        working-directory: hiddify-panel/src
+        run: |
+          flake8 .
+          black --check .
+
+      - name: Bash lint
+        continue-on-error: true
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y shellcheck
+          shellcheck install.sh common/*.sh other/*/*.sh
+
+      - name: Import and compile check
+        working-directory: hiddify-panel/src
+        run: |
+          python -m pip install -e .[dev] || python -m pip install -e .
+          python -m py_compile $(find hiddifypanel -name '*.py')
+          python -c "import hiddifypanel"
+
+      - name: Template syntax
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          from jinja2 import Environment
+
+          env = Environment()
+          for path in sorted([*Path('.').rglob('*.j2'), *Path('.').rglob('*.pj2')]):
+              env.parse(path.read_text(encoding='utf-8'))
+          PY
