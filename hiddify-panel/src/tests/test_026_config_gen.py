@@ -1,3 +1,8 @@
+import os
+os.environ['STDOUT_LOG_LEVEL'] = 'INFO'
+os.environ['REDIS_URI_MAIN'] = 'redis://127.0.0.1:6379'
+os.environ['REDIS_URI_SSE'] = 'redis://127.0.0.1:6379'
+os.environ['HIDDIFY_CONFIG_PATH'] = '/opt/hiddify-manager'
 import pytest
 import json
 from datetime import datetime, date, timedelta
@@ -7,12 +12,8 @@ from hiddifypanel.models.config_enum import ConfigEnum
 from hiddifypanel.models.routing import OutboundProtocol, CustomOutbound
 from hiddifypanel.models.proxy import ProxyTransport
 
-@pytest.fixture
+@pytest.fixture(scope='session')
 def app():
-    import os
-    os.environ['STDOUT_LOG_LEVEL'] = 'INFO'
-    os.environ['REDIS_URI_MAIN'] = 'redis://127.0.0.1:6379'
-    os.environ['REDIS_URI_SSE'] = 'redis://127.0.0.1:6379'
     app = create_app(SQLALCHEMY_DATABASE_URI='sqlite:///:memory:', TESTING=True, STDOUT_LOG_LEVEL='INFO', HIDDIFY_CONFIG_PATH='/opt/hiddify-manager')
     with app.app_context():
         from hiddifypanel.database import db
