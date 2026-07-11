@@ -14,7 +14,7 @@ from hiddifypanel.models.proxy import ProxyTransport
 
 @pytest.fixture(scope='session')
 def app():
-    app = create_app(SQLALCHEMY_DATABASE_URI='sqlite:///:memory:', TESTING=True, STDOUT_LOG_LEVEL='INFO', HIDDIFY_CONFIG_PATH='/opt/hiddify-manager')
+    app = create_app(SQLALCHEMY_DATABASE_URI='sqlite:///:memory:', TESTING=True, STDOUT_LOG_LEVEL='INFO', HIDDIFY_CONFIG_PATH='/opt/hiddify-manager', REDIS_URI_MAIN='redis://127.0.0.1:6379', REDIS_URI_SSE='redis://127.0.0.1:6379')
     with app.app_context():
         from hiddifypanel.database import db
         db.create_all()
