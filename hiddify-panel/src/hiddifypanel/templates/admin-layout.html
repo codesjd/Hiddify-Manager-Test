@@ -1216,7 +1216,7 @@ label, .control-label {
 
 {% block tail_js %}
 {{ super() }}
-<form id="action_form" method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"></form>
+<form id="action_form" method="post"><input type="hidden" name="csrf_token" value="{{ raw_csrf_token() }}"></form>
 <script>
 function toggleSidebarCollapsed() {
   var sidebar = document.getElementById('app-sidebar');
@@ -1262,7 +1262,7 @@ $(document).ready(function () {
           {{ _('admin.menu.api') }}
         </a>
         <form class="lang-switcher" method="post" action="{{ hurl_for('admin.Actions:set_language') }}">
-          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <input type="hidden" name="csrf_token" value="{{ raw_csrf_token() }}">
           <select name="lang" class="lang-switcher-select" onchange="this.form.submit()" title="{{ _('config.admin_lang.label') }}">
             {% for l in ['en', 'fa', 'pt', 'zh', 'ru', 'my'] %}
             <option value="{{ l }}" {% if hconfig(ConfigEnum.admin_lang)==l %}selected{% endif %}>{{ _('lang.' + l) }}</option>
