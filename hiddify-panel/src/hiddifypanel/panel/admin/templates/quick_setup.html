@@ -154,11 +154,25 @@
        column/row flow happened to put it (usually pinned to one side)
        instead of being centered on its own full-width row. column-span
        breaks it out of column-count flow; grid-column spans it across the
-       grid layout; either way it's then centered within that full width. */
+       grid layout; either way it's then centered within that full width.
+
+       SubmitField renders as a bare <input type="submit"> with NO
+       .form-group wrapper (unlike every other field), so it's a direct
+       child of the .card-columns1 form itself - the .form-group:has(...)
+       selector alone never matched it. Without a rule, it fell into
+       whatever grid cell auto-placement gave it and, being a grid item,
+       stretched to fill both that cell's full row height (grid's default
+       align-items: stretch) and width, rendering as an oversized rectangle
+       instead of a normal button (most visible on the step-3 domain form,
+       next to the tall Decoy Site help text). */
+    .card-columns1 > input[type="submit"],
+    .card-columns1 > button[type="submit"],
     .card-columns1 .form-group:has(> input[type="submit"]),
     .card-columns1 .form-group:has(> button[type="submit"]) {
         column-span: all;
         grid-column: 1 / -1;
+        align-self: start;
+        justify-self: center;
         text-align: center;
     }
 </style>

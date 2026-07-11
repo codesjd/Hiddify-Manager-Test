@@ -35,6 +35,15 @@ class OutboundProtocol(StrEnum):
     # [Peer]; see CustomOutbound.render_amneziawg_conf()/to_xray_dict()/
     # to_singbox_dict().
     amneziawg = auto()
+    # Same "not a real dialed protocol" treatment as amneziawg above: neither
+    # xray nor sing-box has an L2TP dialer, so this binds outbound traffic to
+    # a standalone per-row L2TP/IPsec client tunnel (interface "l2tpc{id}")
+    # that other/l2tp/run.sh.j2 brings up (strongSwan+xl2tpd+pppd dialing OUT
+    # to address:1701, same daemons other/l2tp's inbound side already uses).
+    # address = the remote LNS host, uuid_or_password = "username:password"
+    # (PPP CHAP creds, same user:pass convention as socks/http/naive),
+    # preshared_key = the remote's IPsec PSK (blank = no IPsec, bare L2TP).
+    l2tp = auto()
 
 
 class OutboundNetwork(StrEnum):
@@ -203,6 +212,15 @@ class CustomOutbound(db.Model):  # type: ignore
         across tag renames."""
         return f"awg{self.id}"
 
+    @property
+    def l2tp_interface(self) -> str:
+        """Linux/ppp interface name for this row's L2TP client tunnel -
+        pinned via the peer options file's `ifname` directive (pppd normally
+        auto-numbers ppp0/ppp1/... in connection order, which isn't stable
+        across restarts), same id-derived-not-tag-derived naming as
+        amneziawg_interface above."""
+        return f"l2tpc{self.id}"
+
     def render_amneziawg_conf(self) -> str:
         """The actual AmneziaWG [Interface]/[Peer] .conf content for this
         row - written to /etc/amnezia/amneziawg/{interface}.conf and loaded
@@ -344,6 +362,12 @@ class CustomOutbound(db.Model):  # type: ignore
             # bind_interface. No network/security apply.
             return {"tag": self.tag, "protocol": "freedom", "settings": {}, "streamSettings": {"sockopt": {"interface": self.amneziawg_interface}}}
 
+        if self.protocol == OutboundProtocol.l2tp:
+            # Neither core dials L2TP - same freedom+bind-to-interface
+            # treatment as amneziawg above, bound to the client tunnel
+            # other/l2tp/run.sh.j2 brings up for this row.
+            return {"tag": self.tag, "protocol": "freedom", "settings": {}, "streamSettings": {"sockopt": {"interface": self.l2tp_interface}}}
+
         if self.protocol == OutboundProtocol.hysteria:
             # xray-core has no hysteria/hysteria2 outbound at all. Both cores'
             # outbound JSON is precomputed (build_custom_xray_extra runs even
@@ -478,6 +502,11 @@ class CustomOutbound(db.Model):  # type: ignore
             # from render_amneziawg_conf()), sing-box itself never dials
             # AmneziaWG's obfuscated protocol directly.
             return {"tag": self.tag, "type": "direct", "bind_interface": self.amneziawg_interface}
+
+        if self.protocol == OutboundProtocol.l2tp:
+            # Same reasoning as amneziawg above - bind to this row's own
+            # L2TP client interface (other/l2tp/run.sh.j2 brings it up).
+            return {"tag": self.tag, "type": "direct", "bind_interface": self.l2tp_interface}
 
         out: dict = {"tag": self.tag}
 
@@ -1202,3 +1231,24 @@ def get_amneziawg_outbounds() -> list[dict]:
     child_id = Child.current().id
     rows = CustomOutbound.query.filter_by(child_id=child_id, protocol=OutboundProtocol.amneziawg, enable=True).all()
     return [{"interface": o.amneziawg_interface, "conf": o.render_amneziawg_conf()} for o in rows]
+
+
+def get_l2tp_client_outbounds() -> list[dict]:
+    """Every enabled Outbound with Protocol=l2tp, serialized for
+    other/l2tp/run.sh.j2 to bring up one L2TP/IPsec client tunnel per row
+    (interface "l2tpc{id}") that xray/singbox's outbound then binds to -
+    same read path as get_amneziawg_outbounds() above."""
+    from hiddifypanel.models.child import Child
+    child_id = Child.current().id
+    rows = CustomOutbound.query.filter_by(child_id=child_id, protocol=OutboundProtocol.l2tp, enable=True).all()
+    result = []
+    for o in rows:
+        username, _, password = (o.uuid_or_password or '').partition(':')
+        result.append({
+            "interface": o.l2tp_interface,
+            "address": o.address or '',
+            "username": username,
+            "password": password,
+            "psk": o.preshared_key or '',
+        })
+    return result

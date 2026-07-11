@@ -49,10 +49,11 @@ DOMAIN_CHANGE_SUBSYSTEMS = frozenset({
 # generated configs), never haproxy/nginx/acme.
 CORE_ONLY_SUBSYSTEMS = frozenset({Subsystem.xray, Subsystem.singbox})
 
-# Outbounds can additionally be AmneziaWG tunnels (CustomOutbound rows with
-# their own run.sh-managed .conf files under other/amneziawg), so that
-# admin view needs one more subsystem than routing rules/inbound overrides.
-OUTBOUND_CHANGE_SUBSYSTEMS = frozenset({Subsystem.xray, Subsystem.singbox, Subsystem.amneziawg})
+# Outbounds can additionally be AmneziaWG or L2TP tunnels (CustomOutbound
+# rows with their own run.sh-managed interfaces under other/amneziawg or
+# other/l2tp), so that admin view needs two more subsystems than routing
+# rules/inbound overrides.
+OUTBOUND_CHANGE_SUBSYSTEMS = frozenset({Subsystem.xray, Subsystem.singbox, Subsystem.amneziawg, Subsystem.l2tp})
 
 # Every protocol/transport-tuning ConfigCategory lives inside xray/singbox's
 # own templates - both get touched (whichever core is actually active does

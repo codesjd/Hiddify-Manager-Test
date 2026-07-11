@@ -1,0 +1,34 @@
+; xl2tpd config - one process handles both L2TP roles:
+;  - [lns default]: inbound (Hiddify's own users dialing in), gated on
+;    l2tp_enable so a purely-outbound install never accepts inbound calls.
+;  - [lac <name>]: outbound chaining, one per enabled Outbound row with
+;    Protocol=l2tp (routing.get_l2tp_client_outbounds(), exposed here as
+;    l2tp_outbounds). The 10.92.0.0/24 pool is chosen to not collide with
+;    WireGuard (10.90.0.0/16) or AmneziaWG (10.91.0.1).
+[global]
+port = 1701
+access control = no
+
+{% if hconfigs['l2tp_enable'] %}
+[lns default]
+ip range = 10.92.0.10-10.92.0.250
+local ip = 10.92.0.1
+require authentication = yes
+name = hiddify-l2tp
+ppp debug = no
+pppoptfile = /etc/ppp/options.xl2tpd
+length bit = yes
+{% endif %}
+{% for ob in l2tp_outbounds %}
+[lac {{ ob.interface }}]
+lns = {{ ob.address }}
+autodial = yes
+redial = yes
+redial timeout = 15
+max redials = 5
+require authentication = yes
+name = {{ ob.interface }}
+ppp debug = no
+pppoptfile = /etc/ppp/peers/{{ ob.interface }}
+length bit = yes
+{% endfor %}

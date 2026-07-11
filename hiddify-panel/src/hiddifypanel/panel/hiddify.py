@@ -116,6 +116,21 @@ def amneziawg_needs_full_install() -> bool:
     return shutil.which('awg-quick') is None or shutil.which('amneziawg-go') is None
 
 
+def l2tp_needs_full_install() -> bool:
+    """Same class of bug as amneziawg_needs_full_install() above: strongSwan
+    and xl2tpd are only actually apt-installed (other/l2tp/install.sh's job)
+    during a real install/reinstall - a plain "Apply Configs" always skips
+    install.sh. The first time an admin enables l2tp_enable or adds an L2TP
+    outbound row on a server that never had either before, other/l2tp/run.sh
+    would try to restart daemons that were never installed."""
+    if not hconfig(ConfigEnum.l2tp_enable):
+        from hiddifypanel.models.routing import get_l2tp_client_outbounds
+        if not get_l2tp_client_outbounds():
+            return False
+    import shutil
+    return shutil.which('ipsec') is None or shutil.which('xl2tpd') is None
+
+
 def core_needs_full_install() -> bool:
     """Same class of bug as amneziawg_needs_full_install() above: xray and
     singbox are each only actually downloaded (install.sh's job) the first
@@ -480,6 +495,23 @@ def all_configs_for_cli():
         logger.exception("Failed to collect AmneziaWG outbounds (non-fatal, other/amneziawg/ will just see an empty list)")
         configs['amneziawg_outbounds'] = []
         configs['chconfigs'][0]['has_amneziawg_outbound'] = False
+
+    # L2TP outbound chaining needs the same strongSwan+xl2tpd daemons as
+    # other/l2tp's inbound side (see routing.get_l2tp_client_outbounds) - one
+    # [lac]/conn block per row, brought up by other/l2tp/run.sh.j2 (a Jinja
+    # template covering both roles from one xl2tpd.conf/ipsec.conf).
+    try:
+        from hiddifypanel.models.routing import get_l2tp_client_outbounds
+        l2tp_outbounds = get_l2tp_client_outbounds()
+        configs['l2tp_outbounds'] = l2tp_outbounds
+        # Also gates whether other/l2tp's install_run() runs at all (see
+        # install.sh) - broadened to cover outbound chaining too, not just
+        # the l2tp_enable inbound toggle, since both need the same packages.
+        configs['chconfigs'][0]['has_l2tp_outbound'] = len(l2tp_outbounds) > 0 or bool(hconfig(ConfigEnum.l2tp_enable))
+    except Exception:
+        logger.exception("Failed to collect L2TP outbounds (non-fatal, other/l2tp/ will just see an empty list)")
+        configs['l2tp_outbounds'] = []
+        configs['chconfigs'][0]['has_l2tp_outbound'] = bool(hconfig(ConfigEnum.l2tp_enable))
     server_ip = hutils.network.get_ip_str(4)
     owner = AdminUser.get_super_admin()
     configs['api_key'] = owner.uuid

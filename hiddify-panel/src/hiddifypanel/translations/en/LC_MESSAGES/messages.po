@@ -1854,7 +1854,7 @@ msgid "config.mux_min_streams.label"
 msgstr "↘️ MUX Min Streams"
 
 msgid "config.mux_padding_enable.description"
-msgstr "MUX Padding description"
+msgstr "Pads multiplexed streams with junk bytes to hide their real size, making mux traffic harder to fingerprint. Adds a small amount of overhead."
 
 msgid "config.mux_padding_enable.label"
 msgstr "⟹ MUX Padding"

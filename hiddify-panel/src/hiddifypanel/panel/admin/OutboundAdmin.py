@@ -112,6 +112,11 @@ _PROTOCOL_FIELD_SCRIPT = """
                 'awg_s1', 'awg_s2', 'awg_s3', 'awg_s4',
                 'awg_i1', 'awg_i2', 'awg_i3', 'awg_i4', 'awg_i5',
                 'awg_conf'],
+    // L2TP/IPsec client: address is the remote LNS host, uuid_or_password is
+    // "username:password" (PPP CHAP creds), preshared_key is the remote's
+    // IPsec PSK (blank = bare L2TP, no IPsec). Port/network/security don't
+    // apply - L2TP always dials the standard UDP/1701.
+    l2tp: ['address', 'uuid_or_password', 'preshared_key'],
     freedom: []
   };
   // reality_public_key/reality_short_id only ever matter when Security is
@@ -207,7 +212,7 @@ class OutboundAdmin(AdminLTEModelView):
         "port": _("Port / Endpoint Port"),
         "uuid_or_password": _("UUID / Password / Private Key"),
         "peer_public_key": _("Peer Public Key (wireguard/amneziawg)"),
-        "preshared_key": _("Preshared Key (amneziawg, optional)"),
+        "preshared_key": _("Preshared Key (amneziawg) / IPsec PSK (l2tp), optional"),
         "local_address": _("Local Address (wireguard/amneziawg, e.g. 10.0.0.2/32)"),
         "dns": _("DNS (amneziawg, optional)"),
         "jc": _("Jc (amneziawg junk packet count)"),
@@ -271,11 +276,11 @@ class OutboundAdmin(AdminLTEModelView):
     }
     column_descriptions = dict(
         tag=_("Unique identifier for this outbound. Reference it as the Outbound Tag in a Routing Rule to send matching traffic here."),
-        address=_("The destination server's IP or domain - e.g. another one of your own servers, for chaining, or the wireguard/amneziawg peer's Endpoint host. Not used for freedom."),
-        uuid_or_password=_("UUID for vless/vmess, password for trojan/shadowsocks, user:pass for socks/http/naive, uuid:password for tuic, username:password for mieru, or PrivateKey for wireguard/amneziawg. For a 2022-blake3-* Encryption Method, this must be the exact-length base64 PSK that method requires, not an arbitrary password. Not used for freedom."),
+        address=_("The destination server's IP or domain - e.g. another one of your own servers, for chaining, or the wireguard/amneziawg peer's Endpoint host, or the remote L2TP/IPsec server's host. Not used for freedom."),
+        uuid_or_password=_("UUID for vless/vmess, password for trojan/shadowsocks, user:pass for socks/http/naive, uuid:password for tuic, username:password for mieru, username:password for l2tp (PPP CHAP credentials), or PrivateKey for wireguard/amneziawg. For a 2022-blake3-* Encryption Method, this must be the exact-length base64 PSK that method requires, not an arbitrary password. Not used for freedom."),
         ss_method=_("Encryption method. The 2022-blake3-* methods require the password above to be an exact-length base64 pre-shared key (16 bytes for aes-128-gcm, 32 bytes for aes-256-gcm/chacha20-poly1305) - an arbitrary password will fail to connect."),
         peer_public_key=_("The remote peer's PublicKey - same value as [Peer] PublicKey in a WireGuard/AmneziaWG .conf."),
-        preshared_key=_("The remote peer's PresharedKey, if it has one - same value as [Peer] PresharedKey in an AmneziaWG .conf. Leave blank if not used."),
+        preshared_key=_("The remote peer's PresharedKey, if it has one - same value as [Peer] PresharedKey in an AmneziaWG .conf. For l2tp, this is instead the remote server's IPsec pre-shared key (leave blank for a bare L2TP tunnel with no IPsec)."),
         local_address=_("This tunnel's own address, same as [Interface] Address in a WireGuard/AmneziaWG .conf, e.g. \"10.0.0.2/32\"."),
         dns=_("Optional, same as [Interface] DNS in an AmneziaWG .conf."),
         jc=_("AmneziaWG obfuscation - number of junk packets sent before the handshake. Leave blank for a plain (non-obfuscated) tunnel."),
@@ -353,7 +358,7 @@ class OutboundAdmin(AdminLTEModelView):
         OutboundProtocol.vmess, OutboundProtocol.vless, OutboundProtocol.trojan,
         OutboundProtocol.shadowsocks, OutboundProtocol.amneziawg, OutboundProtocol.hysteria,
         OutboundProtocol.socks, OutboundProtocol.http, OutboundProtocol.naive,
-        OutboundProtocol.tuic, OutboundProtocol.mieru,
+        OutboundProtocol.tuic, OutboundProtocol.mieru, OutboundProtocol.l2tp,
     ]
     form_choices = {
         'protocol': [(p.value, p.value) for p in _ALLOWED_PROTOCOLS],

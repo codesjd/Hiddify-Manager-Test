@@ -147,8 +147,12 @@ function main() {
         # Configs, not on the per-user fast-path - restarting strongswan/
         # xl2tpd on every user add would drop every live tunnel, and
         # jinja.py doesn't re-render other/l2tp on apply_users anyway.
+        # has_l2tp_outbound (not the raw l2tp_enable inbound toggle) so an
+        # L2TP outbound chaining row also brings the daemons up even when
+        # inbound l2tp_enable is off - same reasoning as has_amneziawg_outbound
+        # below.
         update_progress "${PROGRESS_ACTION}" "L2TP/IPsec" 82
-        install_run other/l2tp $(hconfig "l2tp_enable") &
+        install_run other/l2tp $(hconfig "has_l2tp_outbound") &
 
     fi
 
