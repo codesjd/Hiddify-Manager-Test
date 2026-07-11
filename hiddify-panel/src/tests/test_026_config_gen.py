@@ -33,7 +33,8 @@ def test_apply_scope_logic(app):
     assert pending is not None
 
 def test_outbound_serialization(app):
-    out = CustomOutbound(protocol=OutboundProtocol.vless, tag='test_vless', address='example.com', port=443, uuid_or_password='test')
+    from hiddifypanel.models.routing import OutboundNetwork
+    out = CustomOutbound(protocol=OutboundProtocol.vless, tag='test_vless', address='example.com', port=443, uuid_or_password='test', network=OutboundNetwork.tcp)
     xray_dict = out.to_xray_dict()
     assert isinstance(xray_dict, dict)
     singbox_dict = out.to_singbox_dict()
