@@ -11,7 +11,7 @@ from hiddifypanel.models.proxy import ProxyTransport
 def app():
     import os
     os.environ['STDOUT_LOG_LEVEL'] = 'INFO'
-    app = create_app(SQLALCHEMY_DATABASE_URI='sqlite:///:memory:', TESTING=True, STDOUT_LOG_LEVEL='INFO')
+    app = create_app(SQLALCHEMY_DATABASE_URI='sqlite:///:memory:', TESTING=True, STDOUT_LOG_LEVEL='INFO', HIDDIFY_CONFIG_PATH='/opt/hiddify-manager')
     with app.app_context():
         from hiddifypanel.database import db
         db.create_all()
