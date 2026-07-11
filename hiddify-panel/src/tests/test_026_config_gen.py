@@ -7,11 +7,12 @@ from hiddifypanel.models.config_enum import ConfigEnum
 from hiddifypanel.models.routing import OutboundProtocol, CustomOutbound
 from hiddifypanel.models.proxy import ProxyTransport
 
+import os
 @pytest.fixture
 def app():
+    os.environ['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///:memory:'
     app = create_app()
     app.config['TESTING'] = True
-    app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///:memory:'
     with app.app_context():
         from hiddifypanel.database import db
         db.create_all()
