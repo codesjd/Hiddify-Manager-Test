@@ -425,8 +425,7 @@ def _v103(child_id):
     add_usage_proc=    """
 DROP PROCEDURE IF EXISTS add_usage_json;
 
-if db.engine.dialect.name == 'mysql':
-    CREATE PROCEDURE add_usage_json(IN usage_data JSON, IN cur_time DATETIME)
+CREATE PROCEDURE add_usage_json(IN usage_data JSON, IN cur_time DATETIME)
 BEGIN
   DECLARE u_id INT DEFAULT NULL;
   DECLARE u_uuid CHAR(36) DEFAULT NULL;
