@@ -128,10 +128,14 @@ function main() {
         # xray-only transport and is already filtered from singbox subs).
         CORE_TYPE=$(hconfig "core_type")
         XRAY_ENABLE=1
-        SINGBOX_ENABLE=1
+        SINGBOX_ENABLE=0
         if [[ "$CORE_TYPE" == "singbox" ]]; then
             XRAY_ENABLE=0
+            SINGBOX_ENABLE=1
         fi
+        for f in hysteria_enable tuic_enable anytls_enable shadowsocks2022_enable naive_enable mieru_enable; do
+            [[ "$(hconfig "$f")" == "True" ]] && SINGBOX_ENABLE=1
+        done
 
         update_progress "${PROGRESS_ACTION}" "Xray" 75
         
