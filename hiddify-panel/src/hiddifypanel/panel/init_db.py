@@ -1,4 +1,4 @@
-﻿import datetime
+import datetime
 import json
 import os
 import random
@@ -405,7 +405,8 @@ def _v108(child_id):
     
 def _v107(child_id):
     # set_hconfig(ConfigEnum.core_type,'xray') # disable singbox core temporary
-    execute("UPDATE proxy SET params = '{}' WHERE params is NULL;")
+    if db.engine.dialect.name == 'mysql':
+        execute("UPDATE proxy SET params = '{}' WHERE params is NULL;")
 
 def _v106(child_id):
     set_hconfig(ConfigEnum.use_ip_in_config,True)
@@ -424,7 +425,8 @@ def _v103(child_id):
     add_usage_proc=    """
 DROP PROCEDURE IF EXISTS add_usage_json;
 
-CREATE PROCEDURE add_usage_json(IN usage_data JSON, IN cur_time DATETIME)
+if db.engine.dialect.name == 'mysql':
+    CREATE PROCEDURE add_usage_json(IN usage_data JSON, IN cur_time DATETIME)
 BEGIN
   DECLARE u_id INT DEFAULT NULL;
   DECLARE u_uuid CHAR(36) DEFAULT NULL;
@@ -567,7 +569,8 @@ def _v81(child_id):
     # password was hashed (including a fresh install's first password set
     # through Quick Setup).
     execute("ALTER TABLE user MODIFY COLUMN password VARCHAR(255);")
-    execute("ALTER TABLE admin_user MODIFY COLUMN password VARCHAR(255);")
+    if db.engine.dialect.name == 'mysql':
+        execute("ALTER TABLE admin_user MODIFY COLUMN password VARCHAR(255);")
 
 
 def _v80(child_id):
@@ -677,8 +680,10 @@ def _v62():
 
 
 def _v61():
-    execute("ALTER TABLE user MODIFY COLUMN username VARCHAR(100);")
-    execute("ALTER TABLE user MODIFY COLUMN password VARCHAR(100);")
+    if db.engine.dialect.name == 'mysql':
+        execute("ALTER TABLE user MODIFY COLUMN username VARCHAR(100);")
+    if db.engine.dialect.name == 'mysql':
+        execute("ALTER TABLE user MODIFY COLUMN password VARCHAR(100);")
 
 
 def _v60():
@@ -798,7 +803,8 @@ def _v31():
     db.session.bulk_save_objects(get_proxy_rows_v1())
     if not (AdminUser.query.filter(AdminUser.id == 1).first()):
         db.session.add(AdminUser(id=1, uuid=hconfig(ConfigEnum.admin_secret), name="Owner", mode=AdminMode.super_admin, comment=""))
-        execute("update admin_user set id=1 where name='owner'")
+        if db.engine.dialect.name == 'mysql':
+            execute("update admin_user set id=1 where name='owner'")
     for i in range(1, 10):
         for d in hutils.network.get_random_domains(50):
             if hutils.network.is_domain_reality_friendly(d):
@@ -925,7 +931,8 @@ def _v9():
 def _v10():
     all_configs = get_hconfigs()
     execute("ALTER TABLE `str_config` RENAME TO `str_config_old`")
-    execute("ALTER TABLE `bool_config` RENAME TO `bool_config_old`")
+    if db.engine.dialect.name == 'mysql':
+        execute("ALTER TABLE `bool_config` RENAME TO `bool_config_old`")
     # db.create_all()
     rows = []
     for c, v in all_configs.items():
@@ -1082,7 +1089,9 @@ def add_column(column):
     try:
         column_type = column.type.compile(db.engine.dialect)
 
-        db_execute(f'ALTER TABLE {column.table.name} ADD COLUMN {column.name} {column_type}', commit=True)
+        if db.engine.dialect.name == 'mysql':
+            if db.engine.dialect.name == 'mysql':
+                db_execute(f'ALTER TABLE {column.table.name} ADD COLUMN {column.name} {column_type}', commit=True)
     except BaseException:
         pass
 
@@ -1091,7 +1100,9 @@ def alter_column(column):
     try:
         column_type = column.type.compile(db.engine.dialect)
 
-        db_execute(f'ALTER TABLE {column.table.name} MODIFY COLUMN {column.name} {column_type}', commit=True)
+        if db.engine.dialect.name == 'mysql':
+            if db.engine.dialect.name == 'mysql':
+                db_execute(f'ALTER TABLE {column.table.name} MODIFY COLUMN {column.name} {column_type}', commit=True)
     except BaseException:
         pass
 
@@ -1105,6 +1116,8 @@ def execute(query: str):
 
 
 def add_new_enum_values():
+    if db.engine.dialect.name != 'mysql':
+        return
     columns = [
         Proxy.l3, Proxy.proto, Proxy.cdn, Proxy.transport, User.mode, Domain.mode, BoolConfig.key, StrConfig.key
     ]
@@ -1142,8 +1155,10 @@ def add_new_enum_values():
         enumstr = ','.join([f"'{a}'" for a in [*existing_values]])
         expired_enumstr = ','.join([f"'{a}'" for a in [*old_values]])
         if expired_enumstr:
-            db_execute(f"delete from {table_name} where `{column_name}` in ({expired_enumstr});", commit=True)
-        db_execute(f"ALTER TABLE {table_name} MODIFY COLUMN `{column_name}` ENUM({enumstr});", commit=True)
+            if db.engine.dialect.name == 'mysql':
+                db_execute(f"delete from {table_name} where `{column_name}` in ({expired_enumstr});", commit=True)
+        if db.engine.dialect.name == 'mysql':
+            db_execute(f"ALTER TABLE {table_name} MODIFY COLUMN `{column_name}` ENUM({enumstr});", commit=True)
 
 
 def current_db_version()->int:
@@ -1279,7 +1294,8 @@ def init_db():
         tmp_uuid = str(uuid.uuid4())
         db.session.add(Child(id=0, unique_id=tmp_uuid, name="Root"))
         db.session.commit()
-        db_execute("update child set id=0 where unique_id=:u", u=tmp_uuid, commit=True)
+        if db.engine.dialect.name == 'mysql':
+            db_execute("update child set id=0 where unique_id=:u", u=tmp_uuid, commit=True)
         child = Child.by_id(0)  
 
     child.mode = ChildMode.virtual
@@ -1334,10 +1350,13 @@ def migrate(db_version):
     if db_version < 97:
         execute('ALTER TABLE str_config MODIFY value VARCHAR(3072);')
     if db_version < 82:
-        execute('ALTER TABLE child DROP INDEX `name`;')
+        if db.engine.dialect.name == 'mysql':
+            execute('ALTER TABLE child DROP INDEX `name`;')
     if db_version < 77:
-        execute('ALTER TABLE user_detail DROP COLUMN connected_ips;')
-        execute('update user_detail set connected_devices="" where connected_devices IS NULL')
+        if db.engine.dialect.name == 'mysql':
+            execute('ALTER TABLE user_detail DROP COLUMN connected_ips;')
+        if db.engine.dialect.name == 'mysql':
+            execute('update user_detail set connected_devices="" where connected_devices IS NULL')
 
     if db_version < 70:
         execute('CREATE INDEX date ON daily_usage (date);')
@@ -1348,8 +1367,10 @@ def migrate(db_version):
 
         execute('ALTER TABLE proxy DROP INDEX `name`;')
 
-        execute("ALTER TABLE user MODIFY COLUMN telegram_id BIGINT;")
-        execute("ALTER TABLE admin_user MODIFY COLUMN telegram_id BIGINT;")
+        if db.engine.dialect.name == 'mysql':
+            execute("ALTER TABLE user MODIFY COLUMN telegram_id BIGINT;")
+        if db.engine.dialect.name == 'mysql':
+            execute("ALTER TABLE admin_user MODIFY COLUMN telegram_id BIGINT;")
 
         # aaa
         # # add_column(UserDetail.connected_devices)
@@ -1368,7 +1389,8 @@ def migrate(db_version):
         # add_column(Domain.extra_params)
 
     if db_version < 52:
-        execute(f'update domain set mode="sub_link_only", sub_link_only=false where sub_link_only = true or mode=1  or mode="1"')
+        if db.engine.dialect.name == 'mysql':
+            execute(f'update domain set mode="sub_link_only", sub_link_only=false where sub_link_only = true or mode=1  or mode="1"')
         execute(f'update domain set mode="direct", sub_link_only=false where mode=0  or mode="0"')
         execute(f'update proxy set transport="WS" where transport = "ws"')
         execute(f'update admin_user set mode="agent" where mode = "slave"')
@@ -1406,10 +1428,12 @@ def migrate(db_version):
             execute(f'DROP TABLE bool_config')
             execute(f'ALTER TABLE bool_config_old RENAME TO bool_config')
         if len(Domain.query.all()) != 0 and StrConfig.query.count() == 0:
-            execute(f'DROP TABLE str_config')
+            if db.engine.dialect.name == 'mysql':
+                execute(f'DROP TABLE str_config')
             execute(f'ALTER TABLE str_config_old RENAME TO str_config')
 
-        execute('ALTER TABLE user RENAME COLUMN monthly_usage_limit_GB TO usage_limit_GB')
+        if db.engine.dialect.name == 'mysql':
+            execute('ALTER TABLE user RENAME COLUMN monthly_usage_limit_GB TO usage_limit_GB')
         execute(f'update admin_user set parent_admin_id=1 where parent_admin_id is NULL and 1!=id')
         execute(f'update admin_user set max_users=100,max_active_users=100 where max_users is NULL')
         execute(f'update dailyusage set child_id=0 where child_id is NULL')

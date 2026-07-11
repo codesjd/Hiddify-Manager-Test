@@ -119,7 +119,19 @@ def add_users_usage_new(usages: list[dict], child_id, sync=False):
 
     apply_changes = _reset_priodic_usage()
     
-    db_execute("CALL add_usage_json(:usage_data,:cur_time)", usage_data=json.dumps(usages),cur_time=cur_time.strftime('%Y-%m-%d %H:%M:%S'), commit=True)
+
+    if db.engine.dialect.name == 'mysql':
+        db_execute("CALL add_usage_json(:usage_data,:cur_time)", usage_data=json.dumps(usages),cur_time=cur_time.strftime('%Y-%m-%d %H:%M:%S'), commit=True)
+    else:
+        usage_map = {u['uuid']: u['usage'] for u in usages}
+        users_to_update = db.session.query(User).filter(User.uuid.in_(usage_map.keys())).all()
+        for user in users_to_update:
+            user.current_usage = (user.current_usage or 0) + usage_map[user.uuid]
+            user.last_online = cur_time
+            if user.start_date is None:
+                user.start_date = today
+        db.session.commit()
+
 
     usage_map = {u['uuid']: u for u in usages}
     
