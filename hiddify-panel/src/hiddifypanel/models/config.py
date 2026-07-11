@@ -70,13 +70,13 @@ def hconfig(key: ConfigEnum, child_id: Optional[int] = None):  # -> str | int | 
             if bool_conf:
                 value = bool_conf.value
             else:
-                logger.warning(f'bool {key} not found ')
+                logger.debug(f'bool {key} not found ')
         else:
             str_conf = db.session.query(StrConfig).filter(StrConfig.key == key, StrConfig.child_id == child_id).first()
             if str_conf:
                 value = str_conf.value
             else:
-                logger.warning(f'str {key} not found ')
+                logger.debug(f'str {key} not found ')
     except BaseException:
         logger.exception(f'{key} error!')
         raise
