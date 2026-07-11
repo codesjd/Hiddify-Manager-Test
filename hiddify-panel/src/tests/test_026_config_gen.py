@@ -49,17 +49,41 @@ def test_template_render(app):
 
 
 def test_sqlite_usage_increment(app):
-    '''Verify Plan 015 Phase 2: add_usage_json SQLite fallback increments counter.'''
+    '''Verify Plan 015 Phase 2: SQLite usage path replicates all three stored-procedure effects.'''
     from uuid import uuid4
+    from datetime import datetime, date, timedelta
     from hiddifypanel.panel.usage import add_users_usage_new
     from hiddifypanel.models import User, db
-    
-    uid = str(uuid4())
-    u = User(uuid=uid, name='smoke_test_026', usage_limit_GB=10, package_days=30, current_usage=0)
-    db.session.add(u)
+
+    u1 = User(uuid=str(uuid4()), name='smoke_a', usage_limit_GB=10, package_days=30,
+              current_usage=0, last_online=datetime.min, start_date=None)
+    u2 = User(uuid=str(uuid4()), name='smoke_b', usage_limit_GB=10, package_days=30,
+              current_usage=0, last_online=datetime.min, start_date=date.today() - timedelta(days=5))
+    db.session.add_all([u1, u2])
     db.session.commit()
-    
-    usage_before = u.current_usage
-    add_users_usage_new([{'uuid': uid, 'usage': 1024}], child_id=0)
-    db.session.refresh(u)
-    assert u.current_usage == 1024, f"Expected 1024, got {u.current_usage} (SQLite fallback failed)"
+
+    before_batch = datetime.now()
+    add_users_usage_new([
+        {'uuid': u1.uuid, 'usage': 1024},
+        {'uuid': u2.uuid, 'usage': 2048},
+    ], child_id=0)
+    after_batch = datetime.now()
+
+    db.session.refresh(u1)
+    db.session.refresh(u2)
+
+    # Effect 1: counter incremented
+    assert u1.current_usage == 1024, f"u1: expected 1024, got {u1.current_usage}"
+    assert u2.current_usage == 2048, f"u2: expected 2048, got {u2.current_usage}"
+
+    # Effect 2: last_online updated to batch time window
+    assert u1.last_online >= before_batch and u1.last_online <= after_batch, \
+        f"u1 last_online not in batch window: {u1.last_online}"
+    assert u2.last_online >= before_batch and u2.last_online <= after_batch, \
+        f"u2 last_online not in batch window: {u2.last_online}"
+
+    # Effect 3: start_date conditional — set on NULL, untouched on existing
+    today = date.today()
+    assert u1.start_date == today, f"u1 start_date should be set to today ({today}), got {u1.start_date}"
+    assert u2.start_date == date.today() - timedelta(days=5), \
+        f"u2 start_date should be untouched, got {u2.start_date}"
