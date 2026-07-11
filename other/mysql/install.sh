@@ -63,4 +63,8 @@ if ! grep -q "^[^#]*bind-address\s*=\s*127.0.0.1" "$MARIADB_CONF"; then
     
 fi
 
+# Deploy tuning overrides to mariadb.conf.d
+cp 99-tuning.cnf /etc/mysql/mariadb.conf.d/99-tuning.cnf
+chmod 644 /etc/mysql/mariadb.conf.d/99-tuning.cnf
+
 systemctl start mariadb
