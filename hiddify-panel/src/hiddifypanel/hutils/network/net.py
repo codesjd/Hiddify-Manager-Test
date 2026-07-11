@@ -6,7 +6,7 @@ from dns.rdtypes.svcbbase import ECHParam
 
 import urllib.request
 import ipaddress
-from hiddifypanel.hutils.network.auto_ip_selector import IPASN
+from hiddifypanel.hutils.network.auto_ip_selector import get_ipasn
 import requests
 import random
 import socket
@@ -470,6 +470,7 @@ def is_in_same_asn(domain_or_ip: str, domain_or_ip_target: str) -> bool:
 
 @ cache.cache(600)
 def get_ip_asn(ip: ipaddress.IPv4Address | ipaddress.IPv6Address | str) -> str:
+    IPASN = get_ipasn()
     if not IPASN:
         return __get_ip_asn_api(ip)
     try:
