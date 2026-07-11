@@ -196,6 +196,22 @@ bash /opt/hiddify-manager/common/optimize_host.sh
 
 This manual, reversible helper disables unused OS services such as `multipathd`, `ModemManager`, `fwupd`, and `udisks2`. It leaves `unattended-upgrades` enabled by default. Future `--lite` install profiles should reference this helper instead of disabling host services silently.
 
+## Running a minimal install
+
+Hiddify runs several daemons by default. You can reduce RAM usage by disabling unused subsystems in the Settings page:
+
+- **Core Type:** `singbox` covers most protocols and runs a single core process. The `xray` core is only required for the `xhttp` transport; choosing `singbox` drops the xray process entirely.
+- **Dedicated Subsystems:** Each of the following toggles runs its own background daemon. Leave them off if you don't use them:
+  - `wireguard_enable`
+  - `amneziawg_client_enable`
+  - `ssh_server_enable`
+  - `warp_enable`
+  - `dnstt_enable`
+  - `telegram_enable`
+  - `ssfaketls_enable`
+  - `l2tp_enable`
+
+
 <div align="center">
  
  <a href="https://hiddify.com/manager/"><img width="100%" alt="All Tutorials" src="https://github.com/hiddify/Hiddify-Manager/assets/125398461/36b2bb34-1726-47ef-a0e3-e60e0e8bcfce" /></a>
