@@ -186,6 +186,16 @@ When you want to share Telegram proxy or Shadowsocks proxy through other program
 ## Installation and tutorials
 **Please find tutorial information on our website by clicking on image below.**
 
+## Slimming for small VPS
+
+Optional host slimming is available for headless VPS installs:
+
+```bash
+bash /opt/hiddify-manager/common/optimize_host.sh
+```
+
+This manual, reversible helper disables unused OS services such as `multipathd`, `ModemManager`, `fwupd`, and `udisks2`. It leaves `unattended-upgrades` enabled by default. Future `--lite` install profiles should reference this helper instead of disabling host services silently.
+
 <div align="center">
  
  <a href="https://hiddify.com/manager/"><img width="100%" alt="All Tutorials" src="https://github.com/hiddify/Hiddify-Manager/assets/125398461/36b2bb34-1726-47ef-a0e3-e60e0e8bcfce" /></a>
