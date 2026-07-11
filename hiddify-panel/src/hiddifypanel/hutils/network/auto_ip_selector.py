@@ -2,7 +2,6 @@ from flask_babel import gettext as _
 from typing import List, Union
 from flask import request
 from loguru import logger
-import maxminddb
 import random
 import os
 import re
@@ -37,16 +36,30 @@ dbn.ircf.space		DBN
 apt.ircf.space		APT
 """
 
-try:
+_IPASN = None
+_IPCOUNTRY = None
 
-    IPASN = maxminddb.open_database('GeoLite2-ASN.mmdb')
-    IPCOUNTRY = maxminddb.open_database('GeoLite2-Country.mmdb')
-    # __ipcity = maxminddb.open_database('GeoLite2-City.mmdb')
-except BaseException as e:
-    logger.error("Error can not load maxminddb")
-    IPASN = {}
-    IPCOUNTRY = {}
-    # __ipcity = {}
+def get_ipasn():
+    global _IPASN
+    if _IPASN is None:
+        try:
+            import maxminddb
+            _IPASN = maxminddb.open_database('GeoLite2-ASN.mmdb')
+        except BaseException as e:
+            logger.error("Error can not load maxminddb")
+            _IPASN = {}
+    return _IPASN
+
+def get_ipcountry():
+    global _IPCOUNTRY
+    if _IPCOUNTRY is None:
+        try:
+            import maxminddb
+            _IPCOUNTRY = maxminddb.open_database('GeoLite2-Country.mmdb')
+        except BaseException as e:
+            logger.error("Error can not load maxminddb")
+            _IPCOUNTRY = {}
+    return _IPCOUNTRY
 
 __asn_map = {
     '58224': 'MKH',
@@ -90,7 +103,7 @@ def get_asn_id(user_ip: str = '') -> str:
 @cache.cache()
 def __get_asn_id_imp(user_ip: str) -> str:
     try:
-        asnres = IPASN.get(user_ip)
+        asnres = get_ipasn().get(user_ip)
         return asnres['autonomous_system_number']
     except BaseException:
         return "unknown"
@@ -99,7 +112,7 @@ def __get_asn_id_imp(user_ip: str) -> str:
 def get_country(user_ip: str = '') -> Union[dict, str]:
     try:
         user_ip = user_ip or get_real_user_ip()
-        return (IPCOUNTRY.get(user_ip) or {}).get('country', {}).get('iso_code', 'unknown')
+        return (get_ipcountry().get(user_ip) or {}).get('country', {}).get('iso_code', 'unknown')
     except BaseException:
         return 'unknown'
 
@@ -121,7 +134,7 @@ def get_real_user_ip_debug(user_ip: str = '') -> str:
 def __get_real_user_ip_debug_imp(user_ip) -> str:
     if type(user_ip) is str and ',' in user_ip:
         user_ip = user_ip.split(',')[0]
-    asnres = IPASN.get(user_ip) or {}
+    asnres = get_ipasn().get(user_ip) or {}
     asn = f"{asnres.get('autonomous_system_number','unknown')}" if asnres else "unknown"
     asn_dscr = f"{asnres.get('autonomous_system_organization','unknown')}" if asnres else "unknown"
     asn_short = get_asn_short_name(user_ip)

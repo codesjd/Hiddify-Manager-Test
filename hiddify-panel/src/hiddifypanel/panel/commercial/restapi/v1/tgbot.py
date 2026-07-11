@@ -1,4 +1,4 @@
-import telebot
+from werkzeug.local import LocalProxy
 from flask import request
 from apiflask import abort
 from flask_restful import Resource
@@ -7,33 +7,32 @@ import time
 from hiddifypanel.models import *
 from hiddifypanel import Events
 from hiddifypanel.cache import cache
-logger = telebot.logger
+_bot = None
+def _get_bot():
+    global _bot
+    if _bot is None:
+        import telebot
+        class ExceptionHandler(telebot.ExceptionHandler):
+            def handle(self, exception):
+                error_msg = str(exception)
+                telebot.logger.error(f"Telegram bot error: {error_msg}")
+                try:
+                    if "webhook" in error_msg.lower():
+                        if hasattr(_bot, 'remove_webhook'):
+                            _bot.remove_webhook()
+                            telebot.logger.info("Removed webhook due to error")
+                    elif "connection" in error_msg.lower():
+                        import time
+                        time.sleep(5)
+                        return True
+                except Exception as e:
+                    telebot.logger.error(f"Error during recovery attempt: {str(e)}")
+                return False
+        _bot = telebot.TeleBot("1:2", parse_mode="HTML", threaded=False, exception_handler=ExceptionHandler())
+        _bot.username = ''
+    return _bot
 
-
-class ExceptionHandler(telebot.ExceptionHandler):
-    def handle(self, exception):
-        """Improved error handling for Telegram bot exceptions"""
-        error_msg = str(exception)
-        logger.error(f"Telegram bot error: {error_msg}")
-        
-        try:
-            # Attempt recovery based on error type
-            if "webhook" in error_msg.lower():
-                if hasattr(bot, 'remove_webhook'):
-                    bot.remove_webhook()
-                    logger.info("Removed webhook due to error")
-            elif "connection" in error_msg.lower():
-                # Wait and retry for connection issues
-                time.sleep(5)
-                return True  # Indicates retry
-        except Exception as e:
-            logger.error(f"Error during recovery attempt: {str(e)}")
-        
-        return False  # Don't retry for unknown errors
-
-
-bot = telebot.TeleBot("1:2", parse_mode="HTML", threaded=False, exception_handler=ExceptionHandler())
-bot.username = ''
+bot = LocalProxy(_get_bot)
 
 
 @cache.cache(1000)
@@ -63,7 +62,8 @@ def register_bot(set_hook=False, remove_hook=False):
             if set_hook:
                 bot.set_webhook(url=f"https://{domain}/{admin_proxy_path}/{user_secret}/api/v1/tgbot/")
     except Exception as e:
-        logger.error(e)
+        import telebot
+        telebot.logger.error(e)
         
 
 
@@ -84,6 +84,7 @@ class TGBotResource(Resource):
         try:
             if request.headers.get('content-type') == 'application/json':
                 json_string = request.get_data().decode('utf-8')
+                import telebot
                 update = telebot.types.Update.de_json(json_string)
                 bot.process_new_updates([update])
                 return ''
