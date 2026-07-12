@@ -1260,18 +1260,17 @@ def _ensure_default_proxy_rows():
         db.session.rollback()
 
 
+import sys
+from loguru import logger
 def init_db():
     db.create_all()
     
-    import sys
     from hiddifypanel.database import reconcile_schema
     try:
         if not reconcile_schema():
-            from loguru import logger
             logger.error("Schema reconciliation failed. Halting startup.")
             sys.exit(1)
     except ImportError:
-        from loguru import logger
         logger.warning("Alembic not installed — skipping schema reconciliation.")
         
     try:
@@ -1286,7 +1285,6 @@ def init_db():
             alembic_cfg = Config(ini_path)
             command.stamp(alembic_cfg, "head")
     except Exception as e:
-        from loguru import logger
         logger.error(f"Failed to stamp Alembic head: {e}")
 
     # Legacy db_version / fast-path initialization
