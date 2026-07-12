@@ -36,29 +36,37 @@ dbn.ircf.space		DBN
 apt.ircf.space		APT
 """
 
+import threading
+
 _IPASN = None
 _IPCOUNTRY = None
+_ipasn_lock = threading.Lock()
+_ipcountry_lock = threading.Lock()
 
 def get_ipasn():
     global _IPASN
     if _IPASN is None:
-        try:
-            import maxminddb
-            _IPASN = maxminddb.open_database('GeoLite2-ASN.mmdb')
-        except BaseException as e:
-            logger.error("Error can not load maxminddb")
-            _IPASN = {}
+        with _ipasn_lock:
+            if _IPASN is None:
+                try:
+                    import maxminddb
+                    _IPASN = maxminddb.open_database('GeoLite2-ASN.mmdb')
+                except BaseException as e:
+                    logger.error("Error can not load maxminddb")
+                    _IPASN = {}
     return _IPASN
 
 def get_ipcountry():
     global _IPCOUNTRY
     if _IPCOUNTRY is None:
-        try:
-            import maxminddb
-            _IPCOUNTRY = maxminddb.open_database('GeoLite2-Country.mmdb')
-        except BaseException as e:
-            logger.error("Error can not load maxminddb")
-            _IPCOUNTRY = {}
+        with _ipcountry_lock:
+            if _IPCOUNTRY is None:
+                try:
+                    import maxminddb
+                    _IPCOUNTRY = maxminddb.open_database('GeoLite2-Country.mmdb')
+                except BaseException as e:
+                    logger.error("Error can not load maxminddb")
+                    _IPCOUNTRY = {}
     return _IPCOUNTRY
 
 __asn_map = {

@@ -1,6 +1,7 @@
 import json
 import os
 import re
+import threading
 
 import requests
 
@@ -16,7 +17,9 @@ USERS_USAGE = "tele:users-usage"
 class TelemtApi(DriverABS):
     def get_redis_client(self):
         if not hasattr(self, 'redis_client'):
-            self.redis_client = redis.from_url(os.environ.get("REDIS_URI_SSH",""))
+            with self._init_lock:
+                if not hasattr(self, 'redis_client'):
+                    self.redis_client = redis.from_url(os.environ.get("REDIS_URI_SSH",""))
 
         return self.redis_client
 
@@ -26,6 +29,8 @@ class TelemtApi(DriverABS):
     def __init__(self) -> None:
         super().__init__()
         self.tg_uuid_map:dict[str,str]={}
+        self._init_lock = threading.Lock()
+        self._map_lock = threading.Lock()
 
     def __load_tg_uuid_map(self):
         from hiddifypanel.database import db
@@ -39,7 +44,8 @@ class TelemtApi(DriverABS):
             if uuid:=self.tg_uuid_map.get(key):
                 res[key]=uuid
             elif can_reload_map:
-                self.__load_tg_uuid_map()
+                with self._map_lock:
+                    self.__load_tg_uuid_map()
                 can_reload_map=False
                 if uuid:=self.tg_uuid_map.get(key):
                     res[key]=uuid

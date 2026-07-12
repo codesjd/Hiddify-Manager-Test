@@ -1,4 +1,5 @@
 import os
+import threading
 from .abstract_driver import DriverABS
 from hiddifypanel.models import *
 import redis
@@ -9,12 +10,18 @@ from loguru import logger
 
 
 class SSHLibertyBridgeApi(DriverABS):
+    def __init__(self) -> None:
+        super().__init__()
+        self._init_lock = threading.Lock()
+
     def is_enabled(self) -> bool:
         return hconfig(ConfigEnum.ssh_server_enable)
 
     def get_ssh_redis_client(self):
         if not hasattr(self, 'redis_client'):
-            self.redis_client = redis.from_url(os.environ.get("REDIS_URI_SSH",""), decode_responses=True)
+            with self._init_lock:
+                if not hasattr(self, 'redis_client'):
+                    self.redis_client = redis.from_url(os.environ.get("REDIS_URI_SSH",""), decode_responses=True)
 
         return self.redis_client
 

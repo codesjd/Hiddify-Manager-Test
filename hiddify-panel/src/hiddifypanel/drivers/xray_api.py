@@ -1,3 +1,4 @@
+import threading
 import xtlsapi
 from hiddifypanel.models import *
 from .abstract_driver import DriverABS
@@ -7,12 +8,18 @@ from loguru import logger
 
 
 class XrayApi(DriverABS):
+    def __init__(self) -> None:
+        super().__init__()
+        self._init_lock = threading.Lock()
+
     def is_enabled(self) -> bool:
         return hconfig(ConfigEnum.core_type) == "xray"
 
     def get_xray_client(self):
         if not hasattr(self, 'xray_client'):
-            self.xray_client = xtlsapi.XrayClient('127.0.0.1', 10085)
+            with self._init_lock:
+                if not hasattr(self, 'xray_client'):
+                    self.xray_client = xtlsapi.XrayClient('127.0.0.1', 10085)
         return self.xray_client
 
     def get_enabled_users(self):

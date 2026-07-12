@@ -1,10 +1,12 @@
 
+import threading
 from typing import TYPE_CHECKING
 from hiddifypanel.models import hconfig, ConfigEnum
 if TYPE_CHECKING:
     import cloudflare
 
 __cf: "cloudflare.Cloudflare"=None   # type: ignore
+__cf_lock = threading.Lock()
 
 
 def __prepare_cf_api_client() -> bool:
@@ -15,10 +17,13 @@ def __prepare_cf_api_client() -> bool:
     if __cf and isinstance(__cf, cloudflare.Cloudflare):
         return True
 
-    if hconfig(ConfigEnum.cloudflare):
-        __cf = cloudflare.Cloudflare(api_token=hconfig(ConfigEnum.cloudflare))
+    with __cf_lock:
         if __cf and isinstance(__cf, cloudflare.Cloudflare):
             return True
+        if hconfig(ConfigEnum.cloudflare):
+            __cf = cloudflare.Cloudflare(api_token=hconfig(ConfigEnum.cloudflare))
+            if __cf and isinstance(__cf, cloudflare.Cloudflare):
+                return True
     return False
 
 

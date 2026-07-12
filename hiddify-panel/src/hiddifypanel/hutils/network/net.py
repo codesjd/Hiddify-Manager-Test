@@ -66,6 +66,7 @@ def get_domain_ip(domain: str, retry: int = 3, version: Literal[4, 6] | None = N
 
 _pinned_cert_cache: dict = {}
 _pinned_cert_inflight: set = set()
+_pinned_cert_inflight_lock = threading.Lock()
 
 
 def _fetch_cert_sha256_blocking(host: str, port: int, timeout: float) -> Union[str, None]:
@@ -129,8 +130,11 @@ def get_pinned_cert_sha256(host: str, port: int = 443) -> Union[str, None]:
     # minutes instead of up to an hour.
     if cached and (time.time() - cached[1]) < 300:
         return cached[0]
-    if key not in _pinned_cert_inflight:
-        _pinned_cert_inflight.add(key)
+    with _pinned_cert_inflight_lock:
+        already_inflight = key in _pinned_cert_inflight
+        if not already_inflight:
+            _pinned_cert_inflight.add(key)
+    if not already_inflight:
         threading.Thread(target=_background_fetch_cert, args=(host, port, key), daemon=True).start()
     return None
 
