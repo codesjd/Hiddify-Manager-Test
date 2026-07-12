@@ -70,6 +70,7 @@ dependencies = [
     "marshmallow>=4.2.2",
     "setuptools==82.0.0",
     "dnspython>=2.8.0",
+    "alembic>=1.13.0,<2.0.0",
 ]
 
 [project.optional-dependencies]
