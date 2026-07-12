@@ -1329,6 +1329,19 @@ msgstr ""
 msgid "config.l2tp_psk.label"
 msgstr "🔑 L2TP Pre-Shared Key"
 
+msgid "config.l2tp_outbound_tag.description"
+msgstr ""
+"Route L2TP-inbound clients' traffic through an existing L2TP or AmneziaWG "
+"Outbound instead of straight out this server's public network interface. "
+"Leave as Direct unless you have a chained L2TP/AmneziaWG Outbound set up on "
+"the Outbounds page."
+
+msgid "config.l2tp_outbound_tag.label"
+msgstr "🔀 L2TP Route through Outbound"
+
+msgid "config.l2tp_outbound_tag.direct_choice"
+msgstr "Direct (default)"
+
 msgid "config.auto_update.description"
 msgstr ""
 "Every day at 3:00 AM, we will check for a new update. if there is a new "

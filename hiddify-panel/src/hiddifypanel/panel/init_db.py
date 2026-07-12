@@ -14,7 +14,16 @@ from hiddifypanel.database import db, db_execute
 
 
 from loguru import logger
-MAX_DB_VERSION = 142
+MAX_DB_VERSION = 143
+
+
+def _v142(child_id):
+    """L2TP-inbound-through-an-outbound routing (see
+    models/routing.py's get_l2tp_route_interface() and
+    other/l2tp/run.sh.j2) - seeds the admin-facing setting so it shows up
+    on the Settings page for every install. Empty string = today's direct
+    behavior, unchanged."""
+    add_config_if_not_exist(ConfigEnum.l2tp_outbound_tag, "")
 
 
 def _v141(child_id):

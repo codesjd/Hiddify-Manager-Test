@@ -67,13 +67,21 @@ echo "No L2TP outbounds configured (Outbounds page, Protocol=l2tp) - nothing to 
 {% endif %}
 
 # NAT the L2TP pool out the public NIC so tunnelled clients reach the
-# internet, same masquerade WireGuard sets up for its own pool. -C checks
-# first so re-running Apply Configs doesn't stack duplicate rules.
+# internet, same masquerade WireGuard sets up for its own pool. A
+# dedicated chain (jumped to from POSTROUTING exactly once, flushed and
+# rebuilt below on every run) so switching or clearing the "Route through
+# Outbound" setting further down can never leave a stale rule for an old
+# interface behind - flushing a whole custom chain is safe; grepping
+# POSTROUTING for a rule to delete is not.
 SERVER_PUB_NIC="$(ip -4 route ls | grep default | grep -Po '(?<=dev )(\S+)' | head -1)"
 L2TP_POOL="10.92.0.0/24"
+L2TP_MASQ_CHAIN="HIDDIFY-L2TP-MASQ"
+iptables -t nat -N "$L2TP_MASQ_CHAIN" 2>/dev/null || true
+iptables -t nat -C POSTROUTING -j "$L2TP_MASQ_CHAIN" 2>/dev/null \
+    || iptables -t nat -A POSTROUTING -j "$L2TP_MASQ_CHAIN"
+iptables -t nat -F "$L2TP_MASQ_CHAIN"
 if [ -n "$SERVER_PUB_NIC" ]; then
-    iptables -t nat -C POSTROUTING -s "$L2TP_POOL" -o "$SERVER_PUB_NIC" -j MASQUERADE 2>/dev/null \
-        || iptables -t nat -A POSTROUTING -s "$L2TP_POOL" -o "$SERVER_PUB_NIC" -j MASQUERADE
+    iptables -t nat -A "$L2TP_MASQ_CHAIN" -s "$L2TP_POOL" -o "$SERVER_PUB_NIC" -j MASQUERADE
 fi
 iptables -C FORWARD -s "$L2TP_POOL" -j ACCEPT 2>/dev/null || iptables -A FORWARD -s "$L2TP_POOL" -j ACCEPT
 iptables -C FORWARD -d "$L2TP_POOL" -j ACCEPT 2>/dev/null || iptables -A FORWARD -d "$L2TP_POOL" -j ACCEPT
@@ -101,4 +109,31 @@ else
     systemctl disable xl2tpd >/dev/null 2>&1 || true
     systemctl stop xl2tpd >/dev/null 2>&1 || true
 fi
+
+# Route L2TP-inbound clients through a chosen outbound tunnel interface
+# instead of the public NIC (Settings -> L2TP/IPsec -> Route through
+# Outbound - see models/routing.py's get_l2tp_route_interface()), scoped
+# to ONLY traffic sourced from the L2TP client pool via a dedicated
+# routing table - the server's own default route (SSH included) is never
+# touched. Table 92 (matching the 10.92.0.0/24 pool) is flushed and
+# rebuilt from scratch on every run, so switching or clearing the choice
+# cleans up after itself instead of leaving a stale route. If the chosen
+# interface isn't up yet (its own tunnel hasn't connected, or it's a
+# separate subsystem that hasn't finished starting - l2tp/wireguard/
+# amneziawg install steps run concurrently, not sequentially), table 92
+# is simply left empty: `ip rule` transparently falls through to the main
+# table's default route, i.e. the direct public-NIC rule above, until the
+# interface comes up and Apply Configs runs again.
+L2TP_RT_TABLE=92
+ip route flush table $L2TP_RT_TABLE 2>/dev/null || true
+ip rule del from "$L2TP_POOL" table $L2TP_RT_TABLE 2>/dev/null || true
+{% if l2tp_route_interface %}
+if ip link show "{{ l2tp_route_interface }}" up >/dev/null 2>&1; then
+    ip route add default dev "{{ l2tp_route_interface }}" table $L2TP_RT_TABLE
+    ip rule add from "$L2TP_POOL" table $L2TP_RT_TABLE priority 32000
+    iptables -t nat -A "$L2TP_MASQ_CHAIN" -s "$L2TP_POOL" -o "{{ l2tp_route_interface }}" -j MASQUERADE
+else
+    warning "L2TP/IPsec: configured outbound interface {{ l2tp_route_interface }} is not up yet - L2TP clients will use the direct route until it comes up and Apply Configs is run again."
+fi
+{% endif %}
 true

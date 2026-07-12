@@ -376,6 +376,15 @@ class ConfigEnum(metaclass=FastEnum):
     # The IPsec pre-shared key. hide_in_virtual_child: L2TP terminates on the
     # host that runs the daemon, not a virtual child.
     l2tp_psk = _StrConfigDscr(ConfigCategory.l2tp, ApplyMode.apply_config, hide_in_virtual_child=True)
+    # Tag of a CustomOutbound (Protocol=l2tp or amneziawg) to route
+    # L2TP-inbound clients' traffic through, instead of straight out the
+    # server's public NIC. Empty = today's direct behavior. See
+    # models/routing.py's get_l2tp_route_interface() and
+    # other/l2tp/run.sh.j2 - both l2tp and amneziawg outbounds are real
+    # kernel network interfaces (unlike xray-protocol outbounds, which only
+    # exist inside xray's own process), so this is plain source-based
+    # policy routing, not a transparent-proxy redirect.
+    l2tp_outbound_tag = _StrConfigDscr(ConfigCategory.l2tp, ApplyMode.apply_config, hide_in_virtual_child=True)
 
     # the hysteria is refereing to hysteria2
 

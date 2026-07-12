@@ -1252,3 +1252,37 @@ def get_l2tp_client_outbounds() -> list[dict]:
             "psk": o.preshared_key or '',
         })
     return result
+
+
+def get_l2tp_route_interface() -> str | None:
+    """Resolves ConfigEnum.l2tp_outbound_tag to the kernel interface
+    L2TP-inbound clients' traffic should route through, or None for the
+    default direct-out-the-public-NIC behavior.
+
+    Only l2tp/amneziawg outbounds are valid targets: both are real kernel
+    network interfaces (l2tpc{id}/awg{id}) that Linux can route into
+    directly via source-based policy routing - unlike xray-protocol
+    outbounds (vless/vmess/trojan/...) or the WireGuard outbound (an
+    in-process xray/singbox tunnel, not a real kernel device), which would
+    need a transparent-proxy redirect into xray instead. Falls back to
+    None (direct) if the tag is unset or no longer matches an enabled row
+    of the right protocol - an admin deleting/disabling/retagging the
+    chosen outbound should degrade to "just works, direct" rather than
+    silently keep pointing at nothing."""
+    from hiddifypanel.models.child import Child
+    from hiddifypanel.models.config import hconfig
+    from hiddifypanel.models.config_enum import ConfigEnum
+
+    tag = hconfig(ConfigEnum.l2tp_outbound_tag)
+    if not tag:
+        return None
+
+    child_id = Child.current().id
+    row = CustomOutbound.query.filter_by(child_id=child_id, tag=tag, enable=True).first()
+    if row is None:
+        return None
+    if row.protocol == OutboundProtocol.l2tp:
+        return row.l2tp_interface
+    if row.protocol == OutboundProtocol.amneziawg:
+        return row.amneziawg_interface
+    return None

@@ -330,6 +330,26 @@ def get_config_form():
                 ]
                 field = wtf.SelectField(_("config.telegram_lib.label"), choices=libs, description=_(
                     "config.telegram_lib.description"), default=hconfig(ConfigEnum.telegram_lib))
+            elif c.key == ConfigEnum.l2tp_outbound_tag:
+                # Only l2tp/amneziawg outbounds are valid targets here - both
+                # are real kernel interfaces get_l2tp_route_interface() can
+                # route into directly. xray-protocol outbounds (and the
+                # WireGuard outbound, an in-process tunnel) aren't offered
+                # since routing L2TP's kernel traffic through those would need
+                # a transparent-proxy redirect, not plain policy routing.
+                l2tp_route_choices = [("", _("config.l2tp_outbound_tag.direct_choice"))]
+                for ob in CustomOutbound.query.filter(
+                    CustomOutbound.child_id == Child.current().id,
+                    CustomOutbound.enable == True,
+                    CustomOutbound.protocol.in_([OutboundProtocol.l2tp, OutboundProtocol.amneziawg]),
+                ).all():
+                    l2tp_route_choices.append((ob.tag, ob.tag))
+                field = wtf.SelectField(
+                    _(f"config.{c.key}.label"),
+                    choices=l2tp_route_choices,
+                    description=_(f"config.{c.key}.description"),
+                    default=hconfig(c.key) or ""
+                )
             elif c.key == ConfigEnum.tuic_congestion_control:
                 field = wtf.SelectField(
                     _(f"config.{c.key}.label"),
