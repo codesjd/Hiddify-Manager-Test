@@ -1263,7 +1263,7 @@ def _ensure_default_proxy_rows():
 def init_db():
     db.create_all()
     
-    from hiddifypanel.database.reconcile import reconcile_schema
+    from hiddifypanel.database import reconcile_schema
     if not reconcile_schema():
         from loguru import logger
         logger.error("Schema reconciliation failed. Halting startup.")
