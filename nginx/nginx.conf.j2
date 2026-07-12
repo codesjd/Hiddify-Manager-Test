@@ -40,7 +40,13 @@ http {
 
     keepalive_timeout  65;
 
-    #gzip  on;
+    # ponytail: enable gzip for sync JSON payloads (fixes 031 scale flaw)
+    gzip on;
+    gzip_vary on;
+    gzip_min_length 1024;
+    gzip_proxied expired no-cache no-store private auth;
+    gzip_types text/plain text/css text/xml text/javascript application/x-javascript application/xml application/json;
+    gzip_disable "MSIE [1-6]\.";
 
     include /opt/hiddify-manager/nginx/conf.d/*.conf;
 }
