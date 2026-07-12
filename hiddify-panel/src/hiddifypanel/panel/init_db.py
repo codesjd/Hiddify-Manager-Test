@@ -1305,6 +1305,14 @@ def init_db():
         if db.engine.dialect.name == 'mysql':
             db_execute("update child set id=0 where unique_id=:u", u=tmp_uuid, commit=True)
         child = Child.by_id(0)
+        # Fresh install only (this branch never runs again once the Child
+        # row exists) - let core_type auto-track actual xhttp usage instead
+        # of hardcoding xray. _v41 below only seeds "xray" if core_type has
+        # no value yet, so setting a concrete starting value here first
+        # makes that a no-op for fresh installs while leaving any
+        # mid-upgrade legacy install's historical seed untouched.
+        add_config_if_not_exist(ConfigEnum.core_type, "singbox")
+        add_config_if_not_exist(ConfigEnum.core_type_auto, True)
 
     child.mode = ChildMode.virtual
     db.session.commit()

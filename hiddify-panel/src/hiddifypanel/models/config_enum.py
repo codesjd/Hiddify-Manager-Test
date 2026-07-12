@@ -183,6 +183,14 @@ class ConfigEnum(metaclass=FastEnum):
     ssh_server_enable = _BoolConfigDscr(ConfigCategory.ssh, ApplyMode.reinstall)
     first_setup = _BoolConfigDscr(ConfigCategory.hidden)
     core_type = _StrConfigDscr(ConfigCategory.advanced, ApplyMode.reinstall, hide_in_virtual_child=True)
+    # Whether core_type is auto-managed (recomputed from actual xhttp usage
+    # on every Apply Configs, see install.sh) vs explicitly pinned by the
+    # admin. Seeded True only for genuinely fresh installs (init_db.py's
+    # `if child is None` block) - existing installs keep their historical
+    # explicit "xray" default untouched. Flips to False permanently the
+    # instant an admin picks a value via Settings (SettingAdmin.py), so
+    # auto-management can never silently override a deliberate choice.
+    core_type_auto = _BoolConfigDscr(ConfigCategory.hidden, ApplyMode.reinstall, hide_in_virtual_child=True)
     warp_enable = _BoolConfigDscr(ConfigCategory.hidden, ApplyMode.reinstall, hide_in_virtual_child=True)
     warp_mode = _StrConfigDscr(ConfigCategory.warp, ApplyMode.apply_config, hide_in_virtual_child=True)
     warp_plus_code = _StrConfigDscr(ConfigCategory.warp, ApplyMode.apply_config, hide_in_virtual_child=True)

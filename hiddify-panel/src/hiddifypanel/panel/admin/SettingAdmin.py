@@ -142,6 +142,12 @@ class SettingAdmin(FlaskView):
                 if k in {ConfigEnum.branding_title, ConfigEnum.branding_site, ConfigEnum.branding_freetext}:
                     v = bleach_clean(v, tags=ALLOWED_TAGS)
                 set_hconfig(k, v, commit=False)
+                if k == ConfigEnum.core_type:
+                    # Admin explicitly picked a core here - stop auto-managing
+                    # it (see install.sh's core_type_auto resolution) so this
+                    # choice never gets silently overwritten by the
+                    # xhttp-usage-based auto selection on a later Apply Configs.
+                    set_hconfig(ConfigEnum.core_type_auto, False, commit=False)
 
             db.session.commit()
             flask_babel.refresh()

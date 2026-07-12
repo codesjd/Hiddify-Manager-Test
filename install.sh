@@ -131,7 +131,40 @@ function main() {
         SINGBOX_ENABLE=0
         
         # ponytail: gate xray strictly on xhttp usage (config or domain). fallback to True on error so broken check doesn't kill live domain.
-        HAS_XHTTP_DOMAIN=$(python3 -c "from hiddifypanel import create_app_wsgi; app=create_app_wsgi(); app.app_context().push(); from hiddifypanel.models import Domain, DomainType; print('True' if Domain.query.filter(Domain.mode==DomainType.special_reality_xhttp).first() else 'False')" 2>/dev/null || echo "True")
+        # NOTE: create_app_wsgi() (not create_app) reads sys.argv[1]
+        # unconditionally to decide cli-vs-web mode - it IndexErrors under
+        # `python3 -c "..."` (argv is just ['-c'], no [1]), which was
+        # silently swallowed by 2>/dev/null here, meaning this check has
+        # been falling through to the "True" fallback on every single run
+        # since it shipped, never actually querying the DB. Fixed by using
+        # create_app(app_mode="cli") directly instead of the wsgi-argv-
+        # sniffing wrapper.
+        HAS_XHTTP_DOMAIN=$(python3 -c "from hiddifypanel.base import create_app; app=create_app(app_mode='cli'); app.app_context().push(); from hiddifypanel.models import Domain, DomainType; print('True' if Domain.query.filter(Domain.mode==DomainType.special_reality_xhttp).first() else 'False')" 2>/dev/null || echo "True")
+
+        # core_type_auto (fresh installs only - see init_db.py) re-resolves
+        # core_type from actual xhttp usage on every apply: no xhttp -> the
+        # lighter singbox-only path, xhttp in use -> xray. Persisted back to
+        # the DB (not just a local variable) because Jinja config generation
+        # later in this same run reads core_type straight from the DB too.
+        # Admins who ever explicitly pick a value via Settings flip
+        # core_type_auto off (SettingAdmin.py), so this never overwrites a
+        # deliberate choice - only ever touches an install that has never
+        # had one made.
+        if [[ "$(hconfig "core_type_auto")" == "True" ]]; then
+            if [[ "$(hconfig "xhttp_enable")" == "True" ]] || [[ "$HAS_XHTTP_DOMAIN" == "True" ]]; then
+                RESOLVED_CORE_TYPE="xray"
+            else
+                RESOLVED_CORE_TYPE="singbox"
+            fi
+            if [[ "$RESOLVED_CORE_TYPE" != "$CORE_TYPE" ]]; then
+                if python3 -c "from hiddifypanel.base import create_app; from hiddifypanel.models import ConfigEnum, set_hconfig; app=create_app(app_mode='cli'); app.app_context().push(); set_hconfig(ConfigEnum.core_type, '$RESOLVED_CORE_TYPE')" 2>/dev/null; then
+                    CORE_TYPE="$RESOLVED_CORE_TYPE"
+                else
+                    warning "core_type auto-resolution failed to persist - keeping previous value ($CORE_TYPE) for this run."
+                fi
+            fi
+        fi
+
         if [[ "$CORE_TYPE" == "xray" ]] || [[ "$(hconfig "xhttp_enable")" == "True" ]] || [[ "$HAS_XHTTP_DOMAIN" == "True" ]]; then
             XRAY_ENABLE=1
         fi
