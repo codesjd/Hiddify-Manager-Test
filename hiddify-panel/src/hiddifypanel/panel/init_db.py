@@ -896,16 +896,33 @@ def _v1():
     external_ip = str(hutils.network.get_ip_str(4))
     rnd_domains = hutils.network.get_random_domains(5)
 
+    # The default User row below is inserted with added_by left unset,
+    # which falls back to its column default of 1 - a FK to
+    # admin_user.id. That row has to actually exist first. Inserted here
+    # via flush() (same transaction, not a separate commit - if anything
+    # later in this function fails, the whole thing should still roll
+    # back atomically) rather than folded into the bulk_save_objects()
+    # batch below: bulk_save_objects groups inserts by mapper for
+    # efficiency and doesn't guarantee cross-class insert order the way
+    # listing AdminUser before User might suggest. This dependency was
+    # invisible on SQLite (no FK enforcement by default - every fresh
+    # install this whole feature was verified against), but MySQL
+    # enforces it strictly and rejects a fresh install's very first
+    # migration step outright without this.
+    admin_secret = str(uuid.uuid4())
+    db.session.add(AdminUser(id=1, uuid=admin_secret, name="Owner", mode=AdminMode.super_admin, comment=""))
+    db.session.flush()
+
     data = [
-        
+
         StrConfig(key=ConfigEnum.db_version, value=1), User(name="default", usage_limit_GB=3000, package_days=3650, mode=UserMode.weekly),
-        Domain(domain=external_ip, mode=DomainType.direct), 
-        Domain(domain=external_ip + ".sslip.io", mode=DomainType.direct), 
-        StrConfig(key=ConfigEnum.admin_secret, value=str(uuid.uuid4())), StrConfig(key=ConfigEnum.http_ports, value="80"), StrConfig(key=ConfigEnum.tls_ports, value="443"), BoolConfig(key=ConfigEnum.first_setup, value=True), StrConfig(key=ConfigEnum.decoy_domain, value=hutils.network.get_random_decoy_domain()), StrConfig(key=ConfigEnum.proxy_path, value=hutils.random.get_random_string()), BoolConfig(key=ConfigEnum.firewall, value=False), BoolConfig(key=ConfigEnum.netdata, value=True), StrConfig(key=ConfigEnum.lang, value='en'), BoolConfig(key=ConfigEnum.block_iran_sites, value=True), BoolConfig(key=ConfigEnum.allow_invalid_sni, value=True), BoolConfig(key=ConfigEnum.kcp_enable, value=False), StrConfig(key=ConfigEnum.kcp_ports, value="88"), BoolConfig(key=ConfigEnum.auto_update, value=os.environ.get('HIDDIFY_DISABLE_UPDATE',"").lower() not in {'1','true'}), BoolConfig(key=ConfigEnum.only_ipv4, value=False), BoolConfig(key=ConfigEnum.vmess_enable, value=True), BoolConfig(key=ConfigEnum.http_proxy_enable, value=True), StrConfig(key=ConfigEnum.shared_secret, value=str(uuid.uuid4())), BoolConfig(key=ConfigEnum.telegram_enable, value=False), # StrConfig(key=ConfigEnum.telegram_secret,value=uuid.uuid4().hex), StrConfig(key=ConfigEnum.telegram_adtag, value=""), StrConfig(key=ConfigEnum.telegram_fakedomain, value=rnd_domains[1]), BoolConfig(key=ConfigEnum.ssfaketls_enable, value=False), # StrConfig(key=ConfigEnum.ssfaketls_secret,value=str(uuid.uuid4())), StrConfig(key=ConfigEnum.ssfaketls_fakedomain, value=rnd_domains[2]), BoolConfig(key=ConfigEnum.shadowtls_enable, value=False), # StrConfig(key=ConfigEnum.shadowtls_secret,value=str(uuid.uuid4())), StrConfig(key=ConfigEnum.shadowtls_fakedomain, value=rnd_domains[3]), 
-        BoolConfig(key=ConfigEnum.ssr_enable, value=False), # StrConfig(key=ConfigEnum.ssr_secret,value=str(uuid.uuid4())), StrConfig(key=ConfigEnum.ssr_fakedomain, value=rnd_domains[4]), 
-        # BoolConfig(key=ConfigEnum.tuic_enable, value=False), # StrConfig(key=ConfigEnum.tuic_port, value=3048), 
-        BoolConfig(key=ConfigEnum.domain_fronting_tls_enable, value=False), BoolConfig(key=ConfigEnum.domain_fronting_http_enable, value=False), StrConfig(key=ConfigEnum.domain_fronting_domain, value=""), 
-        # BoolConfig(key=ConfigEnum.torrent_block,value=False), 
+        Domain(domain=external_ip, mode=DomainType.direct),
+        Domain(domain=external_ip + ".sslip.io", mode=DomainType.direct),
+        StrConfig(key=ConfigEnum.admin_secret, value=admin_secret), StrConfig(key=ConfigEnum.http_ports, value="80"), StrConfig(key=ConfigEnum.tls_ports, value="443"), BoolConfig(key=ConfigEnum.first_setup, value=True), StrConfig(key=ConfigEnum.decoy_domain, value=hutils.network.get_random_decoy_domain()), StrConfig(key=ConfigEnum.proxy_path, value=hutils.random.get_random_string()), BoolConfig(key=ConfigEnum.firewall, value=False), BoolConfig(key=ConfigEnum.netdata, value=True), StrConfig(key=ConfigEnum.lang, value='en'), BoolConfig(key=ConfigEnum.block_iran_sites, value=True), BoolConfig(key=ConfigEnum.allow_invalid_sni, value=True), BoolConfig(key=ConfigEnum.kcp_enable, value=False), StrConfig(key=ConfigEnum.kcp_ports, value="88"), BoolConfig(key=ConfigEnum.auto_update, value=os.environ.get('HIDDIFY_DISABLE_UPDATE',"").lower() not in {'1','true'}), BoolConfig(key=ConfigEnum.only_ipv4, value=False), BoolConfig(key=ConfigEnum.vmess_enable, value=True), BoolConfig(key=ConfigEnum.http_proxy_enable, value=True), StrConfig(key=ConfigEnum.shared_secret, value=str(uuid.uuid4())), BoolConfig(key=ConfigEnum.telegram_enable, value=False), # StrConfig(key=ConfigEnum.telegram_secret,value=uuid.uuid4().hex), StrConfig(key=ConfigEnum.telegram_adtag, value=""), StrConfig(key=ConfigEnum.telegram_fakedomain, value=rnd_domains[1]), BoolConfig(key=ConfigEnum.ssfaketls_enable, value=False), # StrConfig(key=ConfigEnum.ssfaketls_secret,value=str(uuid.uuid4())), StrConfig(key=ConfigEnum.ssfaketls_fakedomain, value=rnd_domains[2]), BoolConfig(key=ConfigEnum.shadowtls_enable, value=False), # StrConfig(key=ConfigEnum.shadowtls_secret,value=str(uuid.uuid4())), StrConfig(key=ConfigEnum.shadowtls_fakedomain, value=rnd_domains[3]),
+        BoolConfig(key=ConfigEnum.ssr_enable, value=False), # StrConfig(key=ConfigEnum.ssr_secret,value=str(uuid.uuid4())), StrConfig(key=ConfigEnum.ssr_fakedomain, value=rnd_domains[4]),
+        # BoolConfig(key=ConfigEnum.tuic_enable, value=False), # StrConfig(key=ConfigEnum.tuic_port, value=3048),
+        BoolConfig(key=ConfigEnum.domain_fronting_tls_enable, value=False), BoolConfig(key=ConfigEnum.domain_fronting_http_enable, value=False), StrConfig(key=ConfigEnum.domain_fronting_domain, value=""),
+        # BoolConfig(key=ConfigEnum.torrent_block,value=False),
         *get_proxy_rows_v1()
     ]
     # fake_domains=['speedtest.net']
