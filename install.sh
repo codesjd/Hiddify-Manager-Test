@@ -130,8 +130,8 @@ function main() {
         XRAY_ENABLE=0
         SINGBOX_ENABLE=0
         
-        # ponytail: gate xray strictly on xhttp usage (config or domain)
-        HAS_XHTTP_DOMAIN=$(python3 -c "from hiddifypanel import create_app_wsgi; app=create_app_wsgi(); app.app_context().push(); from hiddifypanel.models import Domain, DomainType; print('True' if Domain.query.filter(Domain.mode==DomainType.special_reality_xhttp).first() else 'False')" 2>/dev/null || echo "False")
+        # ponytail: gate xray strictly on xhttp usage (config or domain). fallback to True on error so broken check doesn't kill live domain.
+        HAS_XHTTP_DOMAIN=$(python3 -c "from hiddifypanel import create_app_wsgi; app=create_app_wsgi(); app.app_context().push(); from hiddifypanel.models import Domain, DomainType; print('True' if Domain.query.filter(Domain.mode==DomainType.special_reality_xhttp).first() else 'False')" 2>/dev/null || echo "True")
         if [[ "$CORE_TYPE" == "xray" ]] || [[ "$(hconfig "xhttp_enable")" == "True" ]] || [[ "$HAS_XHTTP_DOMAIN" == "True" ]]; then
             XRAY_ENABLE=1
         fi
