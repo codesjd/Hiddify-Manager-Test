@@ -1311,6 +1311,7 @@ def init_db():
     child.mode = ChildMode.virtual
     db.session.commit()
 
+    from flask import g
     for child in Child.query.filter(Child.mode == ChildMode.virtual).all():
         g.child = child
         db_version = int(hconfig(ConfigEnum.db_version, child.id) or 0)
