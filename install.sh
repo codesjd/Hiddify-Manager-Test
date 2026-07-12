@@ -127,10 +127,16 @@ function main() {
         # Only the SINGBOX-primary case can safely drop xray (xhttp is the sole
         # xray-only transport and is already filtered from singbox subs).
         CORE_TYPE=$(hconfig "core_type")
-        XRAY_ENABLE=1
+        XRAY_ENABLE=0
         SINGBOX_ENABLE=0
+        
+        # ponytail: gate xray strictly on xhttp usage (config or domain)
+        HAS_XHTTP_DOMAIN=$(python3 -c "from hiddifypanel import create_app_wsgi; app=create_app_wsgi(); app.app_context().push(); from hiddifypanel.models import Domain, DomainType; print('True' if Domain.query.filter(Domain.mode==DomainType.special_reality_xhttp).first() else 'False')" 2>/dev/null || echo "False")
+        if [[ "$CORE_TYPE" == "xray" ]] || [[ "$(hconfig "xhttp_enable")" == "True" ]] || [[ "$HAS_XHTTP_DOMAIN" == "True" ]]; then
+            XRAY_ENABLE=1
+        fi
+        
         if [[ "$CORE_TYPE" == "singbox" ]]; then
-            XRAY_ENABLE=0
             SINGBOX_ENABLE=1
         fi
         for f in hysteria_enable tuic_enable anytls_enable shadowsocks2022_enable naive_enable mieru_enable; do
