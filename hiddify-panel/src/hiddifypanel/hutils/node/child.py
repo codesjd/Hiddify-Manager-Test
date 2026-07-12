@@ -2,6 +2,7 @@ from loguru import logger
 import socket
 from flask_babel import gettext as _
 from strenum import StrEnum
+from celery import shared_task
 
 from hiddifypanel.models import AdminUser, User, hconfig, ConfigEnum, ChildMode, Domain, Proxy, StrConfig, BoolConfig, Child, ChildMode
 from hiddifypanel import hutils
@@ -119,6 +120,43 @@ def register_to_parent(name: str, apikey: str, mode: ChildMode = ChildMode.remot
     logger.success("Successfully registered to parent")
     cache.invalidate_all_cached_functions()
     return True
+
+
+@shared_task(
+    ignore_result=True,
+    autoretry_for=(Exception,),
+    retry_backoff=True,       # exponential: 1s, 2s, 4s, 8s, 16s...
+    retry_backoff_max=600,    # capped at 10 minutes between attempts
+    retry_jitter=True,        # avoid every child retrying in lockstep
+    max_retries=5,
+)
+def periodic_full_resync_with_parent() -> None:
+    """Plan 031 fix: sync_with_parent() (domains/proxies/hconfigs, plus
+    usage as a side effect - see below) previously only ran on-demand, from
+    admin actions that change config (DomainAdmin/ProxyAdmin/SettingAdmin/
+    Actions). If the parent was unreachable during one of those triggers,
+    nothing re-attempted the sync until some *unrelated* future config
+    change happened to fire it again - unbounded staleness on the parent's
+    view of this child, not just a slow retry. Usage sync self-heals from
+    this because it pushes an absolute counter (a late catch-up sync
+    recovers the whole gap in one delta) - but domain/proxy/config sync
+    pushes current *state*, which has no equivalent self-healing property
+    without something re-triggering it independently of admin activity.
+    This periodic task is exactly that: the same bounded-staleness
+    guarantee usage sync gets "for free" from its own periodicity, applied
+    to the sync path that didn't have any. Retry-with-backoff (via the
+    @shared_task options below) additionally shrinks staleness in the
+    common transient-failure case, on top of the periodic floor.
+    """
+    if not hutils.node.is_child():
+        return
+    if not sync_with_parent():
+        # sync_with_parent() already logs specifics; raise so the
+        # @shared_task retry/backoff below actually engages - it only
+        # triggers on a raised exception, not a False return, and
+        # sync_with_parent()'s bool-return contract is relied on elsewhere
+        # (DomainAdmin/ProxyAdmin/Actions), so it isn't changed here.
+        raise RuntimeError("periodic_full_resync_with_parent: sync_with_parent() failed")
 
 
 def sync_with_parent(*fields: SyncFields) -> bool:
