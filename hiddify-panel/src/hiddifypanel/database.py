@@ -177,7 +177,13 @@ def reconcile_schema() -> bool:
         reflect_conn.close()
 
     if not diff:
-        logger.info("Schema perfectly matches models. No reconciliation needed.")
+        # DEBUG, not INFO: this runs on every app startup (uwsgi worker
+        # boot, `hiddify-panel-cli init-db` on every install.sh apply/
+        # reinstall) and is the overwhelmingly common case - "nothing to
+        # do" doesn't need to interrupt a normal install/apply's console
+        # output. A real heal or an ambiguous diff (below) still logs at
+        # INFO/ERROR since those are genuinely actionable.
+        logger.debug("Schema perfectly matches models. No reconciliation needed.")
         return True
 
     ambiguous = False
