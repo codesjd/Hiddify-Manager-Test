@@ -163,8 +163,18 @@ def reconcile_schema() -> bool:
     from sqlalchemy.schema import CreateTable, CreateIndex
     from sqlalchemy import text as sa_text
 
-    context = MigrationContext.configure(db.engine.connect())
-    diff = compare_metadata(context, db.metadata)
+    # Explicitly closed once the diff is computed - MigrationContext holds
+    # a reference cycle (dialect <-> connection <-> context) that defers
+    # cleanup to the cyclic GC if left to a bare .connect(), so an
+    # unclosed connection can sit checked out of the (Query)Pool - on a
+    # file-backed SQLite engine that means a still-open transaction/
+    # snapshot can later get handed back out for unrelated work.
+    reflect_conn = db.engine.connect()
+    try:
+        context = MigrationContext.configure(reflect_conn)
+        diff = compare_metadata(context, db.metadata)
+    finally:
+        reflect_conn.close()
 
     if not diff:
         logger.info("Schema perfectly matches models. No reconciliation needed.")
@@ -182,7 +192,11 @@ def reconcile_schema() -> bool:
             # op: ('add_column', schema, table_name, column)
             table_name = op[2]
             column = op[3]
-            from sqlalchemy.schema import AddColumn
+            # AddColumn lives in alembic.ddl.base, not sqlalchemy.schema -
+            # SQLAlchemy core has no portable "ALTER TABLE ADD COLUMN" DDL
+            # element of its own; alembic provides one (with per-dialect
+            # @compiles handlers already registered on import).
+            from alembic.ddl.base import AddColumn
             additive_ddl.append(str(AddColumn(table_name, column).compile(db.engine)))
         elif op_type == 'add_index':
             index = op[1]

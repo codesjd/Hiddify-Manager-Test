@@ -3,26 +3,17 @@ os.environ['STDOUT_LOG_LEVEL'] = 'INFO'
 os.environ['REDIS_URI_MAIN'] = 'redis://127.0.0.1:6379'
 os.environ['REDIS_URI_SSE'] = 'redis://127.0.0.1:6379'
 os.environ['HIDDIFY_CONFIG_PATH'] = '/opt/hiddify-manager'
-import pytest
 import json
 from datetime import datetime, date, timedelta
 from uuid import uuid4
-from hiddifypanel import create_app
 from hiddifypanel.models.config_enum import ConfigEnum
 from hiddifypanel.models.routing import OutboundProtocol, CustomOutbound
 from hiddifypanel.models.proxy import ProxyTransport
 
-@pytest.fixture(scope='session')
-def app():
-    app = create_app(SQLALCHEMY_DATABASE_URI='sqlite:///:memory:', TESTING=True, STDOUT_LOG_LEVEL='INFO', HIDDIFY_CONFIG_PATH='/opt/hiddify-manager', REDIS_URI_MAIN='redis://127.0.0.1:6379', REDIS_URI_SSE='redis://127.0.0.1:6379')
-    with app.app_context():
-        from hiddifypanel.database import db
-        db.create_all()
-        from hiddifypanel.panel.init_db import init_db
-        init_db()
-        yield app
-        db.session.remove()
-        db.drop_all()
+# `app` fixture now lives in tests/conftest.py, shared across the whole
+# suite - create_app() can only be called once per process (Flask
+# blueprints are module-level singletons that reject a second
+# registration), so every test file must reuse the one shared instance.
 
 def test_apply_scope_logic(app):
     from hiddifypanel.hutils import apply_scope
