@@ -1261,33 +1261,39 @@ def _ensure_default_proxy_rows():
 
 
 def init_db():
-    # set_hconfig(ConfigEnum.db_version,113) 
-    # set_hconfig(ConfigEnum.db_version,110)
+    db.create_all()
+    
+    from hiddifypanel.database.reconcile import reconcile_schema
+    if not reconcile_schema():
+        from loguru import logger
+        logger.error("Schema reconciliation failed. Halting startup.")
+        import sys
+        sys.exit(1)
+        
+    try:
+        from alembic.config import Config
+        from alembic import command
+        # Find the root of the project to locate alembic.ini
+        import os
+        from flask import current_app
+        root_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(current_app.root_path))))
+        ini_path = os.path.join(root_dir, "alembic.ini")
+        if os.path.exists(ini_path):
+            alembic_cfg = Config(ini_path)
+            command.stamp(alembic_cfg, "head")
+    except Exception as e:
+        from loguru import logger
+        logger.error(f"Failed to stamp Alembic head: {e}")
+
+    # Legacy db_version / fast-path initialization
     db_version = current_db_version()
     if db_version == latest_db_version():
-        # Backfill new settings for already-upgraded installations.
-        db.create_all()
-        db.session.commit()
-        # Renamed/removed ConfigEnum members (e.g. a field renamed after an
-        # earlier install already wrote the old name into str_config/bool_config)
-        # normally only get cleaned up inside migrate(), which this fast path
-        # skips entirely. Without this, a stale key left over from a previous
-        # install attempt makes every future config read raise LookupError
-        # forever, since db_version never drops below latest to re-trigger it.
         add_new_enum_values()
         _ensure_mieru_naive_relay_variants()
         _ensure_default_proxy_rows()
         return
-    
-    db.create_all()
-    
-    # temporary fix
-    add_column(Child.mode)
-    add_column(Child.name)
 
-    from flask import g
-    cache.invalidate_all_cached_functions()
-    migrate(db_version)
+    # migrate(db_version)  # Deprecated in favor of Alembic
 
     child = Child.by_id(0)
     if child is None:
@@ -1296,12 +1302,9 @@ def init_db():
         db.session.commit()
         if db.engine.dialect.name == 'mysql':
             db_execute("update child set id=0 where unique_id=:u", u=tmp_uuid, commit=True)
-        child = Child.by_id(0)  
+        child = Child.by_id(0)
 
     child.mode = ChildMode.virtual
-    # if db_version < 69:
-    #     _v70(0)
-
     db.session.commit()
 
     for child in Child.query.filter(Child.mode == ChildMode.virtual).all():
