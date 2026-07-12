@@ -223,6 +223,20 @@ class ConfigEnum(metaclass=FastEnum):
     country = _StrConfigDscr(ConfigCategory.general, ApplyMode.reinstall, hide_in_virtual_child=True)
     package_mode = _StrConfigDscr(ConfigCategory.advanced, hide_in_virtual_child=True)
     utls = _StrConfigDscr(ConfigCategory.advanced)
+    # Opt-in periodic uTLS rotation (see hutils/tls_fingerprint_rotation.py):
+    # cycles `utls` itself among the real-browser fingerprint choices every
+    # utls_rotate_days (+/- jitter) instead of leaving it pinned to one
+    # value forever. Deliberately distinct from utls's own "random"/
+    # "randomized" choices, which pick per-connection rather than rotating
+    # a stable value over days. Flips back to False the instant an admin
+    # manually edits `utls` directly (see SettingAdmin.py's save loop) -
+    # same "explicit choice wins" rule as core_type/core_type_auto.
+    utls_auto_rotate = _BoolConfigDscr(ConfigCategory.advanced)
+    utls_rotate_days = _IntConfigDscr(ConfigCategory.advanced)
+    # Bookkeeping only (never rendered - ConfigCategory.hidden is skipped
+    # entirely by SettingAdmin's form loop): ISO timestamp of the last
+    # auto-rotation, so the periodic task knows whether one is due yet.
+    utls_last_rotated_at = _StrConfigDscr(ConfigCategory.hidden)
     telegram_bot_token = _StrConfigDscr(ConfigCategory.telegram, hide_in_virtual_child=True)
 
     # Generic outgoing webhook - POSTs a JSON payload to your own endpoint on

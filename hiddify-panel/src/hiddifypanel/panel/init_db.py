@@ -14,7 +14,21 @@ from hiddifypanel.database import db, db_execute
 
 
 from loguru import logger
-MAX_DB_VERSION = 141
+MAX_DB_VERSION = 142
+
+
+def _v141(child_id):
+    """Opt-in periodic uTLS fingerprint rotation (see
+    hutils/tls_fingerprint_rotation.py) - seeds the two admin-facing
+    settings so the feature actually shows up on the Settings page for
+    every install, not just brand new ones (utls_auto_rotate defaults to
+    disabled; the rotation task also treats it as a no-op when unset, but
+    an unseeded StrConfig/BoolConfig row is invisible to SettingAdmin's
+    form loop entirely, not just "off"). utls_last_rotated_at is
+    deliberately not seeded here - its absence means "never rotated yet",
+    which is exactly the correct starting state."""
+    add_config_if_not_exist(ConfigEnum.utls_auto_rotate, False)
+    add_config_if_not_exist(ConfigEnum.utls_rotate_days, 3)
 
 
 def _v140(child_id):

@@ -2597,6 +2597,25 @@ msgstr ""
 msgid "config.utls.label"
 msgstr "❇️ uTLS"
 
+msgid "config.utls_auto_rotate.description"
+msgstr ""
+"Periodically switches the uTLS fingerprint above between real browsers, "
+"instead of leaving it pinned to one value forever. Different from the "
+"Random/Randomized choices, which vary per-connection - this keeps one "
+"stable value for a few days at a time, then swaps it. Off by default."
+
+msgid "config.utls_auto_rotate.label"
+msgstr "🔄 Auto-rotate uTLS Fingerprint"
+
+msgid "config.utls_rotate_days.description"
+msgstr ""
+"How often (in days) to rotate the uTLS fingerprint when Auto-rotate is "
+"enabled. A small random jitter is applied so rotations don't happen on an "
+"exactly predictable schedule."
+
+msgid "config.utls_rotate_days.label"
+msgstr "Rotate Every (days)"
+
 msgid "config.v2ray_enable.description"
 msgstr "V2ray does not support accounting and not suggested"
 

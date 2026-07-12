@@ -148,6 +148,18 @@ class SettingAdmin(FlaskView):
                     # choice never gets silently overwritten by the
                     # xhttp-usage-based auto selection on a later Apply Configs.
                     set_hconfig(ConfigEnum.core_type_auto, False, commit=False)
+                if k == ConfigEnum.utls:
+                    # Same rule as core_type/core_type_auto above: an admin
+                    # who directly edits the uTLS fingerprint here has made an
+                    # explicit choice that must never get silently overwritten
+                    # by the next scheduled rotation (see
+                    # hutils/tls_fingerprint_rotation.py). If they also
+                    # flipped utls_auto_rotate on in this same submission,
+                    # that later loop iteration (utls_auto_rotate sorts after
+                    # utls in ConfigEnum's declaration order) overwrites this
+                    # back to True, which is correct - their most recent,
+                    # explicit intent wins either way.
+                    set_hconfig(ConfigEnum.utls_auto_rotate, False, commit=False)
 
             db.session.commit()
             flask_babel.refresh()
@@ -418,6 +430,12 @@ def get_config_form():
                 if c.key in [ConfigEnum.hysteria_up_mbps, ConfigEnum.hysteria_down_mbps, ConfigEnum.mux_max_connections, ConfigEnum.mux_min_streams, ConfigEnum.mux_max_streams,
                              ConfigEnum.mux_brutal_down_mbps, ConfigEnum.mux_brutal_up_mbps]:
                     validators.append(wtf.validators.Regexp("^\\d+$", re.IGNORECASE, _("config.Invalid_it_should_be_a_number_only") + f' {c.key}'))
+                # At least 1 day - "0" would mean "rotate on every check",
+                # which is both pointless (see tls_fingerprint_rotation.py's
+                # own runtime floor) and would itself become a distinguishing
+                # pattern rather than a way to avoid one.
+                if c.key == ConfigEnum.utls_rotate_days:
+                    validators.append(wtf.validators.Regexp("^[1-9]\\d*$", re.IGNORECASE, _("config.Invalid_it_should_be_a_number_only") + f' {c.key}'))
 
                 for val in validators:
                     if hasattr(val, "regex"):
