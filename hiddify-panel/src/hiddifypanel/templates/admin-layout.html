@@ -1216,7 +1216,16 @@ label, .control-label {
 
 {% block tail_js %}
 {{ super() }}
-<form id="action_form" method="post"><input type="hidden" name="csrf_token" value="{{ raw_csrf_token() }}"></form>
+<!-- Deliberately NOT id="action_form": flask-admin's own bulk-row-actions
+     macro (hiddify-flask-admin/actions.html's `form()`) renders a form with
+     that exact id on any ModelView list page that has row actions (e.g. the
+     default "Delete" action), and it renders earlier in the DOM than this
+     block. Two elements sharing an id is invalid HTML, and $("#action_form")
+     resolves via getElementById, which always returns the FIRST match - so
+     on those pages the JS below would silently submit flask-admin's own
+     action form (and its differently-formatted SecureForm CSRF token,
+     rejected by _admin_csrf_protect()) instead of this one. -->
+<form id="hiddify_action_form" method="post"><input type="hidden" name="csrf_token" value="{{ raw_csrf_token() }}"></form>
 <script>
 function toggleSidebarCollapsed() {
   var sidebar = document.getElementById('app-sidebar');
@@ -1322,13 +1331,13 @@ $(document).ready(function () {
   $('.form_post').off('click').click(function (e) {
     e.preventDefault();
     var link = this.href;
-    $("#action_form").attr("action", link);
+    $("#hiddify_action_form").attr("action", link);
     bootbox.confirm({
       message: '{{_("Are you sure you want to do this action?")}}',
       locale: '{{get_locale()}}',
       callback: function (result) {
         if (result) {
-          $("#action_form").submit();
+          $("#hiddify_action_form").submit();
         }
       }
     });
