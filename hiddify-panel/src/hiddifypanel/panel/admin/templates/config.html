@@ -30,9 +30,16 @@
         break-inside: avoid; display: inline-block; width: 100%; box-sizing: border-box;
     }
     legend {
-        background: transparent; margin: 0; font-weight: 700; font-size: 13.5px;
-        color: var(--text-primary); cursor: pointer; width: 100%;
-        display: flex; align-items: center; gap: 8px;
+        all: unset;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        width: 100%;
+        font-weight: 700;
+        font-size: 13.5px;
+        color: var(--text-primary);
+        cursor: pointer;
+        box-sizing: border-box;
     }
     legend .fa-plus { color: var(--accent); margin: 0; }
     legend + div > label { display: none; }
@@ -55,7 +62,13 @@
         color: var(--text-primary) !important; flex: 0 0 auto;
     }
     .apply-configs-btn:hover { background: var(--border); }
-    legend, legend label { text-transform: none !important; font-size: 13.5px !important; color: var(--text-primary) !important; font-weight: 700 !important; margin-bottom: 0 !important; }
+    /* legend's own text-transform/size/color/weight are covered by the
+       "all: unset" reset above, but that reset doesn't reach the nested
+       <label> wrapping the category name (FormField's label renders as a
+       real <label> element) - it still inherits the global
+       `label, .control-label { text-transform: uppercase !important }`
+       rule independently and needs its own override. */
+    legend label { text-transform: none !important; font-size: 13.5px !important; color: var(--text-primary) !important; font-weight: 700 !important; margin-bottom: 0 !important; }
     fieldset { padding-bottom: 0; }
     fieldset.open { padding-bottom: 16px; }
     fieldset > *:not(legend):not(.open-content) { display: none !important; }
