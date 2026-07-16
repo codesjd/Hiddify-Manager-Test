@@ -8,8 +8,7 @@ source ./awg_utils.sh
 # just binds to whatever interface this brings up (bind_interface), same
 # mechanism as WARP - no core-level protocol support needed.
 #
-# Two upstream projects, neither ships prebuilt Linux binaries as of writing,
-# so both are built from source here:
+# Two upstream projects, neither ships prebuilt Linux binaries as of writing:
 #   - amneziawg-tools: C, provides `awg`/`awg-quick` (forks of wg/wg-quick)
 #     and an awg-quick@.service systemd template.
 #   - amneziawg-go: Go, userspace WireGuard-family implementation. awg-quick
@@ -18,6 +17,16 @@ source ./awg_utils.sh
 #     amneziawg-go in PATH if that fails - so no kernel module/DKMS build is
 #     needed, just this binary.
 #
+# Both used to be git-cloned from amnezia-vpn's GitHub and compiled here on
+# every install - a dependency on GitHub being reachable (plus a C/Go
+# toolchain) that doesn't hold on every VPS/ISP, and needlessly slow given
+# neither project changes often. Statically-linked amd64/arm64 binaries are
+# now vendored directly under bin/ instead - built via
+# .github/workflows/build-amneziawg.yaml from a pinned upstream tag (see
+# bin/<arch>/BUILD_INFO.txt for the exact tag/commit/workflow run); refresh
+# by re-running that workflow and replacing bin/'s contents, not by editing
+# this file.
+#
 # This same install (jinja-rendered, unlike the plain-bash version this file
 # used to be) also brings up "hiddifyawg", a second, independent awg-quick
 # interface used for genuine client-facing AmneziaWG connections (Proxy rows
@@ -25,29 +34,23 @@ source ./awg_utils.sh
 # other/wireguard/install.sh.j2's hiddifywg almost exactly, just built on
 # amneziawg-go/awg-quick instead of the in-kernel wireguard module so the
 # server can enforce Jc/Jmin/Jmax obfuscation against real clients.
-#
-# NOTE: untested. I don't have a real server to build/run either of these
-# on, so this is written directly from both projects' own build
-# instructions/source, not verified end-to-end. Please report the exact
-# output if `bash install.sh` fails here.
 
-install_package golang-go
+case "$(uname -m)" in
+    x86_64) AWG_ARCH=amd64 ;;
+    aarch64) AWG_ARCH=arm64 ;;
+    *) echo "AmneziaWG: unsupported architecture $(uname -m), skipping install" >&2; exit 0 ;;
+esac
+AWG_BIN_DIR="$(pwd)/bin/$AWG_ARCH"
 
-BUILD_DIR="$(pwd)/build"
-mkdir -p "$BUILD_DIR"
+SYSTEMD_UNIT_DIR="$(pkg-config --variable=systemdsystemunitdir systemd 2>/dev/null || echo /usr/lib/systemd/system)"
 
-if ! command -v awg-quick >/dev/null 2>&1; then
-    rm -rf "$BUILD_DIR/amneziawg-tools"
-    git clone --depth 1 https://github.com/amnezia-vpn/amneziawg-tools "$BUILD_DIR/amneziawg-tools" || exit 1
-    (cd "$BUILD_DIR/amneziawg-tools/src" && make && make install WITH_SYSTEMDUNITS=yes) || exit 2
-fi
-
-if ! command -v amneziawg-go >/dev/null 2>&1; then
-    rm -rf "$BUILD_DIR/amneziawg-go"
-    git clone --depth 1 https://github.com/amnezia-vpn/amneziawg-go "$BUILD_DIR/amneziawg-go" || exit 3
-    (cd "$BUILD_DIR/amneziawg-go" && make) || exit 4
-    install -m 755 "$BUILD_DIR/amneziawg-go/amneziawg-go" /usr/bin/amneziawg-go || exit 5
-fi
+install -m 755 "$AWG_BIN_DIR/awg" /usr/bin/awg || exit 1
+install -m 755 "$AWG_BIN_DIR/awg-quick" /usr/bin/awg-quick || exit 2
+install -m 755 "$AWG_BIN_DIR/amneziawg-go" /usr/bin/amneziawg-go || exit 3
+install -d "$SYSTEMD_UNIT_DIR"
+install -m 644 "$AWG_BIN_DIR/awg-quick.target" "$SYSTEMD_UNIT_DIR/awg-quick.target" || exit 4
+install -m 644 "$AWG_BIN_DIR/awg-quick@.service" "$SYSTEMD_UNIT_DIR/awg-quick@.service" || exit 5
+systemctl daemon-reload
 
 mkdir -p /etc/amnezia/amneziawg
 chmod 660 -R /etc/amnezia/amneziawg/
