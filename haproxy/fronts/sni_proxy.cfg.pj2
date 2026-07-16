@@ -1,11 +1,11 @@
 frontend https-in
-    
-    {# tls_ports = *additional* TLS ports the admin wants haproxy to bind
-       (proxy front). 443 is ALWAYS included because the panel itself is
-       served over the same TLS front - excluding 443 would take the panel
-       offline. The Settings field is optional (blank = only 443), so the
-       admin can still ADD custom ports, they just can't remove 443. #}
-    {% for port in (["443"] + hconfigs['tls_ports'].split(',')) | select | unique %}
+
+    {# Each domain can set its own exclusive TLS port (Domain.tls_port,
+       default 443 when unset) - replacing the old global tls_ports Settings
+       field. 443 is ALWAYS bound because the panel itself (and every domain
+       left at the default) is served over it - excluding 443 would take the
+       panel offline. #}
+    {% for port in (["443"] + (domains | selectattr('tls_port') | map(attribute='tls_port') | map('string') | list)) | unique %}
     bind :{{port}},:::{{port}} v4v6 tfo
     {%endfor%}
     # option tcplog
@@ -45,6 +45,19 @@ frontend https-in
         
     {% for d in domains if d['mode']=='old_xtls_direct' %}
     use_backend xray_force if { req.ssl_sni -i {{d['domain']}}  }
+    {%endfor%}
+
+    {# Per-domain TLS port exclusivity: a domain with a custom (non-443)
+       tls_port is only reachable on that port - reject it on 443 or any
+       other bound port. A domain left at the shared default (443) is
+       rejected if it arrives on one of the custom ports above, so a
+       custom port never doubles as a way into a domain it wasn't
+       assigned to. #}
+    {% for d in domains if d['tls_port'] and d['tls_port']|int != 443 %}
+    tcp-request content reject if { req.ssl_sni -i {{d['domain']}} } !{ dst_port {{d['tls_port']}} }
+    {%endfor%}
+    {% for d in domains if not d['tls_port'] or d['tls_port']|int == 443 %}
+    tcp-request content reject if { req.ssl_sni -i {{d['domain']}} } !{ dst_port 443 }
     {%endfor%}
 
     default_backend to_https_in_ssl

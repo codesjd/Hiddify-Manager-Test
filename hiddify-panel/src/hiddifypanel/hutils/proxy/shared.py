@@ -310,14 +310,18 @@ def get_valid_proxies(domains: list[Domain]) -> list[dict]:
             else:
                 protos = ['http', 'tls'] if hconfigs.get(ConfigEnum.http_proxy_enable) else ['tls']
                 for t in protos:
-                    for port in hconfigs[ConfigEnum.http_ports if t == 'http' else ConfigEnum.tls_ports].split(','):
-                        phttp = port if t == 'http' else None
-                        ptls = port if t == 'tls' else None
-                        if phttp and len(allphttp) and phttp not in allphttp:
-                            continue
-                        if ptls and len(allptls) and ptls not in allptls:
-                            continue
-                        options.append({'phttp': phttp, 'ptls': ptls})
+                    # Each domain now has at most one http/tls port (its own
+                    # Domain.http_port/tls_port override, default 80/443) -
+                    # replacing the old global http_ports/tls_ports lists this
+                    # used to fan out one link per additional port for.
+                    port = str(domain.effective_http_port if t == 'http' else domain.effective_tls_port)
+                    phttp = port if t == 'http' else None
+                    ptls = port if t == 'tls' else None
+                    if phttp and len(allphttp) and phttp not in allphttp:
+                        continue
+                    if ptls and len(allptls) and ptls not in allptls:
+                        continue
+                    options.append({'phttp': phttp, 'ptls': ptls})
 
             for opt in options:
                 pinfo = make_proxy(hconfigs, proxy, domain, **opt)

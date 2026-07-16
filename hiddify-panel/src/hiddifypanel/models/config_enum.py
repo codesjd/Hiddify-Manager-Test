@@ -267,7 +267,12 @@ class ConfigEnum(metaclass=FastEnum):
     default_useragent_string = _StrConfigDscr(ConfigCategory.general)    
     use_ip_in_config=_BoolConfigDscr(ConfigCategory.hidden)
     # tls
-    tls_ports = _StrConfigDscr(ConfigCategory.tls, ApplyMode.apply_config)
+    # retired - HTTP/TLS ports are now a per-domain Domain.http_port/tls_port
+    # override (see DomainAdmin.py) instead of one global list shared by
+    # every domain. Kept under ConfigCategory.hidden (not deleted) only so
+    # old DB rows/migrations referencing this key don't error, same pattern
+    # as the retired kcp_ports/wireguard_* fields.
+    tls_ports = _StrConfigDscr(ConfigCategory.hidden, ApplyMode.apply_config)
 
     tls_fragment_enable = _BoolConfigDscr(ConfigCategory.tls_trick)
     tls_fragment_size = _StrConfigDscr(ConfigCategory.tls_trick)
@@ -290,7 +295,8 @@ class ConfigEnum(metaclass=FastEnum):
     mux_brutal_up_mbps = _IntConfigDscr(ConfigCategory.mux, ApplyMode.apply_config)
     mux_brutal_down_mbps = _IntConfigDscr(ConfigCategory.mux, ApplyMode.apply_config)
 
-    http_ports = _StrConfigDscr(ConfigCategory.http, ApplyMode.apply_config)
+    # retired - see tls_ports above; replaced by the per-domain Domain.http_port.
+    http_ports = _StrConfigDscr(ConfigCategory.hidden, ApplyMode.apply_config)
     mieru_tcp_ports = _StrConfigDscr(ConfigCategory.mieru, ApplyMode.apply_config, hide_in_virtual_child=True)
     mieru_udp_ports = _StrConfigDscr(ConfigCategory.mieru, ApplyMode.apply_config, hide_in_virtual_child=True)
     # retired (_v137 forces kcp_enable off for every install) - KCP's whole

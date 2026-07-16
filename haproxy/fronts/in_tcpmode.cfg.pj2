@@ -1,9 +1,11 @@
 frontend in-tcpmode
-    {# http_ports = *additional* plain-HTTP ports; 80 is always included
-       because acme.sh's http-01 challenge and the panel's own HTTP->HTTPS
-       redirect ride the same front - excluding 80 would break cert renewal
-       and first-visit redirects. Admin can ADD custom ports, not replace. #}
-    {% for port in (["80"] + hconfigs['http_ports'].split(',')) | select | unique %}
+    {# Each domain can set its own exclusive HTTP port (Domain.http_port,
+       default 80 when unset) - replacing the old global http_ports Settings
+       field. 80 is always included because acme.sh's http-01 challenge and
+       the panel's own HTTP->HTTPS redirect ride the same front for every
+       domain left at the default - excluding 80 would break cert renewal
+       and first-visit redirects. #}
+    {% for port in (["80"] + (domains | selectattr('http_port') | map(attribute='http_port') | map('string') | list)) | unique %}
     bind :{{port}},:::{{port}} v4v6 tfo
     {%endfor%}
     bind abns@https_in_ssl tfo accept-proxy ssl crt /opt/hiddify-manager/ssl/ alpn h2,http/1.1,h3 allow-0rtt
@@ -71,11 +73,16 @@ frontend in-tcpmode
         {%endfor%}
     {%endfor%}
 
+    {# Per-domain HTTP port exclusivity - mirrors the tls_port ACLs in
+       sni_proxy.cfg.pj2. A domain with a custom (non-80) http_port is only
+       reachable on that port; a domain left at the shared default (80) is
+       rejected on any of the custom ports opened above. #}
+    {% for d in domains if d['http_port'] and d['http_port']|int != 80 %}
+    tcp-request content reject if { hdr(host) -i {{d['domain']}} } !{ dst_port {{d['http_port']}} }
+    {%endfor%}
+    {% for d in domains if not d['http_port'] or d['http_port']|int == 80 %}
+    tcp-request content reject if { hdr(host) -i {{d['domain']}} } !{ dst_port 80 }
+    {%endfor%}
 
-    
-
-    
-
-    
     default_backend to_httpmode
 

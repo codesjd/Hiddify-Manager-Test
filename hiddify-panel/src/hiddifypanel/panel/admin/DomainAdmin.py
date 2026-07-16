@@ -11,7 +11,8 @@ from markupsafe import Markup
 from flask_babel import gettext as __
 from flask_babel import lazy_gettext as _
 from hiddifypanel.panel.run_commander import Command, commander
-from wtforms.validators import Regexp, ValidationError
+from wtforms.validators import Regexp, ValidationError, Optional, NumberRange
+from sqlalchemy import inspect as sa_inspect
 
 from hiddifypanel.models import *
 from hiddifypanel.panel import hiddify, custom_widgets
@@ -84,6 +85,8 @@ class DomainAdmin(AdminLTEModelView):
         grpc=_('grpc-proxy.description'),
         download_domain=_('download_domain.description'),
         resolve_ip=_("domain.resolveip.description"),
+        http_port=_("Plain-HTTP port for this domain. Leave empty to use the default port 80. A custom port is exclusive to this domain - no other domain can use it, and this domain won't be reachable on 80 anymore."),
+        tls_port=_("TLS port for this domain. Leave empty to use the default port 443. A custom port is exclusive to this domain - no other domain can use it, and this domain won't be reachable on 443 anymore."),
         extra_params=_("The dnstt-specific fields below are pre-filled with defaults. You can also add ANY other key here "
                         "(e.g. \"fingerprint\": \"firefox\", \"hysteria_obfs_password\": \"...\", \"alpn\": \"h2\") to override "
                         "just THIS domain's transport/security settings instead of the global config every domain shares."),
@@ -116,7 +119,11 @@ class DomainAdmin(AdminLTEModelView):
                 Regexp(r"(((((25[0-5]|(2[0-4]|1\d|[1-9]|)\d).){3}(25[0-5]|(2[0-4]|1\d|[1-9]|)\d))|^([A-Za-z0-9\-\.]+\.[a-zA-Z]{2,}))[ \t\n,;]*\w{3}[ \t\n,;]*)*",message=__("Invalid IP or domain"))]},
         "servernames": {
             'validators': [
-                Regexp(r"^([\w-]+\.)+[\w-]+(,\s*([\w-]+\.)+[\w-]+)*$",re.IGNORECASE,_("Invalid REALITY hostnames"))]}}
+                Regexp(r"^([\w-]+\.)+[\w-]+(,\s*([\w-]+\.)+[\w-]+)*$",re.IGNORECASE,_("Invalid REALITY hostnames"))]},
+        "http_port": {
+            'validators': [Optional(), NumberRange(min=1, max=65535, message=__("Invalid port"))]},
+        "tls_port": {
+            'validators': [Optional(), NumberRange(min=1, max=65535, message=__("Invalid port"))]}}
     column_list = ["domain", "alias", "mode",  "show_domains"]
     column_editable_list = ["alias"]
     # column_filters=["domain","mode"]
@@ -134,9 +141,11 @@ class DomainAdmin(AdminLTEModelView):
         'grpc': _('gRPC'),
         "download_domain":_('download_domain.label'),
         'resolve_ip':_("domain.resolveip.label"),
+        'http_port': _('HTTP Port'),
+        'tls_port': _('TLS Port'),
     }
 
-    form_columns = ['mode', 'domain', 'alias', 'servernames', 'cdn_ip', 'resolve_ip', 'show_domains', 'download_domain',"extra_params"]
+    form_columns = ['mode', 'domain', 'alias', 'servernames', 'cdn_ip', 'resolve_ip', 'http_port', 'tls_port', 'show_domains', 'download_domain',"extra_params"]
     
     def _domain_admin_link(view, context, model, name):
         if hiddify.is_fake_domain(model):
@@ -210,6 +219,7 @@ class DomainAdmin(AdminLTEModelView):
             raise ValidationError(_("domain.empty.allowed_for_fake_only"))
 
         self._validate_not_used_before(model,is_created)
+        self._validate_port_exclusivity(model)
         ipv4_list = hutils.network.get_ips(4)
         ipv6_list = hutils.network.get_ips(6)
         server_ips = [*ipv4_list, *ipv6_list]
@@ -257,8 +267,28 @@ class DomainAdmin(AdminLTEModelView):
             # return hiddify.reinstall_action(complete_install=False, domain_changed=True)
             hutils.apply_scope.mark_dirty(hutils.apply_scope.DOMAIN_CHANGE_SUBSYSTEMS)
             hutils.flask.flash_config_success(restart_mode=ApplyMode.apply_config, domain_changed=True)
+        elif any(sa_inspect(model).attrs[attr].history.has_changes() for attr in ('http_port', 'tls_port')):
+            # Not a new domain / mode change, but the exclusive port
+            # binding itself changed - haproxy's bind lists and per-domain
+            # dst_port ACLs need to be regenerated too.
+            hutils.apply_scope.mark_dirty(hutils.apply_scope.DOMAIN_CHANGE_SUBSYSTEMS)
+            hutils.flask.flash_config_success(restart_mode=ApplyMode.apply_config, domain_changed=True)
 
-            
+
+
+    def _validate_port_exclusivity(self, model):
+        # "Exclusive to that domain": a custom (non-default) port can only
+        # ever belong to one domain at a time - reject the save instead of
+        # silently letting haproxy's dst_port ACLs end up ambiguous between
+        # two domains claiming the same port.
+        if model.http_port and model.http_port != 80:
+            conflict = Domain.query.filter(Domain.http_port == model.http_port, Domain.id != model.id, Domain.child_id == model.child_id).first()
+            if conflict:
+                raise ValidationError(_("This HTTP port is already assigned to domain: ") + conflict.domain)
+        if model.tls_port and model.tls_port != 443:
+            conflict = Domain.query.filter(Domain.tls_port == model.tls_port, Domain.id != model.id, Domain.child_id == model.child_id).first()
+            if conflict:
+                raise ValidationError(_("This TLS port is already assigned to domain: ") + conflict.domain)
 
     def _update_cloudflare(self, model, ipv4_list,ipv6_list):
         if hconfig(ConfigEnum.cloudflare) and model.mode not in [DomainType.fake, DomainType.relay, DomainType.reality]:

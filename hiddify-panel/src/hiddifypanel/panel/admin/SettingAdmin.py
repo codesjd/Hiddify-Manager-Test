@@ -102,7 +102,7 @@ class SettingAdmin(FlaskView):
                                 return render_template('config.html', form=form)
                             if "port" in k:
                                 for p in v.split(","):
-                                    if (k != ConfigEnum.tls_ports and p == "443") or (k != ConfigEnum.http_ports and p == "80"):
+                                    if p in ("443", "80"):
                                         hutils.flask.flash(_("Port 80 and 443 can not be selected"), 'error')
                                         return render_template('config.html', form=form)
                                     for c_, c_items2 in form.data.items():
@@ -390,16 +390,12 @@ def get_config_form():
                     render_kw['required'] = ""
 
                 if 'port' in c.key:
-                    # tls_ports/http_ports used to be required (couldn't be
-                    # emptied) AND the haproxy fronts always prepended 443/80
-                    # to whatever was set, so a custom port was only ever
-                    # *added* alongside 443/80, never used *instead* of them.
-                    # Now the field is optional and drives the bound ports
-                    # directly (haproxy falls back to 443/80 only when it's
-                    # empty - see haproxy/fronts/*.pj2), so an admin can serve
-                    # on, e.g., 8443 only. The firewall still allows 80/443
-                    # unconditionally (Actions.all_public_ports), so clearing
-                    # this can't close those at the firewall.
+                    # HTTP/TLS ports moved off this page entirely - they're
+                    # now a per-domain Domain.http_port/tls_port override set
+                    # on the Domains page (see DomainAdmin.py), defaulting to
+                    # 80/443 when left blank. This validator still applies to
+                    # the other comma-separated port lists left here
+                    # (mieru_tcp_ports/mieru_udp_ports).
                     validators.append(wtf.validators.Regexp("^(\\d+)(,\\d+)*$|^$", re.IGNORECASE, _("config.Invalid_port")))
                     # validators.append(wtf.validators.Regexp("^(\d+)(,\d+)*$",re.IGNORECASE,_("config.port is required")))
 

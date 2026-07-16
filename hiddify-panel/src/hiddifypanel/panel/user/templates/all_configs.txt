@@ -8,7 +8,7 @@ trojan://1@{{fake_ip_for_sub_link}}?sni=fake_ip_for_sub_link&security=tls#{{user
 
 {% for d in domains %}
 {% for t in (['http','tls'] if hconfig(ConfigEnum.http_proxy_enable,d.child_id) else ['tls']) %}
-{% for port in hconfig(ConfigEnum.http_ports if t=='http' else ConfigEnum.tls_ports,d.child_id).split(',') %}
+{% set port=(d.effective_http_port if t=='http' else d.effective_tls_port)|string %}
 {% set phttp=port if t=='http' else None %}
 {% set ptls=port if t=='tls' else None %}
 ####################################
@@ -24,7 +24,6 @@ trojan://1@{{fake_ip_for_sub_link}}?sni=fake_ip_for_sub_link&security=tls#{{user
 {{link}}
 {% endif %}
 {% endif %}
-{% endfor %}
 {% endfor %}
 {% endfor %}
 {{''}}

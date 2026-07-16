@@ -65,6 +65,15 @@ class Domain(db.Model):
     download_domain = db.relationship('Domain',remote_side=[id],    foreign_keys=[download_domain_id])
     extra_params = db.Column(db.String(2000), nullable=True, default='{}')
     resolve_ip= db.Column(db.Boolean, nullable=True, default=False)
+    # Per-domain HTTP/TLS port override, replacing the old global Settings-page
+    # http_ports/tls_ports lists. NULL means "use the shared default port"
+    # (80 for http, 443 for tls) - every existing domain keeps working
+    # unchanged. A non-default value is exclusive to this domain: haproxy
+    # (haproxy/fronts/in_tcpmode.cfg.pj2, sni_proxy.cfg.pj2) rejects that
+    # domain's traffic on any other port, and rejects every other domain's
+    # traffic on this one.
+    http_port = db.Column(db.Integer, nullable=True, default=None)
+    tls_port = db.Column(db.Integer, nullable=True, default=None)
 
     def extra_params_json(self):
         import json
@@ -102,7 +111,9 @@ class Domain(db.Model):
             'download_domain':self.download_domain.domain if self.download_domain else "",
             'show_domains': [dd.domain for dd in self.show_domains],  # type: ignore
             "resolve_ip":self.resolve_ip,
-            "extra_params":extra
+            "extra_params":extra,
+            "http_port": self.http_port,
+            "tls_port": self.tls_port,
         }
         if dump_child_id:
             data['child_id'] = self.child_id
@@ -157,6 +168,14 @@ class Domain(db.Model):
     @property
     def port_index(self):
         return self.id
+
+    @property
+    def effective_http_port(self) -> int:
+        return self.http_port or 80
+
+    @property
+    def effective_tls_port(self) -> int:
+        return self.tls_port or 443
 
     @staticmethod
     def _safe_port_offset(base_port: int, offset: int) -> int:
@@ -283,6 +302,8 @@ class Domain(db.Model):
         dbdomain.servernames = domain.get('servernames', '')
         dbdomain.resolve_ip=domain.get("resolve_ip",False)
         dbdomain.extra_params=domain.get("extra_params","")
+        dbdomain.http_port = domain.get("http_port") or None
+        dbdomain.tls_port = domain.get("tls_port") or None
         show_domains = domain.get('show_domains', [])
         dbdomain.show_domains = Domain.query.filter(Domain.domain.in_(show_domains)).all()
         dl_domain=domain.get("download_domain")
