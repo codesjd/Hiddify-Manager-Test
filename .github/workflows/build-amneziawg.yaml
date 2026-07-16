@@ -22,6 +22,14 @@ on:
         description: 'amneziawg-go tag to build (github.com/amnezia-vpn/amneziawg-go)'
         required: true
         default: 'v0.2.19'
+  # workflow_dispatch only works via the API/UI once this file exists on the
+  # default branch - this push trigger lets it be kicked off from a feature
+  # branch in the meantime (e.g. to populate the initial vendored binaries
+  # before this file has been merged). Scoped to touching this exact file so
+  # it doesn't fire on unrelated commits.
+  push:
+    paths:
+      - '.github/workflows/build-amneziawg.yaml'
 
 jobs:
   build:
