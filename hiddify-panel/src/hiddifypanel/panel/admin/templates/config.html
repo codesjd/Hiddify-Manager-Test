@@ -1,8 +1,27 @@
-{% from 'bootstrap4/form.html' import render_form %}
+{% from 'bootstrap4/form.html' import render_field, render_hidden_errors %}
 
 {% extends 'admin-layout.html' %}
 
 {% block title %}{{ _('admin.menu.config') }}{% endblock %}
+
+{% macro render_category(field) %}
+{#- Deliberately not <fieldset>/<legend>: the browser reserves a border
+   notch for <legend> at the rendering-engine level, not CSS, so it
+   survives even "all: unset" + custom flex/padding on the legend itself -
+   it just shows up as a stray floating capsule/outline instead of sitting
+   flush with the card border. A plain <div> pair sidesteps the native
+   fieldset/legend rendering entirely; role="group" + aria-labelledby keep
+   the same grouping semantics for assistive tech that <fieldset>/<legend>
+   would have given for free. #}
+<div class="cat-card" role="group" aria-labelledby="{{ field.id }}-legend">
+    <div class="cat-legend" id="{{ field.id }}-legend">{{ field.label }}</div>
+    {%- for subfield in field %}
+        {% if not bootstrap_is_hidden_field(subfield) -%}
+            {{ render_field(subfield) }}
+        {%- endif %}
+    {%- endfor %}
+</div>
+{% endmacro %}
 
 {% block body %}
 {{super()}}
@@ -14,23 +33,35 @@
     </div>
     <div class="card-body">
         <div class="global-form">
-            {{render_form(form,form_type="",extra_classes="settings-grid")}}
-        </div>
-        <div class="apply-configs-row">
-            <a href="{{ hurl_for('admin.Actions:apply_configs') }}" class="apply-configs-btn form_post">⚡ {{ _('Apply Configs') }}</a>
+            <form method="post" id="settings-form">
+                {{ form.hidden_tag() }}
+                {{ render_hidden_errors(form) }}
+                <div class="settings-grid">
+                    {% for field in form %}
+                        {% if field.type == 'FormField' %}{{ render_category(field) }}{% endif %}
+                    {% endfor %}
+                </div>
+                <div class="submit-row">
+                    {{ form.submit(class="btn btn-primary") }}
+                    <a href="{{ hurl_for('admin.Actions:apply_configs') }}" class="apply-configs-btn form_post">⚡ {{ _('Apply Configs') }}</a>
+                </div>
+            </form>
         </div>
     </div>
 </div>
 
 <style>
     .global-form .settings-grid { column-count: 2; column-gap: 12px; }
-    fieldset {
+    .cat-card {
         background: var(--surface); border: 1px solid var(--border); border-radius: 16px;
         box-shadow: var(--card-shadow); margin: 0 0 12px; padding: 16px;
         break-inside: avoid; display: inline-block; width: 100%; box-sizing: border-box;
     }
-    legend {
-        all: unset;
+    /* No open/closed-dependent padding here - the card's own padding stays
+       a flat 16px on every side regardless of state; the gap that appears
+       when a category opens comes entirely from .form-group's own
+       margin-top below, not from changing the card's padding. */
+    .cat-legend {
         display: flex;
         align-items: center;
         gap: 8px;
@@ -40,11 +71,12 @@
         color: var(--text-primary);
         cursor: pointer;
         box-sizing: border-box;
+        margin: 0;
+        line-height: 1.2;
     }
-    legend .fa-plus { color: var(--accent); margin: 0; }
-    legend + div > label { display: none; }
-    fieldset .form-group { display: none !important; margin-top: 16px; }
-    fieldset.open .form-group {
+    .cat-legend .fa-plus { color: var(--accent); margin: 0; }
+    .cat-card .form-group { display: none !important; margin-top: 16px; }
+    .cat-card.open .form-group {
         display: block !important;
         animation: catExpand 0.25s cubic-bezier(0.16,1,0.3,1);
     }
@@ -52,7 +84,7 @@
         from { opacity: 0; transform: translateY(-8px); }
         to { opacity: 1; transform: translateY(0); }
     }
-    .submit-row { grid-column: 1 / -1; display: flex; gap: 10px; margin-top: 12px; }
+    .submit-row { display: flex; gap: 10px; margin-top: 12px; }
     .submit-row #submit { flex: 1; }
     .apply-configs-btn {
         font-family: 'Manrope', sans-serif; font-size: 13px; font-weight: 700;
@@ -62,17 +94,15 @@
         color: var(--text-primary) !important; flex: 0 0 auto;
     }
     .apply-configs-btn:hover { background: var(--border); }
-    /* legend's own text-transform/size/color/weight are covered by the
-       "all: unset" reset above, but that reset doesn't reach the nested
-       <label> wrapping the category name (FormField's label renders as a
-       real <label> element) - it still inherits the global
-       `label, .control-label { text-transform: uppercase !important }`
-       rule independently and needs its own override. */
-    legend label { text-transform: none !important; font-size: 13.5px !important; color: var(--text-primary) !important; font-weight: 700 !important; margin-bottom: 0 !important; }
-    fieldset { padding-bottom: 0; }
-    fieldset.open { padding-bottom: 16px; }
-    fieldset > *:not(legend):not(.open-content) { display: none !important; }
-    fieldset.open > *:not(legend) { display: block !important; }
+    /* .cat-legend's own text-transform/size/color/weight are already set
+       above, but the nested <label> wrapping the category name (FormField's
+       label renders as a real <label> element) independently inherits the
+       global `label, .control-label { text-transform: uppercase !important }`
+       rule wherever it appears, regardless of its container, and needs its
+       own override. */
+    .cat-legend label { text-transform: none !important; font-size: 13.5px !important; color: var(--text-primary) !important; font-weight: 700 !important; margin-bottom: 0 !important; }
+    .cat-card > *:not(.cat-legend):not(.open-content) { display: none !important; }
+    .cat-card.open > *:not(.cat-legend) { display: block !important; }
 </style>
 
 {% endblock %}
@@ -206,29 +236,22 @@
 </script>
 
 <script>
-    $("fieldset legend").click(function () {
+    $(".cat-card > .cat-legend").click(function () {
         $(this).parent().toggleClass('open');
     });
 
     document.addEventListener('invalid', function (e) {
-        var fieldset = e.target.closest && e.target.closest('fieldset');
-        if (fieldset) fieldset.classList.add('open');
+        var card = e.target.closest && e.target.closest('.cat-card');
+        if (card) card.classList.add('open');
     }, true);
-
-    $(function () {
-        var $submitRow = $('<div class="submit-row"></div>');
-        $('#submit').before($submitRow);
-        $submitRow.append($('#submit'), $('.apply-configs-btn'));
-        $('.apply-configs-row').remove();
-    });
 
     $(document).ready(function () {
         $('#search_settings').on('input', function () {
             var searchString = $(this).val().toLowerCase();
-            $('fieldset').each(function () {
-                var $fieldset = $(this);
+            $('.cat-card').each(function () {
+                var $card = $(this);
                 var fieldFoundMatch = false;
-                $fieldset.find('.form-group').each(function () {
+                $card.find('.form-group').each(function () {
                     // Clearing the search must fully release any inline
                     // override from a previous search below - otherwise a
                     // field that was hidden as a non-match would stay
@@ -249,22 +272,22 @@
                             if (id.indexOf(searchString) !== -1) { found = true; return false; }
                         });
                     }
-                    // fieldset.open > *:not(legend) forces display:block via
-                    // !important (needed so a collapsed category can't leave
-                    // a stray form-group visible) - a plain jQuery .toggle()
-                    // just sets an inline style with no !important, which
-                    // that rule always wins against once the fieldset is
-                    // open (e.g. because another field in it matched the
-                    // search). Set the same priority directly so a
-                    // non-matching field can still be hidden inside an
-                    // open/matched category.
+                    // .cat-card.open > *:not(.cat-legend) forces
+                    // display:block via !important (needed so a collapsed
+                    // category can't leave a stray form-group visible) - a
+                    // plain jQuery .toggle() just sets an inline style with
+                    // no !important, which that rule always wins against
+                    // once the card is open (e.g. because another field in
+                    // it matched the search). Set the same priority
+                    // directly so a non-matching field can still be hidden
+                    // inside an open/matched category.
                     this.style.setProperty('display', found ? '' : 'none', found ? '' : 'important');
                     if (found) fieldFoundMatch = true;
                 });
                 if (searchString === '') {
-                    $fieldset.removeClass('open').show();
+                    $card.removeClass('open').show();
                 } else {
-                    $fieldset.toggleClass('open', fieldFoundMatch).toggle(fieldFoundMatch);
+                    $card.toggleClass('open', fieldFoundMatch).toggle(fieldFoundMatch);
                 }
             });
         });
