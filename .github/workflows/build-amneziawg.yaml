@@ -42,6 +42,15 @@ jobs:
           - arch: arm64
             runner: ubuntu-24.04-arm
     runs-on: ${{ matrix.runner }}
+    env:
+      # inputs.* is only populated on a workflow_dispatch event - this run
+      # can also fire as a plain push (see the push trigger above, needed
+      # until this file exists on the default branch), where inputs is
+      # empty and github.event.inputs.* isn't defined either. Fall back to
+      # the same defaults declared above so both trigger types build the
+      # same pinned tags.
+      TOOLS_TAG: ${{ inputs.tools_tag || 'v1.0.20260618-2' }}
+      GO_TAG: ${{ inputs.go_tag || 'v0.2.19' }}
     steps:
       - name: Install build dependencies
         run: sudo apt-get update && sudo apt-get install -y build-essential git
@@ -54,7 +63,7 @@ jobs:
       - name: Build amneziawg-tools (awg CLI + awg-quick + systemd units)
         run: |
           set -eux
-          git clone --depth 1 --branch "${{ inputs.tools_tag }}" https://github.com/amnezia-vpn/amneziawg-tools tools-src
+          git clone --depth 1 --branch "$TOOLS_TAG" https://github.com/amnezia-vpn/amneziawg-tools tools-src
           cd tools-src/src
           make wg LDFLAGS=-static
           strip wg
@@ -69,7 +78,7 @@ jobs:
       - name: Build amneziawg-go
         run: |
           set -eux
-          git clone --depth 1 --branch "${{ inputs.go_tag }}" https://github.com/amnezia-vpn/amneziawg-go go-src
+          git clone --depth 1 --branch "$GO_TAG" https://github.com/amnezia-vpn/amneziawg-go go-src
           cd go-src
           CGO_ENABLED=0 go build -o amneziawg-go .
           strip amneziawg-go || true
@@ -88,8 +97,8 @@ jobs:
           cat > /tmp/out/BUILD_INFO.txt <<EOF
           arch: ${{ matrix.arch }}
           runner: ${{ matrix.runner }}
-          amneziawg-tools: ${{ inputs.tools_tag }} (${{ env.TOOLS_SHA }})
-          amneziawg-go: ${{ inputs.go_tag }} (${{ env.GO_SHA }})
+          amneziawg-tools: ${{ env.TOOLS_TAG }} (${{ env.TOOLS_SHA }})
+          amneziawg-go: ${{ env.GO_TAG }} (${{ env.GO_SHA }})
           built: $(date -u +%Y-%m-%dT%H:%M:%SZ)
           workflow_run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           EOF
