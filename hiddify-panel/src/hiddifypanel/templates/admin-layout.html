@@ -1060,18 +1060,18 @@ label, .control-label {
   transform: translateX({{ '-1rem' if get_locale()=='fa' else '1rem' }}) !important;
 }
 
-/* Settings/proxies card grid - a 2-col grid of clickable "+"-style cards,
-   used to reskin the existing category fieldsets (config.html) and toggle
+/* Proxies page card grid - a 2-col grid of clickable "+"-style toggle
    rows (proxy.html) without touching the real WTForms rendering/validation
-   underneath. */
-.settings-grid, .toggle-grid {
+   underneath. (config.html's own category cards use a CSS column-count
+   layout instead - see config.html's .settings-grid.) */
+.toggle-grid {
   display: grid !important;
   grid-template-columns: repeat(2, 1fr) !important;
   gap: 12px !important;
   align-items: start !important;
 }
 @media (max-width: 900px) {
-  .settings-grid, .toggle-grid {
+  .toggle-grid {
     grid-template-columns: 1fr !important;
   }
 }
@@ -1102,17 +1102,14 @@ label, .control-label {
    Config Link" after an even number of protocol toggles) otherwise sits
    pinned to the left column with the right column empty next to it - span
    it across both columns and center its card instead. */
-.settings-grid > .form-group:last-child:nth-child(odd),
 .toggle-grid > .form-group:last-child:nth-child(odd) {
   grid-column: 1 / -1 !important;
 }
-.settings-grid > .form-group:last-child:nth-child(odd) .toggle-row,
 .toggle-grid > .form-group:last-child:nth-child(odd) .toggle-row {
   max-width: 50%;
   margin: 0 auto !important;
 }
 @media (max-width: 900px) {
-  .settings-grid > .form-group:last-child:nth-child(odd) .toggle-row,
   .toggle-grid > .form-group:last-child:nth-child(odd) .toggle-row {
     max-width: 100%;
   }

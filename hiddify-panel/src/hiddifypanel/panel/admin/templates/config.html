@@ -6,28 +6,6 @@
 
 {% block body %}
 {{super()}}
-<style>
-    @keyframes blink {
-        50% {
-            border-color: #0000ff;
-            border-width: 2px;
-        }
-    }
-
-    #search_settings {
-
-        animation: blink 1s;
-        animation-iteration-count: 3;
-        transition: border-width 0.6s linear;
-        width: 100%;
-        max-width: 100%;
-        flex: 1;
-    }
-
-    #search_settings:hover {
-        border-width: 2px;
-    }
-</style>
 
 
 <div class="card">
@@ -45,75 +23,43 @@
 </div>
 
 <style>
-    /* Each ConfigCategory renders as <fieldset><legend>+ Label</legend>
-       fields...</fieldset> (see SettingAdmin.get_config_form()) - restyled
-       here as a clickable card in a 2-col grid, matching the new design's
-       Settings index card grid. The existing search/expand JS below still
-       targets fieldset/legend/.form-group directly and needs no changes. */
-    .global-form .settings-grid {
-        display: grid;
-        align-items: start;
-    }
+    .global-form .settings-grid { column-count: 2; column-gap: 12px; }
     fieldset {
-        background: var(--surface);
-        border: 1px solid var(--border);
-        border-radius: 16px;
-        box-shadow: var(--card-shadow);
-        margin-bottom: 0;
-        padding: 16px;
-        min-width: 0;
+        background: var(--surface); border: 1px solid var(--border); border-radius: 16px;
+        box-shadow: var(--card-shadow); margin: 0 0 12px; padding: 16px;
+        break-inside: avoid; display: inline-block; width: 100%; box-sizing: border-box;
     }
     legend {
-        background: transparent;
-        margin: 0;
-        font-weight: 700;
-        font-size: 13.5px;
-        color: var(--text-primary);
-        cursor: pointer;
-        width: 100%;
+        background: transparent; margin: 0; font-weight: 700; font-size: 13.5px;
+        color: var(--text-primary); cursor: pointer; width: 100%;
+        display: flex; align-items: center; gap: 8px;
     }
-    legend .fa-plus {
-        color: var(--accent);
-        margin-{{ 'left' if get_locale()=='fa' else 'right' }}: 8px;
+    legend .fa-plus { color: var(--accent); margin: 0; }
+    legend + div > label { display: none; }
+    fieldset .form-group { display: none !important; margin-top: 16px; }
+    fieldset.open .form-group {
+        display: block !important;
+        animation: catExpand 0.25s cubic-bezier(0.16,1,0.3,1);
     }
-    legend + div > label {
-        display: none;
+    @keyframes catExpand {
+        from { opacity: 0; transform: translateY(-8px); }
+        to { opacity: 1; transform: translateY(0); }
     }
-    /* #submit no longer carries the grid-column span itself once the "move
-       Apply Configs into the same row" script in the tail block wraps it
-       in .submit-row - the wrapper takes over that job. */
-    .submit-row {
-        grid-column: 1 / -1;
-        display: flex;
-        gap: 10px;
-        margin-top: 12px;
-    }
-    .submit-row #submit {
-        flex: 1;
-    }
-    /* Matches the dashboard's .dash-secondary-btn (Update/Reinstall) look
-       instead of Bootstrap's default gray box, which clashed with the rest
-       of the redesigned UI. */
+    .submit-row { grid-column: 1 / -1; display: flex; gap: 10px; margin-top: 12px; }
+    .submit-row #submit { flex: 1; }
     .apply-configs-btn {
-        font-family: 'Manrope', sans-serif;
-        font-size: 13px;
-        font-weight: 700;
-        padding: 9px 20px;
-        border-radius: 9px;
-        cursor: pointer;
-        display: inline-flex;
-        align-items: center;
-        gap: 6px;
-        white-space: nowrap;
-        border: none;
-        text-decoration: none !important;
-        background: var(--track);
-        color: var(--text-primary) !important;
-        flex: 0 0 auto;
+        font-family: 'Manrope', sans-serif; font-size: 13px; font-weight: 700;
+        padding: 9px 20px; border-radius: 9px; cursor: pointer; display: inline-flex;
+        align-items: center; gap: 6px; white-space: nowrap; border: none;
+        text-decoration: none !important; background: var(--track);
+        color: var(--text-primary) !important; flex: 0 0 auto;
     }
-    .apply-configs-btn:hover {
-        background: var(--border);
-    }
+    .apply-configs-btn:hover { background: var(--border); }
+    legend, legend label { text-transform: none !important; font-size: 13.5px !important; color: var(--text-primary) !important; font-weight: 700 !important; margin-bottom: 0 !important; }
+    fieldset { padding-bottom: 0; }
+    fieldset.open { padding-bottom: 16px; }
+    fieldset > *:not(legend):not(.open-content) { display: none !important; }
+    fieldset.open > *:not(legend) { display: block !important; }
 </style>
 
 {% endblock %}
@@ -247,43 +193,15 @@
 </script>
 
 <script>
-    // $("fieldset .form-group").hide()
+    $("fieldset legend").click(function () {
+        $(this).parent().toggleClass('open');
+    });
 
-    if ($('.form-group').length > 20 || $('.invalid-feedback').length > 0)
-        $("fieldset").filter(function () { return !($(this).children().children().is('.invalid-feedback')); }).find('.form-group').hide()
-
-    $("fieldset legend").click(function (e) {
-        var has_hidden = $(this.parentNode).find('.form-group:hidden')
-        if (has_hidden.length > 0)
-            $(this.parentNode).find('.form-group').show('fade')
-        else
-            $(this.parentNode).find('.form-group').hide('fade')
-
-
-    })
-
-    // Every category's fields live in one giant <form>, and a field inside
-    // a collapsed (hidden) fieldset stays fully subject to native HTML5
-    // constraint validation even though it isn't visible - display:none
-    // doesn't exempt it. If such a field's stored value fails its own
-    // required/pattern check (e.g. a stale value from before the field was
-    // edited), the browser silently refuses to submit the *entire* form and
-    // logs "invalid form control is not focusable" - clicking Submit does
-    // nothing, with zero visible feedback, even for changes made in a
-    // completely different category. The 'invalid' event still fires on a
-    // hidden field (unlike 'submit', which never fires at all here), so
-    // catch it in the capture phase and reveal its fieldset synchronously -
-    // by the time the browser moves on to focusing the first invalid
-    // control, it's now visible and focusable.
     document.addEventListener('invalid', function (e) {
-        var fieldset = e.target.closest && e.target.closest('fieldset')
-        if (fieldset) $(fieldset).find('.form-group').show()
-    }, true)
+        var fieldset = e.target.closest && e.target.closest('fieldset');
+        if (fieldset) fieldset.classList.add('open');
+    }, true);
 
-    // #submit is a bare WTForms <input>, rendered as the last grid child of
-    // .settings-grid with no wrapper of its own to place a sibling button
-    // next to - move it into a shared flex row with Apply Configs instead
-    // of fighting render_form()'s markup.
     $(function () {
         var $submitRow = $('<div class="submit-row"></div>');
         $('#submit').before($submitRow);
@@ -294,50 +212,49 @@
     $(document).ready(function () {
         $('#search_settings').on('input', function () {
             var searchString = $(this).val().toLowerCase();
-
             $('fieldset').each(function () {
-                field = $(this)
-                var fieldfoundMatch = false;
-                field.find('.form-group').each(function () {
-                    var $labels = $(this).find('label');
-                    var foundMatch = false;
-                    $labels.each(function () {
-                        var labelText = $(this).text().toLowerCase();
-                        if (labelText.indexOf(searchString) !== -1) {
-                            foundMatch = true;
-                            fieldfoundMatch = true;
-                            return false; // break out of loop early
-                        }
-                    });
-                    var $inputs = $(this).find('input');
-                    $inputs.each(function () {
-                        var labelText = $(this).attr('id').toLowerCase();
-                        if (labelText.indexOf(searchString) !== -1) {
-                            foundMatch = true;
-                            fieldfoundMatch = true;
-                            return false; // break out of loop early
-                        }
-                    });
-                    if (foundMatch) {
-                        $(this).show();
-                    } else {
-                        $(this).hide();
+                var $fieldset = $(this);
+                var fieldFoundMatch = false;
+                $fieldset.find('.form-group').each(function () {
+                    // Clearing the search must fully release any inline
+                    // override from a previous search below - otherwise a
+                    // field that was hidden as a non-match would stay
+                    // hidden forever, even reopening its category normally
+                    // afterwards, since that inline style would still be
+                    // sitting on the element.
+                    if (searchString === '') {
+                        this.style.removeProperty('display');
+                        return;
                     }
-
+                    var found = false;
+                    $(this).find('label').each(function () {
+                        if ($(this).text().toLowerCase().indexOf(searchString) !== -1) { found = true; return false; }
+                    });
+                    if (!found) {
+                        $(this).find('input,select,textarea').each(function () {
+                            var id = ($(this).attr('id') || '').toLowerCase();
+                            if (id.indexOf(searchString) !== -1) { found = true; return false; }
+                        });
+                    }
+                    // fieldset.open > *:not(legend) forces display:block via
+                    // !important (needed so a collapsed category can't leave
+                    // a stray form-group visible) - a plain jQuery .toggle()
+                    // just sets an inline style with no !important, which
+                    // that rule always wins against once the fieldset is
+                    // open (e.g. because another field in it matched the
+                    // search). Set the same priority directly so a
+                    // non-matching field can still be hidden inside an
+                    // open/matched category.
+                    this.style.setProperty('display', found ? '' : 'none', found ? '' : 'important');
+                    if (found) fieldFoundMatch = true;
                 });
-                if (fieldfoundMatch) {
-                    $(this).show();
-                    $(this).find(".form-group").first().show();
+                if (searchString === '') {
+                    $fieldset.removeClass('open').show();
                 } else {
-                    $(this).hide();
+                    $fieldset.toggleClass('open', fieldFoundMatch).toggle(fieldFoundMatch);
                 }
-                if (searchString == "")
-                    $("fieldset").filter(function () { return !($(this).children().children().is('.invalid-feedback')); }).find('.form-group').hide()
             });
-
         });
     });
-
-
 </script>
 {% endblock %}
