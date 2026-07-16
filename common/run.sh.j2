@@ -96,11 +96,14 @@ allow_port "tcp" {{hconfigs['ssh_server_port']}} #ssh_server
 remove_port "tcp" {{hconfigs['ssh_server_port']}}  #ssh_server
 {%endif%}
 
-{% for port in (hconfigs['tls_ports']+","+ hconfigs['http_ports']).split(',') if port %}
-allow_port "tcp" {{port}} #panel ports
-{%endfor%}
-{% for port in (hconfigs['tls_ports']).split(',') if port %}
-  allow_port "udp" {{port}}
+{% for d in domains if d['http_port'] or d['tls_port'] %}
+{% if d['http_port'] %}
+allow_port "tcp" {{d['http_port']}} #{{d['domain']}} http port
+{% endif %}
+{% if d['tls_port'] %}
+allow_port "tcp" {{d['tls_port']}} #{{d['domain']}} tls port
+allow_port "udp" {{d['tls_port']}} #{{d['domain']}} quic port
+{% endif %}
 {%endfor%}
 
 # Check if PasswordAuthentication is enabled

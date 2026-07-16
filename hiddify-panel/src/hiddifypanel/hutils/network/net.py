@@ -548,16 +548,15 @@ def all_public_ports():
         if hconfig(ConfigEnum.ssh_server_enable):
             tcp_ports[hconfig(ConfigEnum.ssh_server_port)]="ssh"
         
-        for p in (hconfig(ConfigEnum.tls_ports)).split(','):
-            tcp_ports[p]="tls"
-            udp_ports[p]="quic"
-        for p in hconfig(ConfigEnum.http_ports).split(','):
-            tcp_ports[p]="http"
-
         for d in Domain.query.all():
             udp_ports[d.internal_port_tuic]="tuic"
             udp_ports[d.internal_port_naive]="naive"
             udp_ports[d.internal_port_hysteria2]="hysteria"
+            if d.tls_port:
+                tcp_ports[d.tls_port]="tls"
+                udp_ports[d.tls_port]="quic"
+            if d.http_port:
+                tcp_ports[d.http_port]="http"
 
         def to_int(ports):
             r={}

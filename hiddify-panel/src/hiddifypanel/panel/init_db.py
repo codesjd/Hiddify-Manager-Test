@@ -14,7 +14,22 @@ from hiddifypanel.database import db, db_execute
 
 
 from loguru import logger
-MAX_DB_VERSION = 143
+MAX_DB_VERSION = 144
+
+
+def _v143(child_id):
+    """Per-domain HTTP/TLS port override columns (Domain.http_port/tls_port),
+    replacing the global Settings-page http_ports/tls_ports lists - see
+    Domain.effective_http_port/effective_tls_port and the dst_port ACLs in
+    haproxy/fronts/in_tcpmode.cfg.pj2 and sni_proxy.cfg.pj2. Existing domains
+    get NULL, which effective_http_port/effective_tls_port treat as the
+    unchanged shared default (80/443), so nothing changes for them until an
+    admin explicitly sets a domain's port. ConfigEnum.http_ports/tls_ports
+    are retired to ConfigCategory.hidden (same pattern as kcp_ports/
+    wireguard_*) rather than deleted, since old DB rows/migrations still
+    reference the keys."""
+    add_column(Domain.http_port)
+    add_column(Domain.tls_port)
 
 
 def _v142(child_id):

@@ -95,18 +95,17 @@ class Actions(FlaskView):
             for p in (500, 4500, 1701):
                 udp_ports.add(p)
 
-        for p in (hconfig(ConfigEnum.tls_ports)).split(','):
-            tcp_ports.add(p)
-            udp_ports.add(p)
-        for p in hconfig(ConfigEnum.http_ports).split(','):
-            tcp_ports.add(p)
-
         for d in Domain.query.all():
             udp_ports.add(d.internal_port_tuic)
             udp_ports.add(d.internal_port_naive)
             udp_ports.add(d.internal_port_hysteria2)
             # AnyTLS is TCP-based (unlike its QUIC/UDP siblings above).
             tcp_ports.add(d.internal_port_anytls)
+            if d.tls_port:
+                tcp_ports.add(d.tls_port)
+                udp_ports.add(d.tls_port)
+            if d.http_port:
+                tcp_ports.add(d.http_port)
             # tcp+vision REALITY now binds directly instead of only being
             # reachable via HAProxy on 443 (see get_port() in
             # hutils/proxy/shared.py) - needs its own firewall opening too.
