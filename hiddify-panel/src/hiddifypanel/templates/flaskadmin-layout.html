@@ -133,6 +133,18 @@
         from { opacity: 0; transform: translateY(-8px); }
         to { opacity: 1; transform: translateY(0); }
     }
+    /* HTTP Port + TLS Port side by side inside the Ports fieldset instead
+       of each taking a full-width row - see initDomainFieldsets() below,
+       which wraps both .form-group's in a shared .ports-row. */
+    .ports-row {
+        display: flex;
+        gap: 14px;
+        flex-wrap: wrap;
+    }
+    .ports-row > .form-group {
+        flex: 1;
+        min-width: 220px;
+    }
 </style>
 {% endblock %}
 
@@ -304,27 +316,34 @@
         if ($form.data('domainFieldsetsBuilt')) return;
         $form.data('domainFieldsetsBuilt', true);
 
-        function buildFieldset(title, fieldIds) {
+        // rows: array of either a plain field id ("#foo", its own full-width
+        // .form-group) or an array of ids (["#a","#b"], wrapped together in
+        // a shared .ports-row so they sit side by side instead of stacking).
+        function buildFieldset(title, rows) {
             var $fieldset = $('<fieldset class="cat-card"></fieldset>');
             var $legend = $('<div class="cat-legend"><span class="cat-legend-plus">+</span> ' + title + '</div>');
             var $body = $('<div class="cat-body"></div>');
             $legend.on('click', function () {
                 $fieldset.toggleClass('open');
             });
-            fieldIds.forEach(function (id) {
-                var $group = $(id).closest('.form-group');
-                // Moves the real .form-group (label+input+help text) - not
-                // a clone - so hide_domain_elements()'s existing
-                // $("#id").parent().hide()/.show() calls keep working
-                // unchanged: .parent() of the field is still this same
-                // .form-group, just relocated to a new ancestor.
-                if ($group.length) $body.append($group);
+            rows.forEach(function (row) {
+                var ids = Array.isArray(row) ? row : [row];
+                var $target = ids.length > 1 ? $('<div class="ports-row"></div>').appendTo($body) : $body;
+                ids.forEach(function (id) {
+                    var $group = $(id).closest('.form-group');
+                    // Moves the real .form-group (label+input+help text) -
+                    // not a clone - so hide_domain_elements()'s existing
+                    // $("#id").parent().hide()/.show() calls keep working
+                    // unchanged: .parent() of the field is still this same
+                    // .form-group, just relocated to a new ancestor.
+                    if ($group.length) $target.append($group);
+                });
             });
             $fieldset.append($legend).append($body);
             return $fieldset;
         }
 
-        var $ports = buildFieldset('{{ _("Ports") }}', ['#http_port', '#tls_port']);
+        var $ports = buildFieldset('{{ _("Ports") }}', [['#http_port', '#tls_port']]);
         var $advanced = buildFieldset('{{ _("Advanced") }}', ['#show_domains', '#download_domain']);
         $resolveIp.closest('.form-group').after($ports, $advanced);
     }

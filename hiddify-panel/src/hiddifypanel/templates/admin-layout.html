@@ -823,10 +823,17 @@ tr:hover .hf-track {
   background: var(--bg) !important;
   color: var(--text-primary) !important;
 }
+/* Field labels (e.g. "TLS PORT") were the same 13px as a .cat-card's own
+   section legend (e.g. "Ports"), so a field label and its enclosing
+   section header read as the same visual weight/size - shrunk and
+   muted here so the eye can tell "section title" from "field label"
+   at a glance; .cat-legend/.cat-legend label keep their own explicit,
+   larger overrides (config.html, flaskadmin-layout.html) and are
+   unaffected by this. */
 label, .control-label {
   font-weight: 700 !important;
   color: var(--text-secondary) !important;
-  font-size: 13px !important;
+  font-size: 11.5px !important;
   text-transform: uppercase !important;
   letter-spacing: 0.04em !important;
   margin-bottom: 6px !important;
