@@ -74,6 +74,19 @@ class Domain(db.Model):
     # traffic on this one.
     http_port = db.Column(db.Integer, nullable=True, default=None)
     tls_port = db.Column(db.Integer, nullable=True, default=None)
+    # Per-domain REALITY port/keys/short ID, replacing the old global
+    # Settings-page special_port/reality_private_key/reality_public_key/
+    # reality_short_ids fields. NULL means "fall back to the previous
+    # global-config-derived value" (see effective_reality_*/
+    # internal_port_special below) - every existing REALITY domain keeps
+    # serving the exact same port/keys/short ID it already handed out to
+    # clients. DomainAdmin auto-generates fresh, independent values for
+    # each *new* reality-mode domain (see DomainAdmin._validate_reality_settings),
+    # while still letting the admin override them by hand afterward.
+    reality_port = db.Column(db.Integer, nullable=True, default=None)
+    reality_private_key = db.Column(db.String(100), nullable=True, default=None)
+    reality_public_key = db.Column(db.String(100), nullable=True, default=None)
+    reality_short_id = db.Column(db.String(200), nullable=True, default=None)
 
     def extra_params_json(self):
         import json
@@ -125,6 +138,9 @@ class Domain(db.Model):
             data["internal_port_dnstt"] = self.internal_port_dnstt
             data["internal_port_anytls"] = self.internal_port_anytls
             data["need_valid_ssl"] = self.need_valid_ssl
+            data["reality_private_key"] = self.effective_reality_private_key
+            data["reality_public_key"] = self.effective_reality_public_key
+            data["reality_short_id"] = self.effective_reality_short_id
 
         return data
 
@@ -242,7 +258,21 @@ class Domain(db.Model):
     def internal_port_special(self):
         if self.mode != DomainType.reality and "special" not in self.mode.value:
             return 0
+        if self.reality_port:
+            return self.reality_port
         return self._safe_port_offset(int(hconfig(ConfigEnum.special_port, self.child_id)), self.port_index)
+
+    @property
+    def effective_reality_private_key(self) -> str:
+        return self.reality_private_key or hconfig(ConfigEnum.reality_private_key, self.child_id)
+
+    @property
+    def effective_reality_public_key(self) -> str:
+        return self.reality_public_key or hconfig(ConfigEnum.reality_public_key, self.child_id)
+
+    @property
+    def effective_reality_short_id(self) -> str:
+        return self.reality_short_id or hconfig(ConfigEnum.reality_short_ids, self.child_id)
 
     @classmethod
     def by_mode(cls, mode: DomainType) -> List['Domain']:
@@ -304,6 +334,10 @@ class Domain(db.Model):
         dbdomain.extra_params=domain.get("extra_params","")
         dbdomain.http_port = domain.get("http_port") or None
         dbdomain.tls_port = domain.get("tls_port") or None
+        dbdomain.reality_port = domain.get("reality_port") or None
+        dbdomain.reality_private_key = domain.get("reality_private_key") or None
+        dbdomain.reality_public_key = domain.get("reality_public_key") or None
+        dbdomain.reality_short_id = domain.get("reality_short_id") or None
         show_domains = domain.get('show_domains', [])
         dbdomain.show_domains = Domain.query.filter(Domain.domain.in_(show_domains)).all()
         dl_domain=domain.get("download_domain")

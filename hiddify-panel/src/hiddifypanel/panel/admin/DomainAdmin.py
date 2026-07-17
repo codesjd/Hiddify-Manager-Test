@@ -1,4 +1,6 @@
 import ipaddress
+import random
+import uuid
 from typing import Literal
 from hiddifypanel.auth import login_required, current_account
 
@@ -87,6 +89,10 @@ class DomainAdmin(AdminLTEModelView):
         resolve_ip=_("domain.resolveip.description"),
         http_port=_("Plain-HTTP port for this domain. Leave empty to use the default port 80. A custom port is exclusive to this domain - no other domain can use it, and this domain won't be reachable on 80 anymore."),
         tls_port=_("TLS port for this domain. Leave empty to use the default port 443. A custom port is exclusive to this domain - no other domain can use it, and this domain won't be reachable on 443 anymore."),
+        reality_port=_("REALITY direct port for this domain (special_reality_* modes only). Auto-generated the first time this domain is saved as a REALITY mode if left empty; edit it to set your own."),
+        reality_private_key=_("REALITY private key for this domain. Auto-generated the first time this domain is saved as a REALITY mode if left empty; edit it to set your own."),
+        reality_public_key=_("REALITY public key for this domain, matching the private key above. Auto-generated the first time this domain is saved as a REALITY mode if left empty; edit it to set your own."),
+        reality_short_id=_("REALITY short ID for this domain. Auto-generated the first time this domain is saved as a REALITY mode if left empty; edit it to set your own."),
         extra_params=_("The dnstt-specific fields below are pre-filled with defaults. You can also add ANY other key here "
                         "(e.g. \"fingerprint\": \"firefox\", \"hysteria_obfs_password\": \"...\", \"alpn\": \"h2\") to override "
                         "just THIS domain's transport/security settings instead of the global config every domain shares."),
@@ -123,6 +129,8 @@ class DomainAdmin(AdminLTEModelView):
         "http_port": {
             'validators': [Optional(), NumberRange(min=1, max=65535, message=__("Invalid port"))]},
         "tls_port": {
+            'validators': [Optional(), NumberRange(min=1, max=65535, message=__("Invalid port"))]},
+        "reality_port": {
             'validators': [Optional(), NumberRange(min=1, max=65535, message=__("Invalid port"))]}}
     column_list = ["domain", "alias", "mode",  "show_domains"]
     column_editable_list = ["alias"]
@@ -143,9 +151,15 @@ class DomainAdmin(AdminLTEModelView):
         'resolve_ip':_("domain.resolveip.label"),
         'http_port': _('HTTP Port'),
         'tls_port': _('TLS Port'),
+        'reality_port': _('REALITY Port'),
+        'reality_private_key': _('REALITY Private Key'),
+        'reality_public_key': _('REALITY Public Key'),
+        'reality_short_id': _('REALITY Short ID'),
     }
 
-    form_columns = ['mode', 'domain', 'alias', 'servernames', 'cdn_ip', 'resolve_ip', 'http_port', 'tls_port', 'show_domains', 'download_domain',"extra_params"]
+    form_columns = ['mode', 'domain', 'alias', 'servernames', 'cdn_ip', 'resolve_ip', 'http_port', 'tls_port',
+                    'reality_port', 'reality_private_key', 'reality_public_key', 'reality_short_id',
+                    'show_domains', 'download_domain', "extra_params"]
     
     def _domain_admin_link(view, context, model, name):
         if hiddify.is_fake_domain(model):
@@ -259,7 +273,7 @@ class DomainAdmin(AdminLTEModelView):
             set_hconfig(ConfigEnum.xtls_enable, True)
             hutils.proxy.get_proxies.invalidate_all()
         elif "reality" in  model.mode:
-            self._validate_reality_settings(model, server_ips)
+            self._validate_reality_settings(model, server_ips, is_created)
                 
             # Signal config update if needed
         old_db_domain = Domain.by_domain(model.domain)
@@ -267,10 +281,11 @@ class DomainAdmin(AdminLTEModelView):
             # return hiddify.reinstall_action(complete_install=False, domain_changed=True)
             hutils.apply_scope.mark_dirty(hutils.apply_scope.DOMAIN_CHANGE_SUBSYSTEMS)
             hutils.flask.flash_config_success(restart_mode=ApplyMode.apply_config, domain_changed=True)
-        elif any(sa_inspect(model).attrs[attr].history.has_changes() for attr in ('http_port', 'tls_port')):
-            # Not a new domain / mode change, but the exclusive port
-            # binding itself changed - haproxy's bind lists and per-domain
-            # dst_port ACLs need to be regenerated too.
+        elif any(sa_inspect(model).attrs[attr].history.has_changes()
+                 for attr in ('http_port', 'tls_port', 'reality_port', 'reality_private_key', 'reality_public_key', 'reality_short_id')):
+            # Not a new domain / mode change, but a port/key binding itself
+            # changed - haproxy's bind lists/dst_port ACLs and the
+            # xray/singbox REALITY inbounds need to be regenerated too.
             hutils.apply_scope.mark_dirty(hutils.apply_scope.DOMAIN_CHANGE_SUBSYSTEMS)
             hutils.flask.flash_config_success(restart_mode=ApplyMode.apply_config, domain_changed=True)
 
@@ -289,6 +304,13 @@ class DomainAdmin(AdminLTEModelView):
             conflict = Domain.query.filter(Domain.tls_port == model.tls_port, Domain.id != model.id, Domain.child_id == model.child_id).first()
             if conflict:
                 raise ValidationError(_("This TLS port is already assigned to domain: ") + conflict.domain)
+        if model.reality_port:
+            # Unlike http_port/tls_port, a REALITY port has no shared
+            # default to fall back to - xray/singbox bind it directly, so
+            # any collision between two domains would fail outright.
+            conflict = Domain.query.filter(Domain.reality_port == model.reality_port, Domain.id != model.id, Domain.child_id == model.child_id).first()
+            if conflict:
+                raise ValidationError(_("This REALITY port is already assigned to domain: ") + conflict.domain)
 
     def _update_cloudflare(self, model, ipv4_list,ipv6_list):
         if hconfig(ConfigEnum.cloudflare) and model.mode not in [DomainType.fake, DomainType.relay, DomainType.reality]:
@@ -303,13 +325,30 @@ class DomainAdmin(AdminLTEModelView):
                 raise ValidationError(__("cloudflare.error") + f' {e}')
         return False
 
-    def _validate_reality_settings(self, model, server_ips):
+    def _validate_reality_settings(self, model, server_ips, is_created):
         """Validate REALITY protocol settings with proper error handling"""
         if not hconfig(ConfigEnum.reality_enable):
             set_hconfig(ConfigEnum.reality_enable, True)
             hutils.proxy.get_proxies.invalidate_all()
 
         model.servernames = (model.servernames or model.domain).lower().strip()
+
+        # Auto-generate this new domain's own REALITY port/keys/short ID -
+        # only on creation, never on a later edit of an already-existing
+        # domain, since regenerating them out from under a domain that's
+        # already handed its port/keys out to real clients would silently
+        # break every one of them. An admin can still set/change any of
+        # these by hand at any time; this only fills in blanks at creation.
+        if is_created:
+            if not model.reality_port:
+                model.reality_port = hutils.random.get_random_unused_port()
+            if not model.reality_private_key or not model.reality_public_key:
+                keys = hutils.crypto.generate_x25519_keys()
+                model.reality_private_key = keys['private_key']
+                model.reality_public_key = keys['public_key']
+            if not model.reality_short_id:
+                model.reality_short_id = uuid.uuid4().hex[0:random.randint(1, 8) * 2]
+
         domains_to_check = set()
         for v in [model.domain, model.servernames]:
             domains_to_check.update(d.strip() for d in v.split(",") if d.strip())

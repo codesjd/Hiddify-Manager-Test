@@ -37,10 +37,10 @@
 							"server": "{{domain}}",
 							"server_port": 443
 						},
-						"private_key": "{{hconfigs['reality_private_key']}}",
+						"private_key": "{{d['reality_private_key']}}",
 						"short_id": [
-							"" 
-							{%for sid in hconfigs['reality_short_ids'].split(',') %}
+							""
+							{%for sid in d['reality_short_id'].split(',') %}
 							,"{{sid}}"
 							{%endfor%}
 						],
