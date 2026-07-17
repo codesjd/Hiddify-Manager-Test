@@ -1464,7 +1464,7 @@ msgid "config.dnstt_enable.description"
 msgstr "Enables the DNSTT (DNS tunneling) proxy."
 
 msgid "config.dnstt_enable.label"
-msgstr "DNSTT Enable"
+msgstr "DNSTT"
 
 msgid "config.dnstt_private_key.description"
 msgstr "The DNSTT server's private key, generated automatically - clients need the matching public key below to connect."

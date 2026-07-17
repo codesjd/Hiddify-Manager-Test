@@ -500,7 +500,7 @@
     },
     "dnstt_enable": {
       "description": "config.dnstt_enable.description",
-      "label": "DNSTT Enable"
+      "label": "DNSTT"
     },
     "dnstt_private_key": {
       "description": "config.dnstt_private_key.description",

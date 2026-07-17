@@ -213,7 +213,12 @@ class ConfigEnum(metaclass=FastEnum):
     cloudflare = _StrConfigDscr(ConfigCategory.too_advanced)
     license = _StrConfigDscr(ConfigCategory.hidden)
     country = _StrConfigDscr(ConfigCategory.general, ApplyMode.reinstall, hide_in_virtual_child=True)
-    package_mode = _StrConfigDscr(ConfigCategory.advanced, hide_in_virtual_child=True)
+    # Package Update Mode section removed from Settings - retired to
+    # ConfigCategory.hidden (same pattern as tls_ports/http_proxy_enable
+    # above) rather than deleted, since hiddify.py's reinstall_action still
+    # reads this key to decide whether a package_mode change needs a
+    # do_update reinstall.
+    package_mode = _StrConfigDscr(ConfigCategory.hidden, hide_in_virtual_child=True)
     utls = _StrConfigDscr(ConfigCategory.advanced)
     telegram_bot_token = _StrConfigDscr(ConfigCategory.telegram, hide_in_virtual_child=True)
 
