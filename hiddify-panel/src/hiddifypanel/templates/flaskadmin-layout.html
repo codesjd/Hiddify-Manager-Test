@@ -81,6 +81,33 @@
         background: var(--accent);
         border-color: var(--accent);
     }
+    /* Same row/list box styling as .domain-multiselect-row/-list above, but
+       single-select: a radio circle (outline + centered dot when selected)
+       instead of a checkbox square, for #download_domain - see
+       initDownloadDomainRadioList() below. */
+    .domain-radio-indicator {
+        width: 16px;
+        height: 16px;
+        border-radius: 50%;
+        border: 1px solid var(--border);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+    }
+    .domain-radio-indicator.selected {
+        border-color: var(--accent);
+    }
+    .domain-radio-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: var(--accent);
+        display: none;
+    }
+    .domain-radio-indicator.selected .domain-radio-dot {
+        display: block;
+    }
 
     /* Collapsible "Ports"/"Advanced" fieldsets on the Domain create/edit
        form - see initDomainFieldsets() below. Same card/legend/"+"-icon/
@@ -121,6 +148,7 @@
     }
     .cat-card .cat-body {
         display: none;
+        margin-top: 14px;
     }
     .cat-card.open .cat-body {
         display: block;
@@ -294,6 +322,68 @@
         $select.data('domainMultiselectWrapper', $wrapper);
     }
 
+    // Replaces the native single-select <select id="download_domain"> with
+    // a clickable radio list - same boxed list look as
+    // initDomainMultiSelect()'s .domain-multiselect-list above (border +
+    // border-radius around the whole list), so the two widgets read as
+    // one visual family, but single-select (a radio circle instead of a
+    // checkbox square). The blank/"no override" option's own <option> text
+    // is empty (WTForms' QuerySelectField blank choice), so it's relabeled
+    // to "None" here rather than left blank like the real option. The
+    // original <select> is kept in the DOM (hidden, not removed) and its
+    // value is kept in sync on every click, so flask-admin's own form
+    // submit still reads the real field - no backend/WTForms change needed.
+    function initDownloadDomainRadioList($select) {
+        if (!$select.length) return;
+
+        // Idempotent like initDomainMultiSelect() above - update_hiddify_ui()
+        // can run more than once per modal open (see bindModalOpenHandler()
+        // below), so drop any previous wrapper before rebuilding.
+        var previous = $select.data('downloadDomainRadioWrapper');
+        if (previous) {
+            previous.remove();
+        }
+        $select.hide();
+
+        var rows = [];
+        var $wrapper = $('<div class="domain-multiselect-wrapper"></div>');
+        var $list = $('<div class="domain-multiselect-list"></div>');
+
+        Array.from($select[0].options).forEach(function (option) {
+            var $row = $('<div class="domain-multiselect-row"></div>');
+            var $indicator = $('<div class="domain-radio-indicator"><span class="domain-radio-dot"></span></div>');
+            var label = option.text.trim() || '{{ _("None") }}';
+            var $label = $('<span class="domain-multiselect-label"></span>').text(label);
+            $row.append($indicator).append($label);
+
+            function select() {
+                option.selected = true;
+                rows.forEach(function (r) {
+                    var isThis = r.option === option;
+                    r.$row.toggleClass('selected', isThis);
+                    r.$indicator.toggleClass('selected', isThis);
+                });
+            }
+
+            $row.on('click', function () {
+                select();
+                $select.trigger('change');
+            });
+
+            $list.append($row);
+            rows.push({ option: option, $row: $row, $indicator: $indicator, select: select });
+
+            if (option.selected) {
+                $row.addClass('selected');
+                $indicator.addClass('selected');
+            }
+        });
+
+        $wrapper.append($list);
+        $select.after($wrapper);
+        $select.data('downloadDomainRadioWrapper', $wrapper);
+    }
+
     // Physically moves the HTTP Port/TLS Port fields into a collapsible
     // "Ports" fieldset, and Show Configs of Domains/Download Domain into a
     // collapsible "Advanced" fieldset, on the Domain create/edit form - the
@@ -352,7 +442,7 @@
 
         initDomainFieldsets();
         initDomainMultiSelect($("#show_domains"));
-        initMultipleSelect($("#download_domain"), '{{ _("None") }}');
+        initDownloadDomainRadioList($("#download_domain"));
         initMultipleSelect($("#inbound_tags"), '{{ _("All inbounds") }}');
 
         if ($("#domain").length > 0) {
