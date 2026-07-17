@@ -130,7 +130,29 @@
             }else{
                 $("#show_domains").parent().show()
             }
-           
+
+            // REALITY (any special_reality_* mode, or the deprecated bare
+            // "reality") has its own direct port/keys/short id (below) -
+            // the shared HTTP/TLS port fields don't apply to it. Checked
+            // unconditionally (not nested under the sub_link_only/dnstt/
+            // else branching below) so switching straight from a REALITY
+            // mode to sub_link_only/dnstt still resets these correctly.
+            if ((($("#mode").val()) ?? "").indexOf('reality') >= 0) {
+                $("#http_port").parent().hide();
+                $("#tls_port").parent().hide();
+                $("#reality_port").parent().show();
+                $("#reality_private_key").parent().show();
+                $("#reality_public_key").parent().show();
+                $("#reality_short_id").parent().show();
+            } else {
+                $("#http_port").parent().show();
+                $("#tls_port").parent().show();
+                $("#reality_port").parent().hide();
+                $("#reality_private_key").parent().hide();
+                $("#reality_public_key").parent().hide();
+                $("#reality_short_id").parent().hide();
+            }
+
             if ($("#mode").val() == "sub_link_only") {
                 $("#cdn_ip").parent().hide();
                 $("#cdn_ip").val("")
@@ -176,7 +198,7 @@
                     $("#domain").parent().find(".help-block").html(`{{_('config.reality_fallback_domain.description')+("<a target='_blank' href='" +hurl_for('admin.Actions:get_some_random_reality_friendly_domain',test_domain=domain)+"'>"+_('Example Domains')+"</a>")}}`)
                     $("#download_domain").parent().hide();
                 } else {
-                    
+
                     if ($("#mode").val() == 'cdn' || $("#mode").val() == 'auto_cdn_ip') {
                         $("#servernames").parent().show();
                         $("#servernames").parent().find(".control-label").html(`{{_('domain.domain_fronting.label')}}`)

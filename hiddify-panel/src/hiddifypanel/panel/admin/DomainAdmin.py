@@ -7,7 +7,7 @@ from hiddifypanel.auth import login_required, current_account
 from hiddifypanel.hutils.flask import hurl_for
 from hiddifypanel.models import *
 import re
-from flask import g  # type: ignore
+from flask import g, request  # type: ignore
 from markupsafe import Markup
 
 from flask_babel import gettext as __
@@ -207,6 +207,28 @@ class DomainAdmin(AdminLTEModelView):
     def search_placeholder(self):
         return f"{_('search')} {_('domain.domain')} {_('domain.mode')}"
 
+    def create_form(self, obj=None):
+        # Pre-fill the REALITY fields with fresh, ready-to-use values on a
+        # brand new Add Domain page (GET only - a POST re-render after a
+        # validation error already has the admin's just-submitted values in
+        # form.data, which must not be clobbered). They stay hidden (see
+        # flaskadmin-layout.html's hide_domain_elements()) unless/until the
+        # admin actually picks a REALITY mode, and on_model_change below
+        # blanks them right back out if the domain isn't saved as one - so
+        # this is purely a preview for whoever does pick a REALITY mode,
+        # not something that can leak onto a non-REALITY domain.
+        form = super().create_form(obj)
+        if request.method == 'GET':
+            if not form.reality_port.data:
+                form.reality_port.data = hutils.random.get_random_unused_port()
+            if not form.reality_private_key.data or not form.reality_public_key.data:
+                keys = hutils.crypto.generate_x25519_keys()
+                form.reality_private_key.data = keys['private_key']
+                form.reality_public_key.data = keys['public_key']
+            if not form.reality_short_id.data:
+                form.reality_short_id.data = uuid.uuid4().hex[0:random.randint(1, 8) * 2]
+        return form
+
     # def on_form_prefill(self, form, id):
         # Get the Domain object being edited
         # domain = self.session.query(Domain).get(id)
@@ -228,6 +250,16 @@ class DomainAdmin(AdminLTEModelView):
         if model.download_domain and model.domain==model.download_domain.domain:
             model.download_domain_id=None
             model.download_domain=None
+        # REALITY's port/keys/short id are meaningless (and hidden - see
+        # flaskadmin-layout.html) for every other mode. Also guards against
+        # create_form()'s GET-time preview values above ending up saved onto
+        # a non-REALITY domain if the admin never actually switches the
+        # Mode dropdown away from its hidden pre-filled state.
+        if "reality" not in model.mode:
+            model.reality_port = None
+            model.reality_private_key = None
+            model.reality_public_key = None
+            model.reality_short_id = None
         # Basic validation
         if model.domain == '' and model.mode != DomainType.fake:
             raise ValidationError(_("domain.empty.allowed_for_fake_only"))
