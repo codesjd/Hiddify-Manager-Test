@@ -52,7 +52,14 @@
         border: 1px solid var(--border);
         border-radius: 10px;
         padding: 6px;
+        width: 100%;
+        min-width: 0;
     }
+    /* Each row is itself a flex item of the column-direction list above -
+       same min-width:auto quirk as .ports-row's columns: without
+       min-width:0 here, a long unbreakable domain name can force the row
+       (and the list/card containing it) wider than its actual space
+       instead of wrapping/truncating within it. */
     .domain-multiselect-row {
         display: flex;
         align-items: center;
@@ -61,6 +68,7 @@
         cursor: pointer;
         border-radius: 8px;
         font-size: 13px;
+        min-width: 0;
     }
     .domain-multiselect-row.selected {
         background: var(--track);
@@ -76,6 +84,10 @@
         flex-shrink: 0;
         color: #fff;
         font-size: 11px;
+    }
+    .domain-multiselect-label {
+        min-width: 0;
+        overflow-wrap: break-word;
     }
     .domain-multiselect-check.selected {
         background: var(--accent);
@@ -139,6 +151,15 @@
            and around .cat-body, not horizontal alignment. */
         padding: 16px 0;
         box-sizing: border-box;
+        width: 100%;
+        /* Backstop against the same "flex item without min-width:0"
+           overflow this fieldset has already hit twice (Ports' 2-column
+           row, then the show_domains checklist's row/label) - anything
+           that grows past the card's own width gets clipped here instead
+           of pushing the card's right border out of view. The real fixes
+           for both cases are on their own elements below/elsewhere; this
+           is just a net so a third instance can't silently repeat it. */
+        overflow: hidden;
     }
     .cat-legend {
         display: flex;
@@ -158,6 +179,8 @@
     .cat-card .cat-body {
         display: none;
         margin-top: 14px;
+        width: 100%;
+        box-sizing: border-box;
     }
     .cat-card.open .cat-body {
         display: block;
