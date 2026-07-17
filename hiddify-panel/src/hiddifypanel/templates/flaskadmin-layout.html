@@ -393,6 +393,129 @@
         $select.data('downloadDomainRadioWrapper', $wrapper);
     }
 
+    // Replaces the single raw JSON textarea backing #extra_params (DNSTT's
+    // per-domain override blob, rendered server-side by CustomJSONField)
+    // with one labeled input per known DNSTT field, matching the design
+    // handoff. The textarea stays in the DOM (hidden) and is exactly
+    // what actually gets submitted - it's kept in sync from the individual
+    // inputs on every change, so the backend's CustomJSONField/Pydantic
+    // validation is completely untouched.
+    //
+    // extra_params doubles as a generic per-domain override for ANY key
+    // (see DnsTT's `model_config = ConfigDict(extra='allow')` and
+    // apply_domain_overrides() server-side) - any key already present in
+    // the textarea that isn't one of the known DNSTT fields below is kept
+    // in extraKeys and merged straight back in on serialize, so editing a
+    // domain that already has a custom override (e.g. "fingerprint") can't
+    // silently drop it just because this UI has no input for it.
+    function initDnsttParamsUI($textarea) {
+        if (!$textarea.length) return;
+
+        var previous = $textarea.data('dnsttParamsWrapper');
+        if (previous) {
+            previous.remove();
+        }
+        $textarea.hide();
+
+        var KNOWN_FIELDS = ['mtu', 'keepalive', 'idle_timeout', 'clientid_size', 'record_type', 'max_qname_len', 'open_stream_timeout'];
+
+        // CustomJSONField._value() always renders one `"key": value, //
+        // comment` line per known model field (server-controlled format,
+        // not free-form JSON5) - a per-line regex is enough to recover the
+        // current values without needing a full JSON5/comment parser.
+        function parseParams(text) {
+            var result = {};
+            (text || '').split('\n').forEach(function (line) {
+                var m = line.match(/^\s*"([A-Za-z0-9_]+)":\s*(.*?),?\s*(?:\/\/.*)?$/);
+                if (!m) return;
+                var raw = m[2].trim().replace(/,$/, '');
+                var value;
+                if (raw === 'true') value = true;
+                else if (raw === 'false') value = false;
+                else if (/^".*"$/.test(raw)) value = raw.slice(1, -1);
+                else if (raw !== '' && !isNaN(Number(raw))) value = Number(raw);
+                else value = raw;
+                result[m[1]] = value;
+            });
+            return result;
+        }
+
+        var current = parseParams($textarea.val());
+        var extraKeys = {};
+        Object.keys(current).forEach(function (key) {
+            if (KNOWN_FIELDS.indexOf(key) === -1 && key !== 'dnstt_compat') extraKeys[key] = current[key];
+        });
+
+        var FIELD_DEFS = [
+            { key: 'mtu', label: '{{ _("MTU") }}', placeholder: '1232 {{ _("(default)") }}', help: '{{ _("Maximum size of DNS responses. Leave empty to use the default 1232.") }}' },
+            { key: 'keepalive', label: '{{ _("Keepalive") }}', placeholder: '2s {{ _("(default)") }}', help: '{{ _("Keepalive ping interval; must be less than the idle timeout.") }}' },
+            { key: 'idle_timeout', label: '{{ _("Idle Timeout") }}', placeholder: '10s {{ _("(default)") }}', help: '{{ _("Session idle timeout. Tears down sessions with no data within this period.") }}' },
+            { key: 'clientid_size', label: '{{ _("Client ID Size") }}', placeholder: '2 {{ _("(default)") }}', help: '{{ _("Client ID size in bytes. Ignored when DNSTT Compat is enabled.") }}' },
+            { key: 'record_type', label: '{{ _("Record Type") }}', placeholder: 'txt {{ _("(default)") }}', help: '{{ _("DNS record type for downstream data: txt, cname, a, aaaa, mx, ns, or srv.") }}' },
+            { key: 'max_qname_len', label: '{{ _("Max QName Length") }}', placeholder: '101 {{ _("(default)") }}', help: '{{ _("Maximum total QNAME length in wire format (253 per RFC 1035).") }}' },
+            { key: 'open_stream_timeout', label: '{{ _("Open Stream Timeout") }}', placeholder: '10s {{ _("(default)") }}', help: '{{ _("Timeout for opening an smux stream, e.g. 500ms, 3s.") }}' }
+        ];
+
+        function buildField(def) {
+            var $group = $('<div class="form-group"></div>');
+            var $label = $('<label class="control-label"></label>').text(def.label);
+            var $input = $('<input type="text" class="form-control ltr">').attr('placeholder', def.placeholder);
+            var val = current[def.key];
+            if (val !== undefined && val !== '' && val !== 0 && val !== false) {
+                $input.val(val);
+            }
+            var $help = $('<small class="form-text text-muted"></small>').text(def.help);
+            $group.append($label).append($input).append($help);
+            return { $group: $group, $input: $input, key: def.key };
+        }
+
+        var $wrapper = $('<div class="dnstt-params-wrapper"></div>');
+        var fields = FIELD_DEFS.map(buildField);
+        var byKey = {};
+        fields.forEach(function (f) { byKey[f.key] = f; });
+
+        // Same paired-row layout as the Ports fieldset (2 per row, wrapping
+        // via .ports-row), except Open Stream Timeout, which stands alone
+        // full-width - matches the design handoff exactly.
+        [['mtu', 'keepalive'], ['idle_timeout', 'clientid_size'], ['record_type', 'max_qname_len']].forEach(function (pair) {
+            var $row = $('<div class="ports-row"></div>').appendTo($wrapper);
+            pair.forEach(function (key) { $row.append(byKey[key].$group); });
+        });
+        $wrapper.append(byKey['open_stream_timeout'].$group);
+
+        // A bare <input type="checkbox"> inside its own .form-group is
+        // exactly what update_hiddify_ui()'s generic custom-switch upgrade
+        // loop (below) looks for - it'll wrap this into the same toggle
+        // markup as Resolve IP without any extra code here.
+        var $compatGroup = $('<div class="form-group"></div>');
+        var $compatLabel = $('<label></label>').text('{{ _("DNSTT Compat") }}');
+        var $compatCheckbox = $('<input type="checkbox" id="dnstt_compat_toggle">');
+        if (current.dnstt_compat === true) $compatCheckbox.prop('checked', true);
+        var $compatHelp = $('<small class="form-text text-muted"></small>').text('{{ _("Use original dnstt wire format (8-byte ClientID, padding prefixes).") }}');
+        $compatGroup.append($compatLabel).append($compatCheckbox).append($compatHelp);
+        $wrapper.append($compatGroup);
+
+        function serialize() {
+            var result = Object.assign({}, extraKeys);
+            FIELD_DEFS.forEach(function (def) {
+                var raw = byKey[def.key].$input.val().trim();
+                if (def.key === 'record_type') {
+                    result[def.key] = raw;
+                } else {
+                    result[def.key] = raw === '' ? 0 : (isNaN(Number(raw)) ? 0 : Number(raw));
+                }
+            });
+            result.dnstt_compat = $compatCheckbox.prop('checked');
+            $textarea.val(JSON.stringify(result));
+        }
+
+        $wrapper.on('input change', 'input', serialize);
+        serialize();
+
+        $textarea.after($wrapper);
+        $textarea.data('dnsttParamsWrapper', $wrapper);
+    }
+
     // Physically moves the HTTP Port/TLS Port fields into a collapsible
     // "Ports" fieldset, and Show Configs of Domains/Download Domain into a
     // collapsible "Advanced" fieldset, on the Domain create/edit form - the
@@ -442,8 +565,12 @@
             return $fieldset;
         }
 
-        var $ports = buildFieldset('{{ _("Ports") }}', [['#http_port', '#tls_port']]);
-        var $advanced = buildFieldset('{{ _("Advanced") }}', ['#show_domains', '#download_domain']);
+        // Given stable ids so hide_domain_elements() can hide the whole
+        // Ports card for DNSTT mode (which has no HTTP/TLS ports at all),
+        // not just its two individual fields - a card left with a visible
+        // "Ports" legend and an empty body would look broken.
+        var $ports = buildFieldset('{{ _("Ports") }}', [['#http_port', '#tls_port']]).attr('id', 'ports-fieldset');
+        var $advanced = buildFieldset('{{ _("Advanced") }}', ['#show_domains', '#download_domain', '#extra_params']).attr('id', 'advanced-fieldset');
         $resolveIp.closest('.form-group').after($ports, $advanced);
     }
 
@@ -452,6 +579,7 @@
         initDomainFieldsets();
         initDomainMultiSelect($("#show_domains"));
         initDownloadDomainRadioList($("#download_domain"));
+        initDnsttParamsUI($("#extra_params"));
         initMultipleSelect($("#inbound_tags"), '{{ _("All inbounds") }}');
 
         if ($("#domain").length > 0) {
@@ -524,19 +652,35 @@
                 $("#reality_short_id").parent().hide();
             }
 
+            // DNSTT doesn't use HTTP/TLS ports at all - hide the whole
+            // Ports card, not just its two fields, so it doesn't render as
+            // an empty bordered box with nothing under its legend.
+            if ($("#mode").val() == "dnstt") {
+                $("#ports-fieldset").hide();
+            } else {
+                $("#ports-fieldset").show();
+            }
+
             if ($("#mode").val() == "sub_link_only") {
                 $("#cdn_ip").parent().hide();
                 $("#cdn_ip").val("")
                 //$("#mode").parent().hide();
                 
-                $("#resolve_ip").parent().hide()
+                // .closest('.form-group'), not .parent(): #resolve_ip is a
+                // checkbox that update_hiddify_ui()'s custom-switch upgrade
+                // (above) already rewrapped in a .custom-control.custom-switch
+                // div by the time this runs, so .parent() only hides that
+                // inner wrapper - the trailing help text, a sibling of the
+                // wrapper inside the same .form-group, would stay visible
+                // with no control above it.
+                $("#resolve_ip").closest('.form-group').hide()
                 $("#servernames").parent().hide();
                 $("#domain").parent().find(".control-label").html(`{{_('domain.domain')}}`)
                 $("#domain").parent().find(".help-block").html(`{{_('domain.description')}}`)
                 $("#download_domain").parent().hide();
 
             }else if ($("#mode").val() == "dnstt") {
-                $("#resolve_ip").parent().hide()
+                $("#resolve_ip").closest('.form-group').hide()
                 $("#servernames").parent().hide();
                 $("#download_domain").parent().hide();
                 $("#cdn_ip").parent().hide();
@@ -549,7 +693,7 @@
                 $("#cdn_ip").parent().show();
                 //$("#mode").parent().show();
                 
-                $("#resolve_ip").parent().show()
+                $("#resolve_ip").closest('.form-group').show()
 
                 if ($("#mode").val() == 'direct') {
                     $("#cdn_ip").parent().hide();
