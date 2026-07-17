@@ -14,7 +14,42 @@ from hiddifypanel.database import db, db_execute
 
 
 from loguru import logger
-MAX_DB_VERSION = 145
+MAX_DB_VERSION = 146
+
+
+def _v145(child_id):
+    """AmneziaWG S1-S4/I1-I5 obfuscation params, auto-generated per install
+    instead of left blank. _v134's rationale for seeding them blank was that
+    a *shared* canned template would itself be a DPI fingerprint - but a
+    value randomized independently on every install doesn't have that
+    problem, and leaving them permanently blank meant this "opt-in" knob
+    needed hand-rolled hex/tag guessing before an admin could ever benefit
+    from it. Only fills in a field that's still blank, so an admin who
+    already set their own value (here or via Settings before this change)
+    keeps it untouched.
+
+    Ranges are AmneziaWG 2.0's documented header-obfuscation constraints:
+    S1<=1132 (recommended 15-150) with S1+56 != S2; S2<=1188 (15-150);
+    S3 0-64; S4 0-32. I1-I5 use the documented Custom Protocol Signature
+    "<r N>" tag (N bytes of fresh cryptographically random data generated
+    by the client/server on every real handshake, per docs.amnezia.org) -
+    only the packet-length *shape* is fixed per install, real content is
+    never reused/predictable."""
+    s2 = random.randint(15, 150)
+    s1 = random.randint(15, 150)
+    while s1 + 56 == s2:
+        s1 = random.randint(15, 150)
+    if not hconfig(ConfigEnum.amneziawg_s1, child_id):
+        set_hconfig(ConfigEnum.amneziawg_s1, str(s1), child_id=child_id)
+    if not hconfig(ConfigEnum.amneziawg_s2, child_id):
+        set_hconfig(ConfigEnum.amneziawg_s2, str(s2), child_id=child_id)
+    if not hconfig(ConfigEnum.amneziawg_s3, child_id):
+        set_hconfig(ConfigEnum.amneziawg_s3, str(random.randint(0, 64)), child_id=child_id)
+    if not hconfig(ConfigEnum.amneziawg_s4, child_id):
+        set_hconfig(ConfigEnum.amneziawg_s4, str(random.randint(0, 32)), child_id=child_id)
+    for i_key in [ConfigEnum.amneziawg_i1, ConfigEnum.amneziawg_i2, ConfigEnum.amneziawg_i3, ConfigEnum.amneziawg_i4, ConfigEnum.amneziawg_i5]:
+        if not hconfig(i_key, child_id):
+            set_hconfig(i_key, f"<r {random.randint(16, 64)}>", child_id=child_id)
 
 
 def _v144(child_id):
