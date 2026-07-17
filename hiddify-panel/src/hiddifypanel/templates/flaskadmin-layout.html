@@ -177,10 +177,18 @@
         display: flex;
         gap: 14px;
         flex-wrap: wrap;
+        width: 100%;
     }
     .ports-row > .form-group {
-        flex: 1;
-        min-width: 220px;
+        flex: 1 1 0; /* not plain flex:1 - a flex item's default min-width
+        is auto (the width of its longest unbreakable content, e.g. TLS
+        Port's help text), which pushes the column wider than its actual
+        share; min-width:0 below is what actually lets it shrink to fit */
+        min-width: 0;
+    }
+    .ports-row .form-text.text-muted {
+        width: 100%;
+        word-wrap: break-word;
     }
 </style>
 {% endblock %}
