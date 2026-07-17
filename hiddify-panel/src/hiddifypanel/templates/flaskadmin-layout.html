@@ -81,6 +81,58 @@
         background: var(--accent);
         border-color: var(--accent);
     }
+
+    /* Collapsible "Ports"/"Advanced" fieldsets on the Domain create/edit
+       form - see initDomainFieldsets() below. Same card/legend/"+"-icon/
+       fade-in look as the Settings page's .cat-card (config.html), but
+       with an explicit .cat-body wrapper instead of hiding .form-group
+       directly: hide_domain_elements() already shows/hides individual
+       moved fields (http_port/tls_port/show_domains/download_domain) via
+       plain jQuery .hide()/.show() on their own .form-group, and giving
+       .cat-card.open .form-group a `display:block !important` (like
+       config.html does) would force-show a field hide_domain_elements()
+       just hid for the current mode. Toggling visibility on the .cat-body
+       wrapper instead - one level up - never touches the per-field inline
+       style, so both mechanisms stay independent.
+       */
+    .cat-card {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 16px;
+        box-shadow: var(--card-shadow);
+        margin: 0 0 12px;
+        padding: 16px;
+        box-sizing: border-box;
+    }
+    .cat-legend {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-weight: 700;
+        font-size: 13.5px;
+        color: var(--text-primary);
+        cursor: pointer;
+        margin: 0;
+        line-height: 1.2;
+    }
+    .cat-legend-plus {
+        color: var(--accent);
+        font-weight: 700;
+    }
+    .cat-card .cat-body {
+        display: none;
+    }
+    .cat-card.open .cat-body {
+        display: block;
+        animation: catExpand 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .cat-card .cat-body .form-group:last-child {
+        margin-bottom: 0;
+    }
+    @keyframes catExpand {
+        from { opacity: 0; transform: translateY(-8px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
 </style>
 {% endblock %}
 
@@ -230,8 +282,56 @@
         $select.data('domainMultiselectWrapper', $wrapper);
     }
 
+    // Physically moves the HTTP Port/TLS Port fields into a collapsible
+    // "Ports" fieldset, and Show Configs of Domains/Download Domain into a
+    // collapsible "Advanced" fieldset, on the Domain create/edit form - the
+    // Basic fields (Mode, Domain, Alias, Resolve IP, ...) are left exactly
+    // where flask-admin's generic bootstrap4 render_form() put them, since
+    // there's no per-field "category" hook in that generic renderer (unlike
+    // config.html's bespoke render_category() macro, which is a fully
+    // custom template - Domain has none).
+    function initDomainFieldsets() {
+        var $resolveIp = $("#resolve_ip");
+        if (!$resolveIp.length) return;
+
+        // update_hiddify_ui() runs twice per modal open (see
+        // bindModalOpenHandler() below), on the very same DOM both times -
+        // a data flag on the form (rather than re-detecting by presence of
+        // .cat-card, which would still be true after the first run anyway)
+        // keeps a second run a no-op instead of re-building/re-nesting the
+        // fieldsets a second time.
+        var $form = $resolveIp.closest('form');
+        if ($form.data('domainFieldsetsBuilt')) return;
+        $form.data('domainFieldsetsBuilt', true);
+
+        function buildFieldset(title, fieldIds) {
+            var $fieldset = $('<fieldset class="cat-card"></fieldset>');
+            var $legend = $('<div class="cat-legend"><span class="cat-legend-plus">+</span> ' + title + '</div>');
+            var $body = $('<div class="cat-body"></div>');
+            $legend.on('click', function () {
+                $fieldset.toggleClass('open');
+            });
+            fieldIds.forEach(function (id) {
+                var $group = $(id).closest('.form-group');
+                // Moves the real .form-group (label+input+help text) - not
+                // a clone - so hide_domain_elements()'s existing
+                // $("#id").parent().hide()/.show() calls keep working
+                // unchanged: .parent() of the field is still this same
+                // .form-group, just relocated to a new ancestor.
+                if ($group.length) $body.append($group);
+            });
+            $fieldset.append($legend).append($body);
+            return $fieldset;
+        }
+
+        var $ports = buildFieldset('{{ _("Ports") }}', ['#http_port', '#tls_port']);
+        var $advanced = buildFieldset('{{ _("Advanced") }}', ['#show_domains', '#download_domain']);
+        $resolveIp.closest('.form-group').after($ports, $advanced);
+    }
+
     function update_hiddify_ui() {
 
+        initDomainFieldsets();
         initDomainMultiSelect($("#show_domains"));
         initMultipleSelect($("#download_domain"), '{{ _("None") }}');
         initMultipleSelect($("#inbound_tags"), '{{ _("All inbounds") }}');
@@ -380,7 +480,16 @@
     
     update_hiddify_ui()
 
-    
+    // A moved field (http_port/tls_port/show_domains/download_domain) can
+    // fail HTML5 validation while its "Ports"/"Advanced" fieldset is still
+    // collapsed - same auto-open-on-invalid behavior as the Settings
+    // page's .cat-card (config.html), so the admin isn't left staring at a
+    // form that silently refuses to submit with no visible error.
+    document.addEventListener('invalid', function (e) {
+        var card = e.target.closest && e.target.closest('.cat-card');
+        if (card) card.classList.add('open');
+    }, true);
+
       // bs4_modal.js (loaded as *part of* the modal's own AJAX content) binds
       // its own click.modal.data-api handler on 'body' every time a modal
       // opens, without ever calling .off() first - so by the 2nd+ Edit/
