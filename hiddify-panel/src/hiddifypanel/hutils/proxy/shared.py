@@ -391,9 +391,9 @@ def sni_host_server_extractor(domain_db: Domain, hconfigs):
         'cdn': is_cdn,
     }
     if 'reality' in domain_db.mode:
-        base['reality_short_id'] = random.sample(hconfigs[ConfigEnum.reality_short_ids].split(','), 1)[0]
+        base['reality_short_id'] = random.sample(domain_db.effective_reality_short_id.split(','), 1)[0]
         # base['flow']="xtls-rprx-vision"
-        base['reality_pbk'] = hconfigs[ConfigEnum.reality_public_key]
+        base['reality_pbk'] = domain_db.effective_reality_public_key
         # del base['host']
 
         # if not domain_db.cdn_ip:

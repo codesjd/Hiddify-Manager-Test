@@ -200,11 +200,19 @@ class ConfigEnum(metaclass=FastEnum):
     dns_server = _StrConfigDscr(ConfigCategory.general, ApplyMode.apply_config, hide_in_virtual_child=True)
     reality_fallback_domain = _StrConfigDscr(ConfigCategory.hidden, ApplyMode.apply_config)  # removed
     reality_server_names = _StrConfigDscr(ConfigCategory.hidden, ApplyMode.apply_config)  # removed
-    reality_short_ids = _StrConfigDscr(ConfigCategory.reality, ApplyMode.apply_config, hide_in_virtual_child=True)
-    reality_private_key = _StrConfigDscr(ConfigCategory.reality, ApplyMode.apply_config, hide_in_virtual_child=True)
-    reality_public_key = _StrConfigDscr(ConfigCategory.reality, ApplyMode.apply_config, hide_in_virtual_child=True)
+    # Reality Settings section removed - special_port/reality_private_key/
+    # reality_public_key/reality_short_ids are now a per-domain
+    # Domain.reality_port/reality_private_key/reality_public_key/
+    # reality_short_id override (see DomainAdmin.py), auto-generated the
+    # first time a domain is saved as a REALITY mode. Retired to
+    # ConfigCategory.hidden rather than deleted - Domain.effective_reality_*
+    # and internal_port_special still fall back to these exact keys for any
+    # existing domain that hasn't been given its own value yet.
+    reality_short_ids = _StrConfigDscr(ConfigCategory.hidden, ApplyMode.apply_config, hide_in_virtual_child=True)
+    reality_private_key = _StrConfigDscr(ConfigCategory.hidden, ApplyMode.apply_config, hide_in_virtual_child=True)
+    reality_public_key = _StrConfigDscr(ConfigCategory.hidden, ApplyMode.apply_config, hide_in_virtual_child=True)
     reality_port = _StrConfigDscr(ConfigCategory.hidden, ApplyMode.apply_config, hide_in_virtual_child=True)
-    special_port = _StrConfigDscr(ConfigCategory.reality, ApplyMode.apply_config, hide_in_virtual_child=True)
+    special_port = _StrConfigDscr(ConfigCategory.hidden, ApplyMode.apply_config, hide_in_virtual_child=True)
     
 
     restls1_2_domain = _StrConfigDscr(ConfigCategory.hidden)

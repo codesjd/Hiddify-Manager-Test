@@ -9,7 +9,7 @@ import flask_babel
 import flask_babel
 from flask_babel import lazy_gettext as _
 # from flask_babelex import gettext as _
-from flask import render_template, g  # type: ignore
+from flask import render_template  # type: ignore
 from markupsafe import Markup
 
 from hiddifypanel.hutils.flask import hurl_for
@@ -397,9 +397,6 @@ def get_config_form():
                     if hasattr(val, "regex"):
                         render_kw['pattern'] = val.regex.pattern
                         render_kw['title'] = val.message
-
-                if c.key == ConfigEnum.reality_public_key and g.account.mode in [AdminMode.super_admin]:
-                    extra_info = f" <a href='{hurl_for('admin.Actions:change_reality_keys')}'>{_('Change')}</a>"
 
                 label = _(f'config.{c.key}.label')
                 description = _(f'config.{c.key}.description')

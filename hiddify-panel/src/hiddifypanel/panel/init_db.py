@@ -14,7 +14,22 @@ from hiddifypanel.database import db, db_execute
 
 
 from loguru import logger
-MAX_DB_VERSION = 142
+MAX_DB_VERSION = 143
+
+
+def _v143(child_id):
+    """Per-domain REALITY port/keys/short ID columns (Domain.reality_port/
+    reality_private_key/reality_public_key/reality_short_id), replacing the
+    global Settings-page special_port/reality_private_key/reality_public_key/
+    reality_short_ids fields - see Domain.effective_reality_*/
+    internal_port_special and DomainAdmin._validate_reality_settings.
+    Existing domains get NULL, which those fall back to the unchanged
+    global-config-derived value for, so nothing changes for them until an
+    admin (re-)saves the domain or edits a value by hand."""
+    add_column(Domain.reality_port)
+    add_column(Domain.reality_private_key)
+    add_column(Domain.reality_public_key)
+    add_column(Domain.reality_short_id)
 
 
 def _v142(child_id):
