@@ -69,22 +69,41 @@
         }
     }
     .global-form .form-group.custom-switch {
-        background: var(--surface);
+        background: var(--surface) !important;  /* قبلاً var(--bg) بود - هم‌رنگ پس‌زمینه صفحه */
         border: 1px solid var(--border);
         border-radius: 14px;
-        padding: 16px !important;
+        /* padding shorthand قبلی padding-left: 2.5rem رو (که فضای دکمه‌ی
+           toggle با position:absolute; left:-2.5rem رزرو می‌کرد) بی‌اثر
+           کرده بود - سمت چپ = 2.5rem (فضای دکمه) + 16px (پدینگ خود کارت). */
+        padding: 16px 16px 16px calc(2.5rem + 16px) !important;
         margin-bottom: 0 !important;
         display: flex !important;
         flex-direction: column !important;
         justify-content: center !important;   /* محتوا عمودی وسط باکس */
         align-items: flex-start !important;   /* ولی افقی چپ‌چین بمونه */
+        position: relative !important; /* مبنای مختصات برای before/after دکمه */
         text-align: left !important;
     }
     .global-form .form-text.text-muted {
         text-align: left !important;
     }
     [dir="rtl"] .global-form .form-group.custom-switch {
-        padding: 14px 44px 14px 16px !important;
+        padding: 16px calc(2.5rem + 16px) 16px 16px !important;
+    }
+    /* کارت بیرونی (Global Configs) و باکس‌های تک‌تک پروکسی هر دو از یک
+       متغیر رنگ (--bg) استفاده می‌کردن، پس هیچ کنتراستی نبود. باکس‌های
+       پروکسی بالا --surface گرفتن تا به چشم بیان؛ کارت بیرونی بی‌رنگ
+       می‌شه چون دیگه لازم نیست جعبه‌ی جدا باشه - فقط ظرف چیدمانه.
+       سلکتور `.card:has(.global-form)` نه `.global-form .card` - توی
+       HTML واقعی این صفحه، .global-form فرزندِ .card ه نه برعکس
+       (.card > .card-body > .global-form)، پس `.global-form .card`
+       هیچ‌چیزی رو match نمی‌کرد. :has() از قبل توی این کدبیس استفاده
+       شده (مثلاً `.card:has(.table-responsive)` توی admin-layout.html)،
+       پس پشتیبانی مرورگر مفروضه. */
+    .card:has(.global-form) {
+        background: transparent !important;
+        border: none !important;
+        box-shadow: none !important;
     }
 
     /* SubmitField renders as a bare <input>, no .form-group wrapper, in
