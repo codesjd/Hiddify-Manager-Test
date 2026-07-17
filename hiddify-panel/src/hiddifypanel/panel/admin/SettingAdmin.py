@@ -74,9 +74,6 @@ class SettingAdmin(FlaskView):
                         if k.type == str:
                             if "_domain" in k or "_fakedomain" in k:
                                 v = v.lower()
-                            if k == ConfigEnum.warp_sites and 'https://' in v:
-                                hutils.flask.flash(_("config.warp-https-domain-for-warp-site"), 'error')
-                                return render_template('config.html', form=form)
                             if "port" in k:
                                 for p in v.split(","):
                                     if p in ("443", "80"):
@@ -243,12 +240,6 @@ def get_config_form():
                                         choices=[("xray", _("Xray")), ("singbox", _("SingBox"))],
                                         description=_(f"config.{c.key}.description"),
                                         default=hconfig(c.key))
-            elif c.key == ConfigEnum.warp_mode:
-                field = wtf.SelectField(_(f"config.{c.key}.label"),
-                                        choices=[("disable", _("Disable")), ("all", _("All")), ("custom", _("Only Blocked and Local websites"))],
-                                        description=_(f"config.{c.key}.description"),
-                                        default=hconfig(c.key))
-            
             elif c.key == ConfigEnum.lang or c.key == ConfigEnum.admin_lang:
                 field = wtf.SelectField(
                     _(f"config.{c.key}.label"),
@@ -307,13 +298,6 @@ def get_config_form():
                 choices = [("smux", 'smux'), ("yamux", "yamux"), ("h2mux", "h2mux")]
                 field = wtf.SelectField(_(f"config.{c.key}.label"), choices=choices, description=_(f"config.{c.key}.description"), default=hconfig(c.key))
 
-            elif c.key == ConfigEnum.warp_sites:
-                validators = [wtf.validators.Length(max=2048),
-                              wtf.validators.Regexp(r'^(?:[\w.-]+\.\w+(?:\.\w+)?(?:\r?\n|$)|^$)', 0, _("config.invalid-pattern-for-warp-sites") + f' {c.key}')
-                              ]
-                render_kw = {'class': "ltr", 'maxlength': 2048}
-                field = wtf.TextAreaField(_(f'config.{c.key}.label'), validators, default=c.value,
-                                          description=_(f'config.{c.key}.description'), render_kw=render_kw)
             elif c.key == ConfigEnum.additional_configs_urls:
                 render_kw = {'class': "ltr", 'maxlength': 20480}
                 field = wtf.TextAreaField(_(f'config.{c.key}.label'), default=c.value,

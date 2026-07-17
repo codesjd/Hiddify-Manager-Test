@@ -27,7 +27,6 @@ class Subsystem(StrEnum):
     wireguard = 'other/wireguard'
     amneziawg = 'other/amneziawg'
     ssh = 'other/ssh'
-    warp = 'other/warp'
     dnstt = 'other/dnstt'
     telegram = 'other/telegram'
     ssfaketls = 'other/ssfaketls'
@@ -73,7 +72,6 @@ CATEGORY_SUBSYSTEMS: dict[ConfigCategory, frozenset[str]] = {
     ConfigCategory.ssh: frozenset({Subsystem.ssh}),
     ConfigCategory.telegram: frozenset({Subsystem.telegram}),
     ConfigCategory.dnstt: frozenset({Subsystem.dnstt}),
-    ConfigCategory.warp: frozenset({Subsystem.warp}),
     # L2TP/IPsec is its own strongSwan+xl2tpd subsystem (other/l2tp), not an
     # xray/singbox protocol, so both l2tp_enable and l2tp_psk only need that
     # one subsystem re-run on Apply Configs.

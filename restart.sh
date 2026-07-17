@@ -26,13 +26,10 @@ function main() {
     warning "$(printf "%-30s %-20s %s \n" "Name" "Old Status" "New Status")"
     
     # Restart services and get their status (except hiddify-panel)
-    for ss in other/**/*.service **/*.service wg-quick@warp mtproto-proxy.service mtproxy.service mariadb;do
+    for ss in other/**/*.service **/*.service mtproto-proxy.service mtproxy.service mariadb;do
         case "$ss" in
             hiddify-panel*|other/hiddify-cli*)
                 continue
-                ;;
-            wg-quick@warp)
-                [ "$(hconfig warp_mode)" == "disable" ] && continue
                 ;;
         esac
         restart_service $ss &

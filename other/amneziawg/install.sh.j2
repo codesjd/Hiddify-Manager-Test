@@ -3,10 +3,11 @@ source ./awg_utils.sh
 
 # sing-box has no native AmneziaWG support (verified against hiddify-sing-box's
 # source directly - no Jc/Jmin/Jmax/amnezia anywhere in it), so this runs as
-# its own standalone WireGuard-family interface, the same way WARP runs its
-# own wg-quick@warp interface via other/warp/wireguard/. sing-box's outbound
-# just binds to whatever interface this brings up (bind_interface), same
-# mechanism as WARP - no core-level protocol support needed.
+# its own standalone WireGuard-family interface. sing-box's outbound just
+# binds to whatever interface this brings up (bind_interface) - no core-level
+# protocol support needed. A Cloudflare WARP outbound is built the exact same
+# way (Protocol=amneziawg, address=engage.cloudflareclient.com, port=2408) -
+# WARP has no dedicated interface/mechanism of its own anymore.
 #
 # Two upstream projects, neither ships prebuilt Linux binaries as of writing:
 #   - amneziawg-tools: C, provides `awg`/`awg-quick` (forks of wg/wg-quick)

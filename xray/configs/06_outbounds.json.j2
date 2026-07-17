@@ -11,31 +11,6 @@
       }
     },
     {
-      {%if hconfigs["only_ipv4"]%}
-      "domainStrategy":"UseIPv4v6",
-      {%endif%}
-      "tag": "WARP",
-      "protocol": "freedom",
-      "streamSettings": {
-        "sockopt": {
-          "tcpFastOpen": true,
-          "interface": "warp"
-        }
-      }
-    },
-    // {
-    //   "tag":"WARP",
-    //   "protocol":"socks",
-    //   "settings": {
-    //     "servers": [
-    //         {
-    //             "address": "127.0.0.1",
-    //             "port": 3000
-    //         }
-    //     ]
-    //   }
-    // },
-    {
       "protocol": "blackhole",
       "tag": "blackhole"
     },
@@ -50,36 +25,16 @@
     //   },
     //   "sendThrough": "172.16.0.2"
     // },
-    // {
-    //   "tag": "WARP-CHATGPT",
-    //   "protocol": "wireguard",
-    //   "settings": {
-    //     "secretKey": "cKE7LmCF61IhqqABGhvJ44jWXp8fKymcMAEVAzbDF2k=",
-    //     "address": [
-    //       "172.16.0.2/32",
-    //       "fd01:5ca1:ab1e:823e:e094:eb1c:ff87:1fab/128"
-    //     ],
-    //     "peers": [
-    //       {
-    //         "publicKey": "bmXOC+F1FxEMF9dyiK2H5/1SUtzH0JuVo51h2wPfgyo=",
-    //         "endpoint": "engage.cloudflareclient.com:2408"
-    //       }
-    //     ]
-    //   }
-    // },
-    // {
-    //   "tag": "warp",
-    //   "protocol": "socks",
-    //   "settings": {
-    //       "servers": [
-    //           {
-    //               "address": "127.0.0.1",
-    //               "port": 1080, 
-    //               "users": []
-    //           }
-    //       ]
-    //   }
-    // },
+    // WARP: add an Outbound on the Outbounds admin page instead (Protocol
+    // "amneziawg", address=engage.cloudflareclient.com, port=2408,
+    // uuid_or_password=<your WireGuard private key>,
+    // peer_public_key=bmXOC+F1FxEMF9dyiK2H5/1SUtzH0JuVo51h2wPfgyo= (Cloudflare's
+    // well-known WARP public key), local_address=<your WARP-assigned IPv4/32,
+    // IPv6/128>, and Jc/Jmin/Jmax if you want junk-packet obfuscation - a real
+    // WireGuard peer like Cloudflare's tolerates those fine, just not
+    // H1-H4/S1-S4/I1-I5 (those change the actual handshake bytes, which
+    // only another AmneziaWG-aware peer would understand). Then select its
+    // Tag from any Routing Rule.
     // {
     //   "tag": "WRAP",
     //   "protocol": "freedom",

@@ -95,7 +95,6 @@ function menu() {
         ;;
     "advanced")
         OPTIONS=(
-            warp "Check Warp Status"
             add_remote "Add remote assistant access to this server"
             remove_remote "Remove remote assistant access to this server"
             enable "show this menu on start up"
@@ -127,13 +126,6 @@ function menu() {
             ;;
         "remove_remote")
             bash common/remove_remote_assistant.sh
-            ;;
-        "warp")
-            (
-                cd other/warp/
-                bash status.sh | less -r -P"Press q to exit" +G
-            )
-            NEED_KEY=0
             ;;
         *) NEED_KEY=0 ;;
         esac

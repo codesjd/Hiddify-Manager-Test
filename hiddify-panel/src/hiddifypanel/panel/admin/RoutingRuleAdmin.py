@@ -12,7 +12,7 @@ from hiddifypanel import hutils
 
 class RoutingRuleAdmin(AdminLTEModelView):
     """Custom Xray routing rules - route specific domains/IPs/inbounds to a
-    specific outbound (built-in ones like freedom/blackhole/WARP, or one of
+    specific outbound (built-in ones like freedom/blackhole, or one of
     your own from the Outbounds page). Evaluated in Priority order (lowest
     first), always before Hiddify's own built-in catch-all rule.
 
@@ -45,7 +45,7 @@ class RoutingRuleAdmin(AdminLTEModelView):
         "enable": _("Enable"),
     }
     column_descriptions = dict(
-        outbound_tag=_("Must match a Tag from the Outbounds page, or a built-in tag: freedom, blackhole, WARP."),
+        outbound_tag=_("Must match a Tag from the Outbounds page, or a built-in tag: freedom, blackhole. WARP: create an Outbound with Protocol \"amneziawg\" (address=engage.cloudflareclient.com, port=2408) on the Outbounds page, then pick its Tag here."),
         inbound_tags=_("Optional. Match traffic that arrived on these inbounds specifically - covers both xray tags (vless/vmess/"
                         "trojan over a transport, plus Reality per-domain) and, when running singbox, mieru/naive/tuic/hysteria2 "
                         "(only the ones relevant to your current core_type will ever actually match anything). Hiddify shares one "
@@ -148,7 +148,6 @@ class RoutingRuleAdmin(AdminLTEModelView):
         choices = [
             ('freedom', 'freedom (Direct)'),
             ('blackhole', 'blackhole (Block)'),
-            ('WARP', 'WARP'),
         ]
         outbounds = CustomOutbound.query.filter_by(child_id=Child.current().id, enable=True).all()
         for o in outbounds:
@@ -170,7 +169,6 @@ class RoutingRuleAdmin(AdminLTEModelView):
         choices = [
             ('freedom', 'freedom (Direct)'),
             ('blackhole', 'blackhole (Block)'),
-            ('WARP', 'WARP'),
         ]
         outbounds = CustomOutbound.query.filter_by(child_id=Child.current().id, enable=True).all()
         for o in outbounds:

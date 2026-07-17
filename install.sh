@@ -106,14 +106,6 @@ function main() {
         #update_progress "${PROGRESS_ACTION}" "ShadowTLS" 60
         #install_run other/shadowtls $(hconfig "shadowtls_enable")
         
-        update_progress "${PROGRESS_ACTION}" "Warp" 70
-        
-        if [[ $(hconfig "warp_mode") != "disable" ]];then
-            install_run other/warp 1 &
-        else   
-            install_run other/warp 0 &
-        fi
-
         # core_type only decides the PRIMARY core. The two cores are
         # complementary, not redundant: xray serves vless/vmess/trojan/reality,
         # while hysteria2/tuic/shadowsocks2022/anytls/mieru/naive exist ONLY as

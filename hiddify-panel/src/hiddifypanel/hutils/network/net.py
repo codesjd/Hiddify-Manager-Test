@@ -385,16 +385,6 @@ def get_direct_host_or_ip(prefer_version: int) -> str:
     return get_ip_str(4 if prefer_version == 6 else 6)
 
 
-# not used
-def get_warp_info() -> str:
-    proxies = dict(http='socks5://127.0.0.1:3000',
-                   https='socks5://127.0.0.1:3000')
-    res = requests.get("https://cloudflare.com/cdn-cgi/trace", proxies=proxies, timeout=1).text
-
-    dicres = {line.split("=")[0]: line.split("=")[0] for line in res}
-    return str(dicres)
-
-
 def is_ssh_password_authentication_enabled() -> bool:
     def check_file(file_path: str) -> bool:
         if os.path.isfile(file_path):
