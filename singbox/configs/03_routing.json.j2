@@ -5,7 +5,6 @@
     'ru': 'ru'
 }.get(hconfigs['country'], 'cn') %}
 
-{% set geo_sites=['spotify','speedtest','google','netflix','nvidia','bytedance','tiktok','unity','reddit','openai'] %}
 {
   "route": {
     "rule_set":[
@@ -22,20 +21,10 @@
             "format":"binary",
             "update_interval":"1d",
             "url":"https://raw.githubusercontent.com/Chocolate4U/Iran-sing-box-rules/rule-set/geosite-{{region}}.srs"
-         },
-         {% for site in geo_sites %}
-          {
-            "tag":"geosite-{{site}}",
-            "type":"remote",
-            "format":"binary",
-            "update_interval":"1d",
-            "url":"https://github.com/MetaCubeX/meta-rules-dat/raw/refs/heads/sing/geo/geosite/{{site}}.srs"
-         },
-         {% endfor %}
-
+         }
     ],
     // "domainStrategy": "AsIs",
-    "final": {% if hconfigs['warp_mode'] == 'all' %}"WARP"{% else %}"freedom"{% endif %},
+    "final": "freedom",
       "rules": [
         {"action":"sniff"},
         {
@@ -68,35 +57,7 @@
               "geoip-{{region}}", "geosite-{{region}}"
              ]
         },
-        {%else%}
-        {
-            "outbound": {% if hconfigs['warp_mode'] == 'disable' %}"forbidden_sites"{% else %}"WARP"{% endif %},
-             "rule_set":[
-              "geoip-{{region}}", "geosite-{{region}}"
-             ]
-        },
         {%endif%}
-        {% if hconfigs['warp_mode'] != 'disable' %}
-          {
-              "outbound": "WARP",
-              "rule_set":[
-                {% for site in geo_sites %}
-                  "geosite-{{site}}",
-                {% endfor %}
-              ]
-          },
-          {% set domains=hconfigs.get('warp_sites','').split('\n') %}
-          {% if domains[0].strip()!="" %}
-          {
-              "outbound": "WARP",
-              "domain":[                
-                    {%for d in domains%}
-                        "{{d.strip()}}",
-                    {% endfor %}
-              ]
-          },
-          {% endif %}
-        {% endif %}
         {
           "action": "reject", "ip_is_private": true
         }

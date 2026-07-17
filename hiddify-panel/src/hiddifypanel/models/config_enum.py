@@ -191,10 +191,22 @@ class ConfigEnum(metaclass=FastEnum):
     # instant an admin picks a value via Settings (SettingAdmin.py), so
     # auto-management can never silently override a deliberate choice.
     core_type_auto = _BoolConfigDscr(ConfigCategory.hidden, ApplyMode.reinstall, hide_in_virtual_child=True)
-    warp_enable = _BoolConfigDscr(ConfigCategory.hidden, ApplyMode.reinstall, hide_in_virtual_child=True)
-    warp_mode = _StrConfigDscr(ConfigCategory.warp, ApplyMode.apply_config, hide_in_virtual_child=True)
-    warp_plus_code = _StrConfigDscr(ConfigCategory.warp, ApplyMode.apply_config, hide_in_virtual_child=True)
-    warp_sites = _StrConfigDscr(ConfigCategory.warp, ApplyMode.apply_config, hide_in_virtual_child=True)
+    # WARP used to be its own Settings section (mode toggle + plus-code +
+    # custom-sites list) driving a hardcoded "WARP" outbound bound to a
+    # wgcf-managed wg-quick@warp interface, plus built-in geo-routing rules
+    # that auto-routed streaming/blocked sites through it. Retired in favor
+    # of a plain Outbound (Protocol "amneziawg" - a real WireGuard peer like
+    # Cloudflare's WARP endpoint tolerates the Jc/Jmin/Jmax junk-packet
+    # obfuscation fine, just not the H1-H4/S1-S4/I1-I5 params that change the
+    # actual handshake bytes) on the Outbounds page, selectable from any
+    # Routing Rule like any other outbound - same pattern as the
+    # amneziawg_enable/amneziawg_config retirement above. Kept here (hidden)
+    # instead of deleted outright so old DB rows from before this change
+    # don't error.
+    warp_enable = _BoolConfigDscr(ConfigCategory.hidden, ApplyMode.reinstall, hide_in_virtual_child=True)  # removed
+    warp_mode = _StrConfigDscr(ConfigCategory.hidden, ApplyMode.apply_config, hide_in_virtual_child=True)  # removed
+    warp_plus_code = _StrConfigDscr(ConfigCategory.hidden, ApplyMode.apply_config, hide_in_virtual_child=True)  # removed
+    warp_sites = _StrConfigDscr(ConfigCategory.hidden, ApplyMode.apply_config, hide_in_virtual_child=True)  # removed
 
     # AmneziaWG used to be a separate Settings section (toggle + one global
     # pasted .conf) - moved into the Outbounds form instead (Protocol

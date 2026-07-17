@@ -90,10 +90,13 @@ if [[ "$ONLY_IPV4" == true ]]; then
     INT_STAT_STR="Disable"
 fi
 
-declare -a excluded_interfaces=("warp" "lo")
+declare -a excluded_interfaces=("lo")
 
 for interface_name in $(ip link | awk -F': ' '$2 ~ /^[[:alnum:]]+$/ {print $2}'); do
-    if [[ " ${excluded_interfaces[@]} " =~ " ${interface_name} " ]]; then
+    # awg* covers every AmneziaWG interface (hiddifyawg, and each per-Outbound
+    # awg{id} - including a WARP-flavored one, now just an amneziawg-protocol
+    # Outbound like any other instead of a hardcoded "warp" interface).
+    if [[ " ${excluded_interfaces[@]} " =~ " ${interface_name} " ]] || [[ "$interface_name" == awg* ]]; then
         continue
     fi
     

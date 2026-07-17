@@ -29,9 +29,12 @@ class OutboundProtocol(StrEnum):
     wireguard = auto()
     freedom = auto()
     # Not a real dialed protocol - binds outbound traffic to a standalone
-    # per-row AmneziaWG interface (awg{id}) that other/amneziawg/ brings up,
-    # the same way the built-in WARP outbound binds to the "warp" interface.
-    # The address/port/uuid/peer fields describe that tunnel's [Interface]/
+    # per-row AmneziaWG interface (awg{id}) that other/amneziawg/ brings up.
+    # This is also how a Cloudflare WARP outbound is built (address=
+    # engage.cloudflareclient.com, port=2408, peer_public_key=WARP's
+    # well-known key) - WARP has no dedicated toggle/interface of its own
+    # anymore, it's just an amneziawg-protocol row like any other. The
+    # address/port/uuid/peer fields describe that tunnel's [Interface]/
     # [Peer]; see CustomOutbound.render_amneziawg_conf()/to_xray_dict()/
     # to_singbox_dict().
     amneziawg = auto()
@@ -236,9 +239,7 @@ class CustomOutbound(db.Model):  # type: ignore
         own traffic tunneled - only whichever proxy connections
         bind_interface explicitly points at this interface should use it.
         Table = off makes wg-quick/awg-quick create/address/bring up the
-        interface only, with no routing table changes - exactly the same
-        fix other/warp/wireguard/run.sh.j2 already applies to its own
-        interface for the identical reason."""
+        interface only, with no routing table changes."""
         # When the admin has pasted a full .conf, use it verbatim (they're
         # explicitly saying "I know what this needs to look like"). Only
         # inject `Table = off` if it isn't already there - without it,
