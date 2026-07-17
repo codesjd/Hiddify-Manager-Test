@@ -281,7 +281,10 @@ class ConfigEnum(metaclass=FastEnum):
     tls_mixed_case = _BoolConfigDscr(ConfigCategory.tls_trick)
     tls_padding_enable = _BoolConfigDscr(ConfigCategory.tls_trick, ApplyMode.apply_config)
     tls_padding_length = _StrConfigDscr(ConfigCategory.tls_trick, ApplyMode.apply_config)
-    tls_ech_enable = _BoolConfigDscr(ConfigCategory.tls, ApplyMode.apply_config)
+    # Removed from the TLS Settings section - retired to ConfigCategory.hidden
+    # (same pattern as tls_ports above) rather than deleted, since old DB
+    # rows/migrations still reference the key.
+    tls_ech_enable = _BoolConfigDscr(ConfigCategory.hidden, ApplyMode.apply_config)
     
 
     # mux
@@ -319,7 +322,13 @@ class ConfigEnum(metaclass=FastEnum):
     proxy_path_client = _StrConfigDscr(ConfigCategory.too_advanced, ApplyMode.apply_config, hide_in_virtual_child=True)
     firewall = _BoolConfigDscr(ConfigCategory.general, ApplyMode.apply_config, hide_in_virtual_child=True)
     netdata = _BoolConfigDscr(ConfigCategory.hidden, ApplyMode.reinstall)  # removed
-    http_proxy_enable = _BoolConfigDscr(ConfigCategory.http)
+    # HTTP Configuration section removed from Settings - http_ports (above)
+    # was the only other member of this category, so this was the last field
+    # keeping the section around. Retired to ConfigCategory.hidden rather
+    # than deleted, since old DB rows/migrations still reference the key,
+    # and hutils/proxy/shared.py still reads it to decide whether to offer
+    # plain-HTTP proxy links at all.
+    http_proxy_enable = _BoolConfigDscr(ConfigCategory.hidden)
     block_iran_sites = _BoolConfigDscr(ConfigCategory.proxies, ApplyMode.apply_config, hide_in_virtual_child=True)
     allow_invalid_sni = _BoolConfigDscr(ConfigCategory.tls, ApplyMode.apply_config, hide_in_virtual_child=True)
     auto_update = _BoolConfigDscr(ConfigCategory.hidden if os.environ.get('HIDDIFY_DISABLE_UPDATE',"").lower() in {'1',"true"} else ConfigCategory.general, ApplyMode.apply_config, True, hide_in_virtual_child=True)
