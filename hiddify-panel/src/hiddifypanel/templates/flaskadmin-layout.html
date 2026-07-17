@@ -129,7 +129,15 @@
         border-radius: 16px;
         box-shadow: var(--card-shadow);
         margin: 0 0 12px;
-        padding: 16px;
+        /* Horizontal padding intentionally 0, not 16px: .modal-body already
+           applies the form's one shared horizontal inset, and a second
+           layer of left/right padding here would push the legend and the
+           moved fields' labels further right than Mode/Domain/Alias/
+           Resolve IP, which only get that single modal-body inset - the
+           two groups would no longer start at the same x. Vertical padding
+           stays, since that only affects spacing above/below the legend
+           and around .cat-body, not horizontal alignment. */
+        padding: 16px 0;
         box-sizing: border-box;
     }
     .cat-legend {
