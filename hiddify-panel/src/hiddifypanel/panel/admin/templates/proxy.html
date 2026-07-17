@@ -58,21 +58,30 @@
        just re-laid-out via the shared .toggle-grid/.toggle-row CSS in
        admin-layout.html instead of a hand-rolled markup rebuild. */
     .global-form .toggle-grid {
-        display: grid;
+        display: grid !important;
+        grid-template-columns: repeat(2, 1fr) !important;
+        gap: 12px !important;
+        align-items: stretch !important; /* هر ردیف هر دو ستون رو هم‌قد می‌کنه، بدون هاردکد */
+    }
+    @media (max-width: 900px) {
+        .global-form .toggle-grid {
+            grid-template-columns: 1fr !important;
+        }
     }
     .global-form .form-group.custom-switch {
         background: var(--surface);
         border: 1px solid var(--border);
-        border-radius: 12px;
-        padding: 14px !important;
+        border-radius: 14px;
+        padding: 16px !important;
         margin-bottom: 0 !important;
-        display: flex;
-        flex-direction: column;
-        justify-content: center;
-        align-items: center;
+        display: flex !important;
+        flex-direction: column !important;
+        justify-content: center !important;   /* محتوا عمودی وسط باکس */
+        align-items: flex-start !important;   /* ولی افقی چپ‌چین بمونه */
+        text-align: left !important;
     }
     .global-form .form-text.text-muted {
-        text-align: center;
+        text-align: left !important;
     }
     [dir="rtl"] .global-form .form-group.custom-switch {
         padding: 14px 44px 14px 16px !important;
