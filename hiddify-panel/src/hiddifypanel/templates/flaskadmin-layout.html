@@ -25,6 +25,62 @@
     .breadcrumb {
         display: none;
     }
+
+    /* Custom checkbox-list widget replacing the native <select multiple>
+       for #show_domains (Domain create/edit) - see initDomainMultiSelect()
+       below. Scrollable instead of growing the page with hundreds of
+       domains, filterable, and a single Select all/Clear all toggle
+       instead of requiring Ctrl+click on the native control. */
+    .domain-multiselect-summary-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        font-size: 12px;
+        color: var(--muted, inherit);
+        margin-bottom: 6px;
+    }
+    .domain-multiselect-selectall {
+        cursor: pointer;
+    }
+    .domain-multiselect-list {
+        max-height: 180px;
+        overflow-y: auto;
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+        margin-top: 8px;
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        padding: 6px;
+    }
+    .domain-multiselect-row {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 9px 12px;
+        cursor: pointer;
+        border-radius: 8px;
+        font-size: 13px;
+    }
+    .domain-multiselect-row.selected {
+        background: var(--track);
+    }
+    .domain-multiselect-check {
+        width: 16px;
+        height: 16px;
+        border-radius: 4px;
+        border: 1px solid var(--border);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+        color: #fff;
+        font-size: 11px;
+    }
+    .domain-multiselect-check.selected {
+        background: var(--accent);
+        border-color: var(--accent);
+    }
 </style>
 {% endblock %}
 
@@ -77,9 +133,106 @@
         $el.multipleSelect({ width: '100%', filter: true, placeholder: placeholder || '{{ _("Select...") }}' });
     }
 
+    // Replaces the native <select multiple id="show_domains"> with a
+    // filterable, scrollable checkbox list - the native control needs
+    // Ctrl+click and has no search, which doesn't scale past a handful of
+    // domains. The original <select> is kept in the DOM (just hidden, not
+    // removed) and its <option>.selected state is updated on every click,
+    // so flask-admin's own form submit still reads the real multi-select
+    // value - no backend/WTForms change needed.
+    function initDomainMultiSelect($select) {
+        if (!$select.length) return;
+
+        // Idempotent like initMultipleSelect()'s .multipleSelect('destroy') -
+        // update_hiddify_ui() can run more than once per modal open (see
+        // bindModalOpenHandler() below), so drop any previous wrapper
+        // before rebuilding instead of stacking a second one.
+        var previous = $select.data('domainMultiselectWrapper');
+        if (previous) {
+            previous.remove();
+        }
+        $select.hide();
+
+        var rows = [];
+        var selectedCount = 0;
+
+        var $wrapper = $('<div class="domain-multiselect-wrapper"></div>');
+        var $summaryRow = $('<div class="domain-multiselect-summary-row"></div>');
+        var $summaryText = $('<span class="domain-multiselect-summary-text"></span>');
+        var $selectAllBtn = $('<a href="#" class="domain-multiselect-selectall"></a>');
+        var $filter = $('<input type="text" class="form-control domain-multiselect-filter">')
+            .attr('placeholder', '{{ _("Filter domains...") }}');
+        var $list = $('<div class="domain-multiselect-list"></div>');
+
+        function updateSummary() {
+            var total = rows.length;
+            if (selectedCount === 0) {
+                $summaryText.text('{{ _("None selected") }}');
+            } else if (selectedCount === total) {
+                $summaryText.text('{{ _("All domains selected") }}');
+            } else {
+                $summaryText.text(selectedCount + ' {{ _("of") }} ' + total + ' {{ _("selected") }}');
+            }
+            $selectAllBtn.text(selectedCount === total ? '{{ _("Clear all") }}' : '{{ _("Select all") }}');
+        }
+
+        Array.from($select[0].options).forEach(function (option) {
+            var $row = $('<div class="domain-multiselect-row"></div>');
+            var $check = $('<div class="domain-multiselect-check"></div>');
+            var $label = $('<span class="domain-multiselect-label"></span>').text(option.text);
+            $row.append($check).append($label);
+
+            function setChecked(isChecked) {
+                option.selected = isChecked;
+                $row.toggleClass('selected', isChecked);
+                $check.toggleClass('selected', isChecked).html(isChecked ? '&#10003;' : '');
+            }
+
+            if (option.selected) {
+                selectedCount++;
+            }
+            setChecked(option.selected);
+
+            $row.on('click', function () {
+                var willSelect = !option.selected;
+                setChecked(willSelect);
+                selectedCount += willSelect ? 1 : -1;
+                updateSummary();
+            });
+
+            $list.append($row);
+            rows.push({ option: option, $row: $row, setChecked: setChecked });
+        });
+
+        $filter.on('input', function () {
+            var q = $filter.val().toLowerCase();
+            rows.forEach(function (r) {
+                r.$row.toggle(r.option.text.toLowerCase().indexOf(q) !== -1);
+            });
+        });
+
+        $selectAllBtn.on('click', function (e) {
+            e.preventDefault();
+            var willSelectAll = selectedCount !== rows.length;
+            rows.forEach(function (r) {
+                r.setChecked(willSelectAll);
+            });
+            selectedCount = willSelectAll ? rows.length : 0;
+            updateSummary();
+        });
+
+        updateSummary();
+
+        $wrapper.append($summaryRow.append($summaryText).append($selectAllBtn))
+            .append($filter)
+            .append($list);
+        $select.after($wrapper);
+        $select.data('domainMultiselectWrapper', $wrapper);
+    }
+
     function update_hiddify_ui() {
 
-        initMultipleSelect($("#show_domains"), '{{ _("All domains") }}');
+        initDomainMultiSelect($("#show_domains"));
         initMultipleSelect($("#download_domain"), '{{ _("None") }}');
         initMultipleSelect($("#inbound_tags"), '{{ _("All inbounds") }}');
 
