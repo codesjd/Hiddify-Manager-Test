@@ -8,9 +8,10 @@
             {
                 "tag": "xicmpin_{{port}}",
                 {# ICMP has no ports - the raw socket xicmp opens is bound by
-                   its own "ip" mask setting below, not by listen/port here.
-                   listen/port only exist to satisfy Xray's InboundConfig
-                   schema and give this inbound a unique tag/log identity. #}
+                   its own "listenIp" mask setting below, not by listen/port
+                   here. listen/port only exist to satisfy Xray's
+                   InboundConfig schema and give this inbound a unique
+                   tag/log identity. #}
                 "listen": "127.0.0.1",
                 "port": {{port}},
                 {% set protocol='vless' %}
@@ -26,18 +27,17 @@
                         "downlinkCapacity": 20,
                         "congestion": false
                     },
+                    {# Real Xray-core JSON schema (infra/conf/transport_internet.go's
+                       Xicmp struct, verified against v26.3.27 source):
+                       "listenIp" (not "ip") and "id" only - there is no
+                       "dgram" field in this Xray version's config schema at
+                       all, so it's not something either side can configure. #}
                     "finalmask": {
                         "udp": [
                             {
                                 "type": "xicmp",
                                 "settings": {
-                                    {# Hardcoded, not admin-configurable - see
-                                       DomainAdmin.py's comment on the retired
-                                       xicmp_dgram field. Xray runs as root
-                                       here, so the real raw socket is always
-                                       available and always correct. #}
-                                    "dgram": false,
-                                    "ip": "0.0.0.0",
+                                    "listenIp": "0.0.0.0",
                                     "id": {{d['xicmp_id']}}
                                 }
                             }
