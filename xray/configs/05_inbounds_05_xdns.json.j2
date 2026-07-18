@@ -8,7 +8,6 @@
     "inbounds": [
         {% for d in domains if d['mode']=='xdns' %}
             {% set port = d['internal_port_xdns'] %}
-            {% set resolvers = d['xdns_resolvers'].split(',') | map('trim') | select | list %}
             {
                 "tag": "xdnsin_{{port}}",
                 {# dnstm's DNS router (see other/dnstt/dnstm_configs/config.json.j2)
@@ -35,17 +34,19 @@
                         "downlinkCapacity": 20,
                         "congestion": false
                     },
+                    {# Real Xray-core JSON schema (infra/conf/transport_internet.go's
+                       Xdns struct, verified against v26.3.27 source): just a
+                       single "domain" string. There is no "resolvers"/"domains"
+                       (plural) field - which public resolver a client's queries
+                       go through is purely a function of the outbound's own
+                       address:port (see hutils/proxy/shared.py's xdns branch),
+                       not anything configured inside the mask itself. #}
                     "finalmask": {
                         "udp": [
                             {
                                 "type": "xdns",
                                 "settings": {
-                                    "domains": ["{{d.domain}}"],
-                                    "resolvers": [
-                                        {% for r in resolvers %}
-                                            "{{d.domain}}+udp://{{r}}"{% if not loop.last %},{% endif %}
-                                        {% endfor %}
-                                    ]
+                                    "domain": "{{d.domain}}"
                                 }
                             }
                         ]

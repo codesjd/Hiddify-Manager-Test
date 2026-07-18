@@ -497,6 +497,14 @@ def add_mask_finalmask_stream(ss: dict, proxy: dict):
     # (xray/configs/05_inbounds_05_xdns.json.j2 /
     # 05_inbounds_06_xicmp.json.j2) - xdns's own docs say its MTU is too
     # small for QUIC, hence the much smaller mtu there than xicmp's.
+    #
+    # finalmask.settings schema below is taken directly from Xray-core's own
+    # infra/conf/transport_internet.go (Xdns/Xicmp structs, verified against
+    # the v26.3.27 source) - NOT from any doc summary. There is no
+    # "resolvers"/"domains" (plural) field for xdns, and no "dgram" field
+    # for xicmp at all in this schema; getting this wrong previously made
+    # Xray-core hard-reject the whole config at startup ("failed to build
+    # mask with type xdns > infra/conf: empty domain").
     ss['network'] = 'mkcp'
     if proxy['proto'] == ProxyProto.xdns:
         ss['kcpSettings'] = {
@@ -506,14 +514,11 @@ def add_mask_finalmask_stream(ss: dict, proxy: dict):
             'downlinkCapacity': 20,
             'congestion': False,
         }
-        resolvers = proxy.get('resolvers') or ['8.8.8.8:53']
-        xdns_domain = proxy['xdns_domain']
         ss['finalmask'] = {
             'udp': [{
                 'type': 'xdns',
                 'settings': {
-                    'domains': [xdns_domain],
-                    'resolvers': [f'{xdns_domain}+udp://{r}' for r in resolvers],
+                    'domain': proxy['xdns_domain'],
                 }
             }]
         }
@@ -529,14 +534,7 @@ def add_mask_finalmask_stream(ss: dict, proxy: dict):
             'udp': [{
                 'type': 'xicmp',
                 'settings': {
-                    # Hardcoded true, not admin-configurable: the
-                    # unprivileged datagram socket is Xray's own recommended
-                    # default for end-user clients that don't run elevated.
-                    # The server side (05_inbounds_06_xicmp.json.j2) is the
-                    # mirror-image hardcoded false, since Xray already runs
-                    # as root there and always needs the real raw socket.
-                    'dgram': True,
-                    'ip': '0.0.0.0',
+                    'listenIp': '0.0.0.0',
                     'id': proxy['xicmp_id'],
                 }
             }]
