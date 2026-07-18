@@ -25,12 +25,18 @@ if ! command -v obfs-server >/dev/null 2>&1; then
     # build.
     install_package build-essential autoconf libtool libssl-dev libev-dev automake asciidoc xmlto git
     build_dir=$(mktemp -d)
+    # CFLAGS=-Wno-error: src/Makefile.am hardcodes -Werror, and newer GCC
+    # (e.g. Ubuntu 26.04's) flags a previously-silent qualifier-discard
+    # warning in upstream's unmaintained jconf.c as an error, failing the
+    # build outright. -Wno-error (placed after -Werror on the compile
+    # line) neutralizes that without touching upstream's source or
+    # dropping -Wall's other checks.
     if git clone --depth 1 https://github.com/shadowsocks/simple-obfs.git "$build_dir/simple-obfs" \
         && (
             cd "$build_dir/simple-obfs" \
             && git submodule update --init --recursive --depth 1 \
             && ./autogen.sh \
-            && ./configure \
+            && ./configure CFLAGS="-Wno-error" \
             && make -j"$(nproc)" \
             && make install
         )
