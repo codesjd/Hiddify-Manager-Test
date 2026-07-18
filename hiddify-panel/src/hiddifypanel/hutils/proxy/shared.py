@@ -117,20 +117,13 @@ def get_port(proxy: Proxy, hconfigs: dict, domain_db: Domain, ptls: int, phttp: 
         port = domain_db.internal_port_xdns
     elif proxy.proto == ProxyProto.xicmp:
         port = domain_db.internal_port_xicmp
-    elif domain_db.mode == DomainType.special_reality_tcp and hconfigs[ConfigEnum.core_type] == "xray":
+    elif domain_db.mode == DomainType.special_reality_tcp:
         # tcp+vision REALITY binds directly (see xray/configs/
-        # 05_inbounds_02_reality_main.json.j2, "listen": "::") instead of
-        # routing through HAProxy's SNI frontend on ptls (443) - the extra
-        # hop widened REALITY's own validation-vs-decoy-response race
-        # closely enough to cause "received real certificate" failures.
-        # grpc/xhttp reality still shares ptls via HAProxy, so this only
-        # applies to the tcp mode - and only under the Xray core: the
-        # sing-box equivalent (singbox/configs/05_inbounds_2061_reality_
-        # main.json.j2) always binds 127.0.0.1 + proxy_protocol regardless
-        # of tcp/grpc, relying on HAProxy's sp_special_reality_tcp_{port}
-        # SNI backend to reach it - using internal_port_special as the
-        # public port there points the client at a loopback-only listener
-        # nothing external can reach.
+        # 05_inbounds_02_reality_main.json.j2) instead of routing through
+        # HAProxy's SNI frontend on ptls (443) - the extra hop widened
+        # REALITY's own validation-vs-decoy-response race closely enough to
+        # cause "received real certificate" failures. grpc/xhttp reality
+        # still shares ptls via HAProxy, so this only applies to the tcp mode.
         port = domain_db.internal_port_special
     elif l3 == 'ssh':
         port = hconfigs[ConfigEnum.ssh_server_port]
