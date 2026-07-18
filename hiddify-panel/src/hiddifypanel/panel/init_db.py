@@ -14,7 +14,21 @@ from hiddifypanel.database import db, db_execute
 
 
 from loguru import logger
-MAX_DB_VERSION = 146
+MAX_DB_VERSION = 147
+
+
+def _v147(child_id):
+    """XHTTP + xDNS finalmask (Xray-core's new DNS-tunneling UDP mask,
+    XTLS/Xray-core#5560/#5633) - an opt-in add-on to the existing XHTTP
+    inbound, off by default so it can't change anything for an admin who
+    doesn't turn it on. xhttp_xdns_domains lists which domain(s) the server
+    should accept xDNS-tunneled DNS queries for (each one needs its own NS
+    delegation to this server, same requirement as dnstt_enable);
+    xhttp_xdns_resolvers mirrors dnstt_resolvers - the public DNS resolvers
+    client-side configs are told to route those queries through."""
+    set_hconfig(ConfigEnum.xhttp_xdns_enable, False, child_id=child_id)
+    set_hconfig(ConfigEnum.xhttp_xdns_domains, "", child_id=child_id)
+    set_hconfig(ConfigEnum.xhttp_xdns_resolvers, "8.8.8.8:53,1.1.1.1:53", child_id=child_id)
 
 
 def _v145(child_id):

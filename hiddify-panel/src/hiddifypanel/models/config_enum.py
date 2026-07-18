@@ -460,6 +460,15 @@ class ConfigEnum(metaclass=FastEnum):
     grpc_enable = _BoolConfigDscr(ConfigCategory.proxies, ApplyMode.apply_config)
     httpupgrade_enable = _BoolConfigDscr(ConfigCategory.proxies, ApplyMode.apply_config)
     xhttp_enable = _BoolConfigDscr(ConfigCategory.proxies, ApplyMode.apply_config)
+    # Opt-in add-on to xhttp_enable, not a separate proxy: stacks Xray-core's
+    # new xdns finalmask (XTLS/Xray-core#5560/#5633) onto the existing XHTTP
+    # inbound. xhttp_xdns_domains needs its own NS delegation to this server
+    # per entry, same requirement as dnstt_enable; xhttp_xdns_resolvers
+    # mirrors dnstt_resolvers - the public DNS resolvers client configs are
+    # told to route the DNS-tunneled queries through.
+    xhttp_xdns_enable = _BoolConfigDscr(ConfigCategory.proxies, ApplyMode.apply_config)
+    xhttp_xdns_domains = _StrConfigDscr(ConfigCategory.proxies, ApplyMode.apply_config)
+    xhttp_xdns_resolvers = _StrConfigDscr(ConfigCategory.proxies, ApplyMode.apply_config)
 
     naive_enable = _BoolConfigDscr(ConfigCategory.proxies, ApplyMode.apply_config)
     naive_port = _StrConfigDscr(ConfigCategory.proxies, ApplyMode.apply_config)
