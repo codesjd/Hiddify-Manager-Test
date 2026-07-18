@@ -116,6 +116,13 @@ def to_xray(proxy: dict) -> dict:
     }
 
     outbound['protocol'] = 'shadowsocks' if outbound['protocol'] == 'ss' else outbound['protocol']
+    # xdns/xicmp are ProxyProto values for admin-toggle/domain-mode-matching
+    # purposes only (see is_proxy_valid()) - the wire protocol Xray-core
+    # actually speaks underneath the finalmask is plain vless, same as any
+    # other vless proxy. Emitting "protocol": "xdns"/"xicmp" literally isn't
+    # a real Xray-core protocol at all and fails config parsing outright.
+    if proxy['proto'] in (ProxyProto.xdns, ProxyProto.xicmp):
+        outbound['protocol'] = 'vless'
     # add multiplex to outbound
     add_multiplex(outbound, proxy)
 
@@ -138,6 +145,11 @@ def add_proto_settings(base: dict, proxy: dict):
     elif proxy['proto'] == ProxyProto.ss:
         add_shadowsocks_settings(base, proxy)
     elif proxy['proto'] == ProxyProto.vless:
+        add_vless_settings(base, proxy)
+    elif proxy['proto'] in (ProxyProto.xdns, ProxyProto.xicmp):
+        # Underlying protocol is vless (see to_xray()'s protocol override
+        # above) - address/port/uuid all come from the same proxy dict
+        # fields any other vless proxy uses.
         add_vless_settings(base, proxy)
     elif proxy['proto'] == ProxyProto.vmess:
         add_vmess_settings(base, proxy)
@@ -286,6 +298,17 @@ def add_stream_settings(base: dict, proxy: dict):
     ss = base['streamSettings']
 
     _add_security(ss, proxy, proxy)
+
+    if proxy['proto'] in (ProxyProto.xdns, ProxyProto.xicmp):
+        # finalmask masks (XTLS/Xray-core#5560/#5633) only ever attach to
+        # mKCP transport (Xray-core docs: "header/seed fields removed, use
+        # FinalMask instead") - never xhttp/ws/grpc/tcp, and never TLS
+        # security (security stays 'none' from _add_security() above, which
+        # is correct here). Returns early: none of the transport-matching
+        # branches below apply to a masked mKCP outbound.
+        add_mask_finalmask_stream(ss, proxy)
+        return
+
     if proxy['l3'] == ProxyL3.kcp:
         ss['network'] = 'kcp'
         add_kcp_stream(ss, proxy)
@@ -458,6 +481,56 @@ def add_kcp_stream(ss: dict, proxy: dict):
         #     'type': 'none'  # choices: none(default), srtp, utp, wechat-video, dtls, wireguards
         # }
     }
+
+
+def add_mask_finalmask_stream(ss: dict, proxy: dict):
+    # kcpSettings mirror the dedicated server-side inbound exactly
+    # (xray/configs/05_inbounds_05_xdns.json.j2 /
+    # 05_inbounds_06_xicmp.json.j2) - xdns's own docs say its MTU is too
+    # small for QUIC, hence the much smaller mtu there than xicmp's.
+    ss['network'] = 'mkcp'
+    if proxy['proto'] == ProxyProto.xdns:
+        ss['kcpSettings'] = {
+            'mtu': 500,
+            'tti': 20,
+            'uplinkCapacity': 5,
+            'downlinkCapacity': 20,
+            'congestion': False,
+        }
+        resolvers = proxy.get('resolvers') or ['8.8.8.8:53']
+        xdns_domain = proxy['xdns_domain']
+        ss['finalmask'] = {
+            'udp': [{
+                'type': 'xdns',
+                'settings': {
+                    'domains': [xdns_domain],
+                    'resolvers': [f'{xdns_domain}+udp://{r}' for r in resolvers],
+                }
+            }]
+        }
+    elif proxy['proto'] == ProxyProto.xicmp:
+        ss['kcpSettings'] = {
+            'mtu': 1200,
+            'tti': 20,
+            'uplinkCapacity': 5,
+            'downlinkCapacity': 20,
+            'congestion': False,
+        }
+        ss['finalmask'] = {
+            'udp': [{
+                'type': 'xicmp',
+                'settings': {
+                    # Clients default to the unprivileged datagram socket
+                    # (Xray docs: dgram=true is client-only, lower-privilege)
+                    # regardless of this server's own xicmp_dgram, which
+                    # controls the server's raw-socket requirement, not the
+                    # client's - see make_proxy()'s xicmp branch.
+                    'dgram': proxy.get('xicmp_dgram', True),
+                    'ip': '0.0.0.0',
+                    'id': proxy['xicmp_id'],
+                }
+            }]
+        }
 
 
 def add_quic_stream(ss: dict, proxy: dict):

@@ -14,7 +14,29 @@ from hiddifypanel.database import db, db_execute
 
 
 from loguru import logger
-MAX_DB_VERSION = 146
+MAX_DB_VERSION = 147
+
+
+def _v147(child_id):
+    """Default public DNS resolvers for xdns-mode domains (Xray-core's
+    DNS-tunneling finalmask, XTLS/Xray-core#5560/#5633). xdns/xicmp are
+    per-domain modes (see DomainType.xdns/xicmp in models/domain.py), not
+    global toggles - a domain only gets a mask-isolated inbound when its
+    own 'mode' is set to xdns/xicmp in the domain form. This hconfig is
+    just the fallback resolver list a domain uses when it doesn't set its
+    own via extra_params.xdns_resolvers, mirroring how dnstt domains don't
+    need a global on/off switch either.
+
+    A NEW version number, not a rewrite of an already-shipped one: an
+    earlier commit on this branch used _v145 for this same seed. Any
+    install that already ran that _v145 (any db_version >= 145) permanently
+    skips it on every future boot - the version-gate only checks the
+    number, never whether a given version's body actually changed. Reusing
+    _v145 here would have silently left xdns_resolvers unset (and
+    effective_xdns_resolvers crashing on a None.split()) on every
+    already-migrated install, including this repo's own earlier test runs.
+    """
+    set_hconfig(ConfigEnum.xdns_resolvers, "8.8.8.8:53,1.1.1.1:53", child_id=child_id)
 
 
 def _v146(child_id):
@@ -29,18 +51,6 @@ def _v146(child_id):
         Proxy(l3=ProxyL3.custom, transport=ProxyTransport.custom, cdn='direct', proto=ProxyProto.xdns, enable=True, name="XDNS"),
         Proxy(l3=ProxyL3.custom, transport=ProxyTransport.custom, cdn='direct', proto=ProxyProto.xicmp, enable=True, name="XICMP"),
     ])
-
-
-def _v145(child_id):
-    """Default public DNS resolvers for xdns-mode domains (Xray-core's
-    DNS-tunneling finalmask, XTLS/Xray-core#5560/#5633). xdns/xicmp are
-    per-domain modes (see DomainType.xdns/xicmp in models/domain.py), not
-    global toggles - a domain only gets a mask-isolated inbound when its
-    own 'mode' is set to xdns/xicmp in the domain form. This hconfig is
-    just the fallback resolver list a domain uses when it doesn't set its
-    own via extra_params.xdns_resolvers, mirroring how dnstt domains don't
-    need a global on/off switch either."""
-    set_hconfig(ConfigEnum.xdns_resolvers, "8.8.8.8:53,1.1.1.1:53", child_id=child_id)
 
 
 def _v144(child_id):

@@ -556,9 +556,16 @@ def make_proxy(hconfigs: dict, proxy: Proxy, domain_db: Domain, phttp=80, ptls=4
         # dials one of these public resolvers, not this server's own IP -
         # the domain being tunneled is encoded inside the DNS query itself.
         # See xray/configs/05_inbounds_05_xdns.json.j2 for the matching
-        # server-side inbound this has to mirror exactly.
+        # server-side inbound this has to mirror exactly. Overrides the
+        # 'server'/'port' sni_host_server_extractor() set above (the tunnel
+        # domain / this server's internal listening port) - neither is a
+        # dial target a remote client can actually reach.
         base['xdns_domain'] = domain
-        base['resolvers'] = [r.strip() for r in domain_db.effective_xdns_resolvers.split(",") if r.strip()]
+        resolvers = [r.strip() for r in domain_db.effective_xdns_resolvers.split(",") if r.strip()]
+        base['resolvers'] = resolvers
+        resolver_host, _, resolver_port = (resolvers[0] if resolvers else '8.8.8.8:53').rpartition(':')
+        base['server'] = resolver_host or '8.8.8.8'
+        base['port'] = int(resolver_port) if resolver_port.isdigit() else 53
         base['password'] = "h"
         return base
 
