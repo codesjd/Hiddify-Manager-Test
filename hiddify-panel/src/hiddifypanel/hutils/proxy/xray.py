@@ -290,6 +290,7 @@ def to_link(proxy: dict) -> str | dict:
     if proxy.get('transport') in {ProxyTransport.xhttp}:
         q['core'] = 'xray'
         _add_xhttp_extra(q, proxy)
+        _add_xhttp_finalmask(q, proxy)
     if proxy['l3'] != 'quic':
         if proxy.get('params', {}).get('headers', {}).get("type", '') == 'none' or proxy['l3'] != ProxyL3.http:
             q['headerType'] = 'none'
@@ -434,3 +435,18 @@ def _add_xhttp_extra(d: dict, proxy):
     xhttp_dict = {}
     _add_xhttp_details(xhttp_dict, proxy)
     d['extra'] = json.dumps(xhttp_dict['xhttpSettings']['extra'], separators=(',', ':'))
+
+
+def _add_xhttp_finalmask(d: dict, proxy):
+    # Reuses _add_xhttp_xdns_finalmask's own allow-list check (only a
+    # domain actually listed in xhttp_xdns_domains gets a mask) instead of
+    # duplicating that logic here - same single-source-of-truth pattern as
+    # _add_xhttp_extra() above reusing _add_xhttp_details(). New vless://
+    # query param per XTLS/Xray-core#5560/#5633's finalmask link-format
+    # change: a URL-encoded JSON object under &fm=, alongside (not instead
+    # of) the existing &extra= xhttpSettings.extra blob.
+    from .xrayjson import _add_xhttp_xdns_finalmask
+    ss = {}
+    _add_xhttp_xdns_finalmask(ss, proxy)
+    if 'finalmask' in ss:
+        d['fm'] = json.dumps(ss['finalmask'], separators=(',', ':'))

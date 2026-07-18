@@ -416,6 +416,7 @@ def _add_xhttp_details(ss: dict, proxy: dict):
             "headers": proxy['params'].get('headers', {})
         }
     }
+    _add_xhttp_xdns_finalmask(ss, proxy)
     if proxy.get("download"):
         # The download sub-object is only guaranteed to carry WHATEVER
         # sni_host_server_extractor()/shared.py happened to set on it for
@@ -439,6 +440,33 @@ def _add_xhttp_details(ss: dict, proxy: dict):
         _add_security(dlsettings, proxy, dl)
 
         ss['xhttpSettings']['extra']['downloadSettings']=dlsettings
+
+
+def _add_xhttp_xdns_finalmask(ss: dict, proxy: dict):
+    # Opt-in add-on (XTLS/Xray-core#5560/#5633): only stacked onto a domain
+    # the admin has actually put in xhttp_xdns_domains (each one needs its
+    # own NS delegation to this server, same requirement as dnstt) - this
+    # has to be an allow-list match, not a blanket "on for every xhttp
+    # proxy" toggle, since adding the mask to a domain that isn't set up
+    # for DNS tunneling would just break that domain, not degrade
+    # gracefully.
+    if not hconfig(ConfigEnum.xhttp_xdns_enable):
+        return
+    domain_obj = proxy.get('dbdomain')
+    domain_name = domain_obj.domain if domain_obj else proxy.get('host')
+    allowed = {d.strip() for d in hconfig(ConfigEnum.xhttp_xdns_domains).split(',') if d.strip()}
+    if domain_name not in allowed:
+        return
+    resolvers = [r.strip() for r in hconfig(ConfigEnum.xhttp_xdns_resolvers).split(',') if r.strip()]
+    ss['finalmask'] = {
+        'udp': [{
+            'type': 'xdns',
+            'settings': {
+                'domains': [domain_name],
+                'resolvers': [f'{domain_name}+udp://{r}' for r in resolvers],
+            }
+        }]
+    }
 
 
 def add_kcp_stream(ss: dict, proxy: dict):
