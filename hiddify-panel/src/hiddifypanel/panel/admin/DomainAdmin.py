@@ -41,10 +41,14 @@ class DnsTT(BaseModel):
     # override just that domain's transport/security params without
     # touching the global config. Without extra='allow', pydantic silently
     # dropped any key that wasn't one of the dnstt-specific fields below.
+    #
+    # Also doubles as the per-domain override schema for xdns/xicmp-mode
+    # domains (xdns_resolvers/xicmp_dgram/xicmp_id below) - same reasoning,
+    # these modes have no dedicated DB columns either.
     model_config = ConfigDict(extra='allow')
 
     mtu: int = Field(0, description="maximum size of DNS responses (0-> use default 1232)")
-    
+
     keepalive: int = Field(0, description='keepalive ping interval in seconds; must be less than idle-timeout (0-> use default 2s)', ge=0,le=100)
     idle_timeout:int = Field(0, description='session idle timeout in seconds; tears down sessions with no data within this period (0-> use default 10 seconds)', ge=0,le=100)
     clientid_size:int=Field(0, description="client ID size in bytes (ignored when dnstt_compat is true) (0-> use default 2)")
@@ -52,7 +56,22 @@ class DnsTT(BaseModel):
     record_type:Literal["","txt", "cname", "a", "aaaa", "mx", "ns", "srv"] =Field("",description='DNS record type for downstream data (txt, cname, a, aaaa, mx, ns, srv) (""->default "txt")')
     max_qname_len: int= Field(0, description='maximum total QNAME length in wire format (253 per RFC 1035) (0->default 101)')
     open_stream_timeout: int = Field(0, description='timeout for opening an smux stream (e.g. 500ms, 3s) (0->default "10s")')
-    
+
+    # xdns mode only (Xray-core finalmask, XTLS/Xray-core#5633): comma-separated
+    # "ip:port" public DNS resolvers this domain's clients should route their
+    # DNS-tunneled queries through. Empty -> falls back to the server-wide
+    # xdns_resolvers hconfig default.
+    xdns_resolvers: str = Field("", description='comma-separated "ip:port" resolvers for this xdns domain ("" -> use the server default)')
+    # xicmp mode only (Xray-core finalmask, XTLS/Xray-core#5560): dgram=true
+    # uses an unprivileged UDP-datagram ICMP socket (client-only per Xray's
+    # docs - Linux/Mac/iOS); the server side needs a real raw ICMP socket
+    # (dgram=false, requires CAP_NET_RAW - see xray.service).
+    xicmp_dgram: bool = Field(False, description="use unprivileged datagram ICMP sockets instead of raw sockets (client-only; server needs CAP_NET_RAW either way)")
+    # Echo-ID filter that lets the server tell this tunnel's ICMP echo
+    # packets apart from ordinary ping traffic on the same host. 0 -> derive
+    # one deterministically from the domain's row id (see Domain.xicmp_id).
+    xicmp_id: int = Field(0, description="ICMP echo ID filter distinguishing this tunnel's packets from real ping traffic (0 -> auto-derive from the domain)", ge=0, le=65535)
+
 
 class DomainAdmin(AdminLTEModelView):
     # edit_modal = False
@@ -78,7 +97,9 @@ class DomainAdmin(AdminLTEModelView):
         domain=_("domain.description"),
         mode=_("Direct mode means you want to use your server directly (for usual use), CDN means that you use your server on behind of a CDN provider. "
                "Fake mode defaults to your server's own direct IP unless you set a different IP/domain in the 'cdn_ip' field below - set it explicitly if you don't want this domain tied to your direct settings. "
-               "dnstt mode is DNS tunneling: it does NOT work like the other modes (no CDN/A-record setup). You must delegate an NS record for this subdomain to your server's IP first, or it will never connect."),
+               "dnstt mode is DNS tunneling: it does NOT work like the other modes (no CDN/A-record setup). You must delegate an NS record for this subdomain to your server's IP first, or it will never connect. "
+               "xdns mode tunnels traffic inside DNS queries (Xray-core's xdns finalmask) - same NS delegation requirement as dnstt, and gets its own isolated inbound so it never affects your other connection modes. "
+               "xicmp mode tunnels traffic inside ICMP (ping) packets (Xray-core's xicmp finalmask) - no DNS/NS setup needed, but the server needs CAP_NET_RAW to open a raw ICMP socket."),
         cdn_ip=_("config.cdn_forced_host.description"),
         show_domains=_('domain.show_domains_description'),
         alias=_('The name shown in the configs for this domain.'),
@@ -432,7 +453,7 @@ class DomainAdmin(AdminLTEModelView):
         # Skip validation for wildcard or empty domains
         if (model.domain.startswith('*') or not model.domain) and model.mode not in [DomainType.direct]:
             return True
-        if model.mode in [DomainType.fake, DomainType.reality, DomainType.relay, DomainType.dnstt]:
+        if model.mode in [DomainType.fake, DomainType.reality, DomainType.relay, DomainType.dnstt, DomainType.xdns, DomainType.xicmp]:
             return True
         if "special" in model.mode:
             return True

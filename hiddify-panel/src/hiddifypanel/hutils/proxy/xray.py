@@ -36,6 +36,44 @@ def to_link(proxy: dict) -> str | dict:
         }
         dnstt=f'dnstt://?{urlencode(params, quote_via=quote)}&{resolvers}'
         return f'socks://{proxy["uuid"]}:{proxy["password"]}@localhost:0#{name_link} -> {dnstt}'
+    if proxy['proto'] == "xdns":
+        # Unlike dnstt (its own dnstt:// scheme, needs an external client),
+        # this is a real vless connection an xdns-aware Xray-core client can
+        # dial directly - so it gets a genuine vless:// link, mkcp transport,
+        # with the finalmask settings under &fm= per XTLS/Xray-core#5633's
+        # updated link-format note. Address/port are the first configured
+        # public resolver: that's the actual UDP dial target for a
+        # DNS-tunneled connection, not this server's own IP.
+        resolvers = proxy.get('resolvers') or ['8.8.8.8:53']
+        xdns_domain = proxy['xdns_domain']
+        fm = {
+            'udp': [{
+                'type': 'xdns',
+                'settings': {
+                    'domains': [xdns_domain],
+                    'resolvers': [f'{xdns_domain}+udp://{r}' for r in resolvers],
+                }
+            }]
+        }
+        resolver_host, _, resolver_port = resolvers[0].rpartition(':')
+        fm_q = quote(json.dumps(fm, separators=(',', ':')))
+        return f'vless://{proxy["uuid"]}@{resolver_host or "8.8.8.8"}:{resolver_port or 53}?type=kcp&headerType=none&security=none&fm={fm_q}#{name_link}'
+    if proxy['proto'] == "xicmp":
+        # Real vless connection too (Xray-core's xicmp finalmask,
+        # XTLS/Xray-core#5560), mkcp transport, dialing this server's own IP
+        # directly - ICMP has no ports, so 'port' is nominal only.
+        fm = {
+            'udp': [{
+                'type': 'xicmp',
+                'settings': {
+                    'dgram': proxy.get('xicmp_dgram', True),
+                    'ip': '0.0.0.0',
+                    'id': proxy['xicmp_id'],
+                }
+            }]
+        }
+        fm_q = quote(json.dumps(fm, separators=(',', ':')))
+        return f'vless://{proxy["uuid"]}@{proxy["server"]}:{proxy["port"]}?type=kcp&headerType=none&security=none&fm={fm_q}#{name_link}'
     if proxy['proto'] == "naive":
         naive = f'naive://{proxy["uuid"]}:{proxy["password"]}@{proxy["server"]}:{proxy["port"]}/?security=tls&sni={proxy["sni"]}&uot=1'
         if proxy.get('mode') == 'Fake' or proxy.get('allow_insecure'):
@@ -290,7 +328,6 @@ def to_link(proxy: dict) -> str | dict:
     if proxy.get('transport') in {ProxyTransport.xhttp}:
         q['core'] = 'xray'
         _add_xhttp_extra(q, proxy)
-        _add_xhttp_finalmask(q, proxy)
     if proxy['l3'] != 'quic':
         if proxy.get('params', {}).get('headers', {}).get("type", '') == 'none' or proxy['l3'] != ProxyL3.http:
             q['headerType'] = 'none'
@@ -437,16 +474,3 @@ def _add_xhttp_extra(d: dict, proxy):
     d['extra'] = json.dumps(xhttp_dict['xhttpSettings']['extra'], separators=(',', ':'))
 
 
-def _add_xhttp_finalmask(d: dict, proxy):
-    # Reuses _add_xhttp_xdns_finalmask's own allow-list check (only a
-    # domain actually listed in xhttp_xdns_domains gets a mask) instead of
-    # duplicating that logic here - same single-source-of-truth pattern as
-    # _add_xhttp_extra() above reusing _add_xhttp_details(). New vless://
-    # query param per XTLS/Xray-core#5560/#5633's finalmask link-format
-    # change: a URL-encoded JSON object under &fm=, alongside (not instead
-    # of) the existing &extra= xhttpSettings.extra blob.
-    from .xrayjson import _add_xhttp_xdns_finalmask
-    ss = {}
-    _add_xhttp_xdns_finalmask(ss, proxy)
-    if 'finalmask' in ss:
-        d['fm'] = json.dumps(ss['finalmask'], separators=(',', ':'))

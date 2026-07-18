@@ -1,0 +1,58 @@
+{% if hconfigs['core_type']=="xray" %}
+{
+    "inbounds": [
+        {% for d in domains if d['mode']=='xdns' %}
+            {% set port = d['internal_port_xdns'] %}
+            {% set resolvers = d['xdns_resolvers'].split(',') | map('trim') | select | list %}
+            {
+                "tag": "xdnsin_{{port}}",
+                {# dnstm's DNS router (see other/dnstt/dnstm_configs/config.json.j2)
+                   owns port 53 and forwards this domain's raw DNS-tunnel
+                   packets here over loopback - this inbound never needs to
+                   be reachable from outside the host directly. #}
+                "listen": "127.0.0.1",
+                "port": {{port}},
+                {% set protocol='vless' %}
+                {% with flow="" %}
+                    {% include '/opt/hiddify-manager/xray/configs/common/protocols/'~protocol~'.pj2' %},
+                {% endwith %}
+                "streamSettings": {
+                    {# xdns's own docs: MTU is too small for QUIC/xhttp - pair
+                       with mKCP. This is a dedicated inbound, never the
+                       shared xhttp/ws/grpc one every other domain uses, so
+                       the finalmask below only ever changes the wire format
+                       for this domain's own tunnel. #}
+                    "network": "mkcp",
+                    "kcpSettings": {
+                        "mtu": 500,
+                        "tti": 20,
+                        "uplinkCapacity": 5,
+                        "downlinkCapacity": 20,
+                        "congestion": false
+                    },
+                    "finalmask": {
+                        "udp": [
+                            {
+                                "type": "xdns",
+                                "settings": {
+                                    "domains": ["{{d.domain}}"],
+                                    "resolvers": [
+                                        {% for r in resolvers %}
+                                            "{{d.domain}}+udp://{{r}}"{% if not loop.last %},{% endif %}
+                                        {% endfor %}
+                                    ]
+                                }
+                            }
+                        ]
+                    }
+                },
+                "sniffing": {
+                    "enabled": false
+                }
+            },
+        {% endfor %}
+    ]
+}
+{% else %}
+{}
+{% endif %}
