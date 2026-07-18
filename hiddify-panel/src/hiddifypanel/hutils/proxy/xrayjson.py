@@ -71,10 +71,18 @@ def configs_as_json(domains: list[Domain], user: User, expire_days: int, remarks
 
         base_config = json.loads(render_template(
             'base_xray_config.json.j2', remarks=remarks))
+        # base_xray_config.json.j2's catch-all routing rule always sends
+        # traffic to an outbound literally tagged "proxy" - the actual
+        # proxy outbound built above keeps its own descriptive tag (used
+        # for base['remarks'] below), so without this rename that rule
+        # matches nothing ("non existing outTag: proxy") and every
+        # connection silently falls through instead of using the proxy.
         if len(outbounds) > 1:
             for out in outbounds:
                 base = copy.deepcopy(base_config)
                 base['remarks'] = out['tag']
+                out = copy.deepcopy(out)
+                out['tag'] = 'proxy'
                 base['outbounds'].insert(0, out)
                 # if all_configs:
                 #     all_configs.insert(0, copy.deepcopy(base_config))
@@ -82,6 +90,7 @@ def configs_as_json(domains: list[Domain], user: User, expire_days: int, remarks
                 all_configs.append(base)
 
         elif len(outbounds) == 1:  # single outbound
+            outbounds[0]['tag'] = 'proxy'
             base_config['outbounds'].insert(0, outbounds[0])
             all_configs = [base_config]
         # len(outbounds) == 0 (active user, but every proxy was filtered out

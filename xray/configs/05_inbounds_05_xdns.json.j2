@@ -1,4 +1,9 @@
-{% if hconfigs['core_type']=="xray" %}
+{# Not gated by core_type: unlike the shared xhttp/ws/grpc streams (gated
+   to avoid duplicating what sing-box already serves as the "primary"
+   core), Xray itself always runs regardless of core_type (see
+   install.sh), and finalmask/xdns has no sing-box equivalent at all - a
+   domain in xdns mode needs this inbound generated no matter which core
+   is set as primary. #}
 {
     "inbounds": [
         {% for d in domains if d['mode']=='xdns' %}
@@ -53,6 +58,3 @@
         {% endfor %}
     ]
 }
-{% else %}
-{}
-{% endif %}

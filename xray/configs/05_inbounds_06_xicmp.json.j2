@@ -1,4 +1,6 @@
-{% if hconfigs['core_type']=="xray" %}
+{# Not gated by core_type - see 05_inbounds_05_xdns.json.j2's comment;
+   Xray always runs regardless of core_type, and xicmp has no sing-box
+   equivalent at all. #}
 {
     "inbounds": [
         {% for d in domains if d['mode']=='xicmp' %}
@@ -44,6 +46,3 @@
         {% endfor %}
     ]
 }
-{% else %}
-{}
-{% endif %}
