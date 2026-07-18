@@ -16,7 +16,14 @@ if ! command -v obfs-server >/dev/null 2>&1; then
 fi
 if ! command -v obfs-server >/dev/null 2>&1; then
     echo "simple-obfs has no apt package on this OS - building obfs-server from source"
-    install_package build-essential autoconf libtool libssl-dev libpcre3-dev libev-dev automake asciidoc xmlto git
+    # No libpcre*-dev here: simple-obfs's Makefile.am references
+    # LIBPCRE_CFLAGS/LIBPCRE_LIBS but configure.ac never AC_SUBSTs them and
+    # no .c file in the tree calls any pcre function (confirmed by reading
+    # the actual upstream source) - it's dead copy-paste from
+    # shadowsocks-libev's build system, not a real dependency, and those
+    # unset make variables just expand to empty rather than breaking the
+    # build.
+    install_package build-essential autoconf libtool libssl-dev libev-dev automake asciidoc xmlto git
     build_dir=$(mktemp -d)
     if git clone --depth 1 https://github.com/shadowsocks/simple-obfs.git "$build_dir/simple-obfs" \
         && (
