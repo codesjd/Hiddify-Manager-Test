@@ -446,10 +446,10 @@
 
         // This known-fields widget only makes sense for DNSTT's own params
         // (mtu/keepalive/...) - xdns/xicmp domains use the same extra_params
-        // blob for their own unrelated keys (xdns_resolvers/xicmp_dgram/
-        // xicmp_id, see DomainAdmin.py's extra_params model) and every other
-        // mode uses it as a free-form override, so leave the raw textarea
-        // editable for all of them instead of showing DNSTT fields that
+        // blob for their own unrelated keys (xdns_resolvers/xicmp_id, see
+        // DomainAdmin.py's extra_params model) and every other mode uses it
+        // as a free-form override, so leave the raw textarea editable for
+        // all of them instead of showing DNSTT fields that
         // don't apply.
         if ($("#mode").val() !== "dnstt") {
             $textarea.show();
@@ -738,8 +738,8 @@
             }else if (["xdns", "xicmp"].includes($("#mode").val())) {
                 // Same shape as dnstt above: no CDN/A-record routing, no
                 // separate download domain, no HTTP/TLS ports - the
-                // xdns_resolvers/xicmp_dgram/xicmp_id knobs live in
-                // extra_params (see DomainAdmin.py's extra_params model),
+                // xdns_resolvers/xicmp_id knobs live in extra_params (see
+                // DomainAdmin.py's extra_params model),
                 // same mechanism dnstt already uses for its own params.
                 $("#resolve_ip").closest('.form-group').hide()
                 $("#servernames").parent().hide();

@@ -455,7 +455,18 @@ def apply_proxy_overrides(pinfo: dict, proxy: Proxy) -> None:
 # fingerprint, hysteria_*, mieru_*, etc.) is fair game, because those are
 # exactly the transport/security knobs that differ between CDN/direct/relay
 # domains and previously could only be set once, globally, for everyone.
-_OVERRIDE_BLOCKLIST = {'uuid', 'dbe', 'dbdomain', 'proto', 'name', 'params'}
+#
+# xicmp_id/xdns_resolvers are also excluded, but for a different reason:
+# make_proxy()'s xdns/xicmp branches already read these from
+# domain_db.extra_params_json() themselves (via
+# effective_xdns_resolvers/effective_xicmp_id), which know how to treat an
+# unset/default value (""/0) as "use the auto-derived default" rather than
+# a literal override. Blindly re-applying the SAME raw extra_params keys
+# here afterward - which is exactly what this function does for every
+# other key - would stomp that effective_* value right back down to the
+# raw stored default (0/""), since CustomJSONField always serializes every
+# known model field, never actually omitting an "unset" one.
+_OVERRIDE_BLOCKLIST = {'uuid', 'dbe', 'dbdomain', 'proto', 'name', 'params', 'xicmp_id', 'xdns_resolvers'}
 
 
 def apply_domain_overrides(pinfo: dict, domain_db: Domain) -> None:
@@ -575,11 +586,6 @@ def make_proxy(hconfigs: dict, proxy: Proxy, domain_db: Domain, phttp=80, ptls=4
         # has no ports, so 'port' here is only a nominal identifier (see
         # xray/configs/05_inbounds_06_xicmp.json.j2).
         base['server'] = hutils.network.get_direct_host_or_ip(4)
-        # Clients should default to the unprivileged datagram ICMP socket
-        # (Xray docs: dgram=true is client-only, lower-privilege) regardless
-        # of this server's own xicmp_dgram setting, which controls the
-        # server's raw-socket requirement, not the client's.
-        base['xicmp_dgram'] = True
         base['xicmp_id'] = domain_db.effective_xicmp_id
         base['password'] = "h"
         return base

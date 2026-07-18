@@ -529,12 +529,13 @@ def add_mask_finalmask_stream(ss: dict, proxy: dict):
             'udp': [{
                 'type': 'xicmp',
                 'settings': {
-                    # Clients default to the unprivileged datagram socket
-                    # (Xray docs: dgram=true is client-only, lower-privilege)
-                    # regardless of this server's own xicmp_dgram, which
-                    # controls the server's raw-socket requirement, not the
-                    # client's - see make_proxy()'s xicmp branch.
-                    'dgram': proxy.get('xicmp_dgram', True),
+                    # Hardcoded true, not admin-configurable: the
+                    # unprivileged datagram socket is Xray's own recommended
+                    # default for end-user clients that don't run elevated.
+                    # The server side (05_inbounds_06_xicmp.json.j2) is the
+                    # mirror-image hardcoded false, since Xray already runs
+                    # as root there and always needs the real raw socket.
+                    'dgram': True,
                     'ip': '0.0.0.0',
                     'id': proxy['xicmp_id'],
                 }
