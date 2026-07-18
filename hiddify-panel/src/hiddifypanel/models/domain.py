@@ -305,7 +305,7 @@ class Domain(db.Model):
 
     @property
     def effective_xdns_resolvers(self) -> str:
-        return self.extra_params_json().get('xdns_resolvers') or hconfig(ConfigEnum.xdns_resolvers, self.child_id)
+        return self.extra_params_json().get('xdns_resolvers') or hconfig(ConfigEnum.xdns_resolvers, self.child_id) or "8.8.8.8:53,1.1.1.1:53"
 
     @property
     def effective_xicmp_dgram(self) -> bool:

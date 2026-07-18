@@ -36,43 +36,22 @@ def to_link(proxy: dict) -> str | dict:
         }
         dnstt=f'dnstt://?{urlencode(params, quote_via=quote)}&{resolvers}'
         return f'socks://{proxy["uuid"]}:{proxy["password"]}@localhost:0#{name_link} -> {dnstt}'
-    if proxy['proto'] == "xdns":
+    if proxy['proto'] in ("xdns", "xicmp"):
         # Unlike dnstt (its own dnstt:// scheme, needs an external client),
-        # this is a real vless connection an xdns-aware Xray-core client can
-        # dial directly - so it gets a genuine vless:// link, mkcp transport,
-        # with the finalmask settings under &fm= per XTLS/Xray-core#5633's
-        # updated link-format note. Address/port are the first configured
-        # public resolver: that's the actual UDP dial target for a
-        # DNS-tunneled connection, not this server's own IP.
-        resolvers = proxy.get('resolvers') or ['8.8.8.8:53']
-        xdns_domain = proxy['xdns_domain']
-        fm = {
-            'udp': [{
-                'type': 'xdns',
-                'settings': {
-                    'domains': [xdns_domain],
-                    'resolvers': [f'{xdns_domain}+udp://{r}' for r in resolvers],
-                }
-            }]
-        }
-        resolver_host, _, resolver_port = resolvers[0].rpartition(':')
-        fm_q = quote(json.dumps(fm, separators=(',', ':')))
-        return f'vless://{proxy["uuid"]}@{resolver_host or "8.8.8.8"}:{resolver_port or 53}?type=kcp&headerType=none&security=none&fm={fm_q}#{name_link}'
-    if proxy['proto'] == "xicmp":
-        # Real vless connection too (Xray-core's xicmp finalmask,
-        # XTLS/Xray-core#5560), mkcp transport, dialing this server's own IP
-        # directly - ICMP has no ports, so 'port' is nominal only.
-        fm = {
-            'udp': [{
-                'type': 'xicmp',
-                'settings': {
-                    'dgram': proxy.get('xicmp_dgram', True),
-                    'ip': '0.0.0.0',
-                    'id': proxy['xicmp_id'],
-                }
-            }]
-        }
-        fm_q = quote(json.dumps(fm, separators=(',', ':')))
+        # these are real vless connections a finalmask-aware Xray-core
+        # client can dial directly - so they get a genuine vless:// link,
+        # mkcp transport, with the finalmask settings under &fm= per
+        # XTLS/Xray-core#5560/#5633's updated link-format note.
+        # proxy['server']/['port'] are already the right dial target (see
+        # make_proxy()'s xdns/xicmp branches - the first public resolver for
+        # xdns, this server's own IP for xicmp). Reuses
+        # add_mask_finalmask_stream() rather than re-declaring the same
+        # finalmask JSON here - single source of truth with the "Full Xray
+        # json" outbound builder.
+        from .xrayjson import add_mask_finalmask_stream
+        ss = {}
+        add_mask_finalmask_stream(ss, proxy)
+        fm_q = quote(json.dumps(ss['finalmask'], separators=(',', ':')))
         return f'vless://{proxy["uuid"]}@{proxy["server"]}:{proxy["port"]}?type=kcp&headerType=none&security=none&fm={fm_q}#{name_link}'
     if proxy['proto'] == "naive":
         naive = f'naive://{proxy["uuid"]}:{proxy["password"]}@{proxy["server"]}:{proxy["port"]}/?security=tls&sni={proxy["sni"]}&uot=1'
