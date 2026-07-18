@@ -179,7 +179,17 @@
     },
     "dns": {
         "servers": [
-            {% if g.user_agent['is_singbox'] and g.user_agent['singbox_version'][0] == 1 and g.user_agent['singbox_version'][1] < 12 %}
+            {# singbox_version[0]==0 is __parse_user_agent()'s sentinel for
+               "couldn't parse a version number from this UA" - that's
+               distinct from a genuine 0.x release (sing-box has never
+               shipped one) and was being treated as "definitely >=1.12",
+               sending the newer type-keyed dns.servers format to a client
+               whose real version was never actually confirmed modern.
+               Reproduced live: an unrecognized sing-box UA got this format
+               and hard-rejected the whole config with dns.servers[0].type:
+               "unknown field \"type\"" - the pre-1.12 address-keyed format
+               below is the safer default when the version is unknown. #}
+            {% if g.user_agent['is_singbox'] and (g.user_agent['singbox_version'][0] == 0 or (g.user_agent['singbox_version'][0] == 1 and g.user_agent['singbox_version'][1] < 12)) %}
             {
                 "address": "tcp://1.1.1.1",
                 "address_resolver": "dns-local",
