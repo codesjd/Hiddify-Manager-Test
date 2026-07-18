@@ -14,7 +14,29 @@ from hiddifypanel.database import db, db_execute
 
 
 from loguru import logger
-MAX_DB_VERSION = 148
+MAX_DB_VERSION = 149
+
+
+def _v149(child_id):
+    """Xray-core's own native "hysteria" protocol (XTLS/Xray-core docs:
+    config/outbounds+inbounds/hysteria.html, config/transports/hysteria.
+    html) - wire-compatible with the standard Hysteria2 protocol but with
+    no obfs/salamander support, unlike the existing sing-box hysteria2
+    inbound. Needs its own port (can't share hysteria2's - Xray and
+    sing-box both always run and would collide binding the same port) and
+    its own Proxy row so it shows up in subscriptions as a distinct
+    option, gated on the same hysteria_enable toggle as hysteria2 (see
+    get_proxies() in hutils/proxy/shared.py).
+
+    Numbered _v149 here (not _v148, which this branch already uses for a
+    different migration - xdns/xicmp proxy rows - than the feature branch
+    this was cherry-picked from does) since the two branches' migration
+    numbering diverged earlier and this is the actual next-free number on
+    THIS branch specifically."""
+    add_config_if_not_exist(ConfigEnum.xray_hysteria_port, hutils.random.get_random_unused_port())
+    db.session.bulk_save_objects([
+        Proxy(l3=ProxyL3.tls, transport=ProxyTransport.custom, cdn='direct', proto=ProxyProto.hysteria, enable=True, name="Hysteria (Xray)"),
+    ])
 
 
 def _v148(child_id):

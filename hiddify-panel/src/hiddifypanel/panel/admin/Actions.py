@@ -99,6 +99,10 @@ class Actions(FlaskView):
             udp_ports.add(d.internal_port_tuic)
             udp_ports.add(d.internal_port_naive)
             udp_ports.add(d.internal_port_hysteria2)
+            # Xray-core's own native hysteria inbound - separate port from
+            # sing-box's hysteria2 above (see xray/configs/
+            # 05_inbounds_07_hysteria.json.j2).
+            udp_ports.add(d.internal_port_xray_hysteria)
             # AnyTLS is TCP-based (unlike its QUIC/UDP siblings above).
             tcp_ports.add(d.internal_port_anytls)
             if d.tls_port:

@@ -39,6 +39,12 @@ def configs_as_json(domains: list[Domain], **kwargs) -> dict:
         # protocols are untouched in every other subscription format.
         if pinfo.get('proto') in (ProxyProto.ssh, ProxyProto.mieru, ProxyProto.naive, ProxyProto.amneziawg):
             continue
+        # ProxyProto.hysteria (not hysteria2) is Xray-core's own native
+        # hysteria protocol/inbound (xray/configs/05_inbounds_07_hysteria.
+        # json.j2) - sing-box has no matching concept for it and to_singbox()
+        # below has no branch for this proto, so skip it here the same way.
+        if pinfo.get('proto') == ProxyProto.hysteria:
+            continue
         sing = to_singbox(pinfo)
         if 'msg' not in sing:
             if hutils.flask.is_client_version(hutils.flask.ClientVersion.hiddify_next, 4, 0, 0) and sing[0]['type']=="wireguard":
