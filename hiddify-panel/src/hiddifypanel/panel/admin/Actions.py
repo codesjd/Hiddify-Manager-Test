@@ -106,10 +106,14 @@ class Actions(FlaskView):
                 udp_ports.add(d.tls_port)
             if d.http_port:
                 tcp_ports.add(d.http_port)
-            # tcp+vision REALITY now binds directly instead of only being
-            # reachable via HAProxy on 443 (see get_port() in
-            # hutils/proxy/shared.py) - needs its own firewall opening too.
-            if d.mode == DomainType.special_reality_tcp:
+            # tcp+vision REALITY binds directly instead of only being
+            # reachable via HAProxy on 443, but only under the Xray core -
+            # sing-box's equivalent inbound always binds loopback-only and
+            # is reached through HAProxy's SNI frontend instead (see
+            # get_port() in hutils/proxy/shared.py for the full reasoning).
+            # Opening this port under sing-box would just expose a dead
+            # port nothing public should reach.
+            if d.mode == DomainType.special_reality_tcp and hconfig(ConfigEnum.core_type) == "xray":
                 tcp_ports.add(d.internal_port_special)
 
         def to_int(ports):
