@@ -117,13 +117,24 @@ def get_port(proxy: Proxy, hconfigs: dict, domain_db: Domain, ptls: int, phttp: 
         port = domain_db.internal_port_xdns
     elif proxy.proto == ProxyProto.xicmp:
         port = domain_db.internal_port_xicmp
-    elif domain_db.mode == DomainType.special_reality_tcp:
+    elif domain_db.mode == DomainType.special_reality_tcp and ptls:
         # tcp+vision REALITY binds directly (see xray/configs/
         # 05_inbounds_02_reality_main.json.j2) instead of routing through
         # HAProxy's SNI frontend on ptls (443) - the extra hop widened
         # REALITY's own validation-vs-decoy-response race closely enough to
         # cause "received real certificate" failures. grpc/xhttp reality
         # still shares ptls via HAProxy, so this only applies to the tcp mode.
+        #
+        # The `and ptls` guard matters beyond picking the right port:
+        # get_valid_proxies() calls get_port() once per 'http'/'tls' option
+        # (ptls set on the tls pass, None on the http pass) so that exactly
+        # one of them resolves to a real port and the other gets filtered
+        # out as "port not defined" below. Without the guard this branch
+        # returned internal_port_special unconditionally on *both* passes,
+        # so both "succeeded" and every reality-tcp proxy was emitted
+        # twice in the subscription. On the http pass (ptls=None) this now
+        # falls through to the is_tls(l3) branch below, which correctly
+        # resolves to None and gets filtered.
         port = domain_db.internal_port_special
     elif l3 == 'ssh':
         port = hconfigs[ConfigEnum.ssh_server_port]
