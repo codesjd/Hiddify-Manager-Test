@@ -73,7 +73,13 @@ def generate_x25519_keys(base_64_encode=True):
 
 
 def generate_ssh_host_keys():
-    key_types = ["dsa", "ecdsa", "ed25519", "rsa"]
+    # DSA deliberately excluded: OpenSSH removed DSA key support entirely
+    # (insecure, deprecated for years), so `ssh-keygen -t dsa` just fails
+    # outright on any current OS ("unknown key type dsa"), and nothing
+    # downstream ever consumed keys_dict['dsa'] anyway - _v97's own
+    # set_hconfig calls for ssh_host_dsa_pk/pub are commented out, same as
+    # get_ssh_hostkeys() in hutils/proxy/shared.py.
+    key_types = ["ecdsa", "ed25519", "rsa"]
     keys_dict = {}
 
     # Generate and read keys
