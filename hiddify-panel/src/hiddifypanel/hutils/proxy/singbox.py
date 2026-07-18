@@ -30,6 +30,15 @@ def configs_as_json(domains: list[Domain], **kwargs) -> dict:
         # plain-link subscription already does in make_v2ray_configs().
         if pinfo.get('transport') == ProxyTransport.xhttp:
             continue
+        # SSH, Mieru, Naive and AmneziaWG outbounds aren't compiled into
+        # every sing-box build (mieru needs CGO, ssh/naive/wireguard are
+        # optional modules some minimal/mobile builds leave out) - unlike
+        # xhttp above this doesn't fail the whole config, but it does
+        # leave dead, unusable proxy group entries in the client's Select/
+        # Auto lists. Excluded from the sing-box JSON specifically; these
+        # protocols are untouched in every other subscription format.
+        if pinfo.get('proto') in (ProxyProto.ssh, ProxyProto.mieru, ProxyProto.naive, ProxyProto.amneziawg):
+            continue
         sing = to_singbox(pinfo)
         if 'msg' not in sing:
             if hutils.flask.is_client_version(hutils.flask.ClientVersion.hiddify_next, 4, 0, 0) and sing[0]['type']=="wireguard":
