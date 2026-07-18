@@ -570,8 +570,19 @@ def add_hysteria(base: dict, proxy: dict):
     # 'hysteria_down_mbps'); reading them with the ConfigEnum member as the
     # key (which is a FastEnum, not str-equal to the key) silently returned
     # None, so sing-box/Hiddify-app clients never got the configured speeds.
-    base['up_mbps'] = proxy.get('hysteria_up_mbps')
-    base['down_mbps'] = proxy.get('hysteria_down_mbps')
+    #
+    # hysteria_up_mbps/hysteria_down_mbps are _StrConfigDscr hconfigs, so
+    # these come through as strings ("150") - sing-box's schema requires
+    # up_mbps/down_mbps to be JSON integers and hard-rejects the whole
+    # config ("cannot unmarshal string into Go value of type int") if
+    # they're left as strings, so cast them here.
+    def _to_int(v):
+        try:
+            return int(v)
+        except (TypeError, ValueError):
+            return None
+    base['up_mbps'] = _to_int(proxy.get('hysteria_up_mbps'))
+    base['down_mbps'] = _to_int(proxy.get('hysteria_down_mbps'))
     # TODO: check the obfs should be empty or not exists at all
     if proxy.get('hysteria_obfs_enable'):
         base['obfs'] = {
