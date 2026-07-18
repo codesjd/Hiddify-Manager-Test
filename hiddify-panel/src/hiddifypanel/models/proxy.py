@@ -51,6 +51,12 @@ class ProxyProto(StrEnum):
     dnstt = auto()
     amneziawg = auto()
     anytls = auto()
+    # DNS-tunneled / ICMP-tunneled vless via Xray-core's finalmask
+    # (XTLS/Xray-core#5560/#5633) - unlike dnstt, these ARE real vless
+    # connections a finalmask-aware client can dial directly, see
+    # to_link()'s xdns/xicmp branches.
+    xdns = auto()
+    xicmp = auto()
 
 
 class ProxyL3(StrEnum):

@@ -429,15 +429,19 @@ class ConfigEnum(metaclass=FastEnum):
     grpc_enable = _BoolConfigDscr(ConfigCategory.proxies, ApplyMode.apply_config)
     httpupgrade_enable = _BoolConfigDscr(ConfigCategory.proxies, ApplyMode.apply_config)
     xhttp_enable = _BoolConfigDscr(ConfigCategory.proxies, ApplyMode.apply_config)
-    # Opt-in add-on to xhttp_enable, not a separate proxy: stacks Xray-core's
-    # new xdns finalmask (XTLS/Xray-core#5560/#5633) onto the existing XHTTP
-    # inbound. xhttp_xdns_domains needs its own NS delegation to this server
-    # per entry, same requirement as dnstt_enable; xhttp_xdns_resolvers
-    # mirrors dnstt_resolvers - the public DNS resolvers client configs are
-    # told to route the DNS-tunneled queries through.
-    xhttp_xdns_enable = _BoolConfigDscr(ConfigCategory.proxies, ApplyMode.apply_config)
-    xhttp_xdns_domains = _StrConfigDscr(ConfigCategory.proxies, ApplyMode.apply_config)
-    xhttp_xdns_resolvers = _StrConfigDscr(ConfigCategory.proxies, ApplyMode.apply_config)
+    # Default public DNS resolvers for xdns-mode domains (Xray-core's xdns
+    # finalmask, XTLS/Xray-core#5560/#5633 - see DomainType.xdns in
+    # models/domain.py). Hidden like special_port/hysteria_port above:
+    # there's no separate on/off switch here, a domain opts in by setting
+    # its own 'mode' to xdns, and can override this default per-domain via
+    # extra_params.xdns_resolvers.
+    xdns_resolvers = _StrConfigDscr(ConfigCategory.hidden, ApplyMode.apply_config, hide_in_virtual_child=True)
+    # Admin on/off switches for the xdns/xicmp Proxy rows (get_proxies()),
+    # same role dnstt_enable plays for the DNSTT proxy row above - separate
+    # from a domain actually being in xdns/xicmp mode, which is what makes
+    # the underlying inbound/config functionally exist at all.
+    xdns_enable = _BoolConfigDscr(ConfigCategory.proxies, ApplyMode.apply_config)
+    xicmp_enable = _BoolConfigDscr(ConfigCategory.proxies, ApplyMode.apply_config)
 
     naive_enable = _BoolConfigDscr(ConfigCategory.proxies, ApplyMode.apply_config)
     naive_port = _StrConfigDscr(ConfigCategory.proxies, ApplyMode.apply_config)

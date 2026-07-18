@@ -30,6 +30,16 @@ class DomainType(StrEnum):
     special_reality_grpc = auto()
     old_xtls_direct = auto() #deprecated
     dnstt = auto()
+    # DNS-tunneled and ICMP-tunneled traffic via Xray-core's finalmask
+    # (xdns/xicmp masks, XTLS/Xray-core#5560/#5633). Modeled the same way
+    # as dnstt above - each is its own dedicated mKCP+finalmask Xray inbound
+    # on a per-domain auto-allocated port (see internal_port_xdns/
+    # internal_port_xicmp below), never sharing the plain xhttp/ws/grpc
+    # inbounds every other mode uses. finalmask changes the wire format for
+    # the whole inbound it's attached to, so masked traffic must never be
+    # stacked onto an inbound normal clients also connect through.
+    xdns = auto()
+    xicmp = auto()
     # special_shadowtls = auto()
 
     # fake_cdn = "fake_cdn"
@@ -136,6 +146,11 @@ class Domain(db.Model):
             data["internal_port_naive"] = self.internal_port_naive
             data["internal_port_special"] = self.internal_port_special
             data["internal_port_dnstt"] = self.internal_port_dnstt
+            data["internal_port_xdns"] = self.internal_port_xdns
+            data["internal_port_xicmp"] = self.internal_port_xicmp
+            data["xdns_resolvers"] = self.effective_xdns_resolvers
+            data["xicmp_dgram"] = self.effective_xicmp_dgram
+            data["xicmp_id"] = self.effective_xicmp_id
             data["internal_port_anytls"] = self.internal_port_anytls
             data["need_valid_ssl"] = self.need_valid_ssl
             data["reality_private_key"] = self.effective_reality_private_key
@@ -235,6 +250,20 @@ class Domain(db.Model):
             return 0
         return self._safe_port_offset(5400, self.port_index)
 
+    @property
+    def internal_port_xdns(self):
+        # Own base offset (distinct from dnstt's 5400), so a server running
+        # both dnstt and xdns domains never collides on the same port.
+        if self.mode not in [DomainType.xdns]:
+            return 0
+        return self._safe_port_offset(5500, self.port_index)
+
+    @property
+    def internal_port_xicmp(self):
+        if self.mode not in [DomainType.xicmp]:
+            return 0
+        return self._safe_port_offset(5600, self.port_index)
+
 
     @property
     def internal_port_tuic(self):
@@ -273,6 +302,25 @@ class Domain(db.Model):
     @property
     def effective_reality_short_id(self) -> str:
         return self.reality_short_id or hconfig(ConfigEnum.reality_short_ids, self.child_id)
+
+    @property
+    def effective_xdns_resolvers(self) -> str:
+        return self.extra_params_json().get('xdns_resolvers') or hconfig(ConfigEnum.xdns_resolvers, self.child_id)
+
+    @property
+    def effective_xicmp_dgram(self) -> bool:
+        return bool(self.extra_params_json().get('xicmp_dgram', False))
+
+    @property
+    def effective_xicmp_id(self) -> int:
+        # 16-bit ICMP echo ID used to tell this tunnel's packets apart from
+        # ordinary ping traffic on the same host - derived deterministically
+        # from the domain's own row id when not set explicitly, so it stays
+        # stable across config regenerations without needing storage.
+        xid = self.extra_params_json().get('xicmp_id', 0)
+        if xid:
+            return xid
+        return ((self.id or 0) % 65535) + 1
 
     @classmethod
     def by_mode(cls, mode: DomainType) -> List['Domain']:

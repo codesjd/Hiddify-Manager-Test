@@ -441,6 +441,19 @@
         var previous = $textarea.data('dnsttParamsWrapper');
         if (previous) {
             previous.remove();
+            $textarea.removeData('dnsttParamsWrapper');
+        }
+
+        // This known-fields widget only makes sense for DNSTT's own params
+        // (mtu/keepalive/...) - xdns/xicmp domains use the same extra_params
+        // blob for their own unrelated keys (xdns_resolvers/xicmp_dgram/
+        // xicmp_id, see DomainAdmin.py's extra_params model) and every other
+        // mode uses it as a free-form override, so leave the raw textarea
+        // editable for all of them instead of showing DNSTT fields that
+        // don't apply.
+        if ($("#mode").val() !== "dnstt") {
+            $textarea.show();
+            return;
         }
         $textarea.hide();
 
@@ -616,7 +629,7 @@
         if ($("#domain").length > 0) {
             var selectElement = document.getElementById("mode");
             var groups = [
-                { label: `{{_("Direct")}}`, options: ["direct","dnstt"] },
+                { label: `{{_("Direct")}}`, options: ["direct","dnstt","xdns","xicmp"] },
                 { label: `{{_("Panel Link")}}`, options: ["sub_link_only"] },
                 { label: `{{_("Bridge Servers")}}`, options: ["cdn",  "worker", "relay"] },
                 { label: `{{_("Fake")}}`, options: ["special_reality_xhttp","special_reality_tcp","special_reality_grpc", "fake"] }
@@ -655,7 +668,7 @@
         function hide_domain_elements() {
             console.log("test")
             $("#extra_params").parent().hide();
-            if (["dnstt",'fake','reality','special_reality_grpc','special_reality_xhttp'].includes($("#mode").val())){
+            if (["dnstt","xdns","xicmp",'fake','reality','special_reality_grpc','special_reality_xhttp'].includes($("#mode").val())){
                 $("#show_domains").parent().hide()
             }else{
                 $("#show_domains").parent().show()
@@ -683,12 +696,14 @@
                 $("#reality_short_id").parent().hide();
             }
 
-            // DNSTT doesn't use HTTP/TLS ports at all, and sub_link_only
+            // DNSTT/xdns/xicmp don't use HTTP/TLS ports at all (each gets
+            // its own dedicated, non-editable internal port - see
+            // Domain.internal_port_dnstt/xdns/xicmp), and sub_link_only
             // ("Only for Subscription") domains don't serve traffic
-            // directly either - hide the whole Ports card for both, not
-            // just its fields, so it doesn't render as an empty bordered
-            // box with nothing under its legend.
-            if (["dnstt", "sub_link_only"].includes($("#mode").val())) {
+            // directly either - hide the whole Ports card for all of them,
+            // not just its fields, so it doesn't render as an empty
+            // bordered box with nothing under its legend.
+            if (["dnstt", "xdns", "xicmp", "sub_link_only"].includes($("#mode").val())) {
                 $("#ports-fieldset").hide();
             } else {
                 $("#ports-fieldset").show();
@@ -718,7 +733,19 @@
                 $("#download_domain").parent().hide();
                 $("#cdn_ip").parent().hide();
                 $("#extra_params").parent().show();
-                
+
+
+            }else if (["xdns", "xicmp"].includes($("#mode").val())) {
+                // Same shape as dnstt above: no CDN/A-record routing, no
+                // separate download domain, no HTTP/TLS ports - the
+                // xdns_resolvers/xicmp_dgram/xicmp_id knobs live in
+                // extra_params (see DomainAdmin.py's extra_params model),
+                // same mechanism dnstt already uses for its own params.
+                $("#resolve_ip").closest('.form-group').hide()
+                $("#servernames").parent().hide();
+                $("#download_domain").parent().hide();
+                $("#cdn_ip").parent().hide();
+                $("#extra_params").parent().show();
 
             } else {
                 
@@ -768,6 +795,10 @@
         // below) rebind rather than stack a fresh handler each time.
         $("#sub_link_only").off('change.hiddifyui').on('change.hiddifyui', hide_domain_elements)
         $("#mode").off('change.hiddifyui').on('change.hiddifyui', hide_domain_elements)
+        // Also re-run the DNSTT params widget on mode change, so switching
+        // into/out of "dnstt" toggles between its known-fields widget and
+        // the plain extra_params textarea without needing a modal reopen.
+        $("#mode").off('change.hiddifyuiparams').on('change.hiddifyuiparams', function () { initDnsttParamsUI($("#extra_params")); })
         hide_domain_elements()
         ConvertNumberToPersion(document.getElementById('fa_modal_window'));
         

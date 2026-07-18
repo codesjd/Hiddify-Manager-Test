@@ -14,21 +14,33 @@ from hiddifypanel.database import db, db_execute
 
 
 from loguru import logger
-MAX_DB_VERSION = 145
+MAX_DB_VERSION = 146
+
+
+def _v146(child_id):
+    """xdns/xicmp proxy rows + their admin enable switches (Xray-core's
+    finalmask, XTLS/Xray-core#5560/#5633). Off by default like dnstt_enable
+    originally wasn't (see _v116) - functionally inert until an admin also
+    puts a domain into xdns/xicmp mode (DomainType.xdns/xicmp), same
+    two-step as dnstt already requires."""
+    set_hconfig(ConfigEnum.xdns_enable, False, child_id=child_id)
+    set_hconfig(ConfigEnum.xicmp_enable, False, child_id=child_id)
+    db.session.bulk_save_objects([
+        Proxy(l3=ProxyL3.custom, transport=ProxyTransport.custom, cdn='direct', proto=ProxyProto.xdns, enable=True, name="XDNS"),
+        Proxy(l3=ProxyL3.custom, transport=ProxyTransport.custom, cdn='direct', proto=ProxyProto.xicmp, enable=True, name="XICMP"),
+    ])
 
 
 def _v145(child_id):
-    """XHTTP + xDNS finalmask (Xray-core's new DNS-tunneling UDP mask,
-    XTLS/Xray-core#5560/#5633) - an opt-in add-on to the existing XHTTP
-    inbound, off by default so it can't change anything for an admin who
-    doesn't turn it on. xhttp_xdns_domains lists which domain(s) the server
-    should accept xDNS-tunneled DNS queries for (each one needs its own NS
-    delegation to this server, same requirement as dnstt_enable);
-    xhttp_xdns_resolvers mirrors dnstt_resolvers - the public DNS resolvers
-    client-side configs are told to route those queries through."""
-    set_hconfig(ConfigEnum.xhttp_xdns_enable, False, child_id=child_id)
-    set_hconfig(ConfigEnum.xhttp_xdns_domains, "", child_id=child_id)
-    set_hconfig(ConfigEnum.xhttp_xdns_resolvers, "8.8.8.8:53,1.1.1.1:53", child_id=child_id)
+    """Default public DNS resolvers for xdns-mode domains (Xray-core's
+    DNS-tunneling finalmask, XTLS/Xray-core#5560/#5633). xdns/xicmp are
+    per-domain modes (see DomainType.xdns/xicmp in models/domain.py), not
+    global toggles - a domain only gets a mask-isolated inbound when its
+    own 'mode' is set to xdns/xicmp in the domain form. This hconfig is
+    just the fallback resolver list a domain uses when it doesn't set its
+    own via extra_params.xdns_resolvers, mirroring how dnstt domains don't
+    need a global on/off switch either."""
+    set_hconfig(ConfigEnum.xdns_resolvers, "8.8.8.8:53,1.1.1.1:53", child_id=child_id)
 
 
 def _v144(child_id):
@@ -1372,7 +1384,13 @@ def init_db():
         db_version = int(hconfig(ConfigEnum.db_version, child.id) or 0)
         start_version = db_version
 
-        for ver in range(1, MAX_DB_VERSION):
+        # Inclusive of MAX_DB_VERSION itself: latest_db_version() (used by
+        # the is_db_latest()/fast-path check above) treats db_version ==
+        # MAX_DB_VERSION as fully migrated, but an exclusive range(1,
+        # MAX_DB_VERSION) can never actually set db_version to that value -
+        # the newest _vN migration silently never runs until some future
+        # _vN+1 bumps the ceiling past it on a later release.
+        for ver in range(1, MAX_DB_VERSION + 1):
             if ver <= db_version:
                 continue
 

@@ -3,16 +3,3 @@
     "mode": "auto",
     "path":"/{{path}}",
 }
-{%- set xdns_domains = hconfigs['xhttp_xdns_domains'].split(',') | map('trim') | select | list %}
-{%- if hconfigs['xhttp_xdns_enable'] and xdns_domains %}
-,"finalmask": {
-    "udp": [
-        {
-            "type": "xdns",
-            "settings": {
-                "domains": {{ xdns_domains | tojson }}
-            }
-        }
-    ]
-}
-{%- endif %}

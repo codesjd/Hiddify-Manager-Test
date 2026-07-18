@@ -31,7 +31,16 @@ def is_proxy_valid(proxy: Proxy, domain_db: Domain, port: int) -> dict | None:
     
     if proxy.proto!=ProxyProto.dnstt and domain_db.mode==DomainType.dnstt:
         return {'name': name, 'msg': "dnstt domain only works with dnstt protocol", 'type': 'error', 'proto': proxy.proto}
-    
+
+    if proxy.proto!=ProxyProto.xdns and domain_db.mode==DomainType.xdns:
+        return {'name': name, 'msg': "xdns domain only works with xdns protocol", 'type': 'error', 'proto': proxy.proto}
+
+    if proxy.proto!=ProxyProto.xicmp and domain_db.mode==DomainType.xicmp:
+        return {'name': name, 'msg': "xicmp domain only works with xicmp protocol", 'type': 'error', 'proto': proxy.proto}
+
+    if proxy.proto in (ProxyProto.xdns, ProxyProto.xicmp) and domain_db.mode not in (DomainType.xdns, DomainType.xicmp):
+        return {'name': name, 'msg': "xdns/xicmp protocol only works with a matching-mode domain", 'type': 'debug', 'proto': proxy.proto}
+
 
     if proxy.proto not in {ProxyProto.mieru,ProxyProto.dnstt} and not port:
         return {'name': name, 'msg': "port not defined", 'type': 'error', 'proto': proxy.proto}
@@ -104,6 +113,10 @@ def get_port(proxy: Proxy, hconfigs: dict, domain_db: Domain, ptls: int, phttp: 
         port = domain_db.internal_port_hysteria2
     elif proxy.proto == "anytls":
         port = domain_db.internal_port_anytls
+    elif proxy.proto == ProxyProto.xdns:
+        port = domain_db.internal_port_xdns
+    elif proxy.proto == ProxyProto.xicmp:
+        port = domain_db.internal_port_xicmp
     elif domain_db.mode == DomainType.special_reality_tcp:
         # tcp+vision REALITY binds directly (see xray/configs/
         # 05_inbounds_02_reality_main.json.j2) instead of routing through
@@ -170,6 +183,10 @@ def get_proxies(child_id: int = 0, only_enabled=False) -> list['Proxy']:
     proxies = [c for c in proxies if 'restls' not in c.transport]
     if not hconfig(ConfigEnum.dnstt_enable,child_id):
         proxies = [c for c in proxies if c.proto != ProxyProto.dnstt]
+    if not hconfig(ConfigEnum.xdns_enable,child_id):
+        proxies = [c for c in proxies if c.proto != ProxyProto.xdns]
+    if not hconfig(ConfigEnum.xicmp_enable,child_id):
+        proxies = [c for c in proxies if c.proto != ProxyProto.xicmp]
     if not hconfig(ConfigEnum.tuic_enable, child_id):
         proxies = [c for c in proxies if c.proto != ProxyProto.tuic]
 
@@ -274,7 +291,7 @@ def get_valid_proxies(domains: list[Domain]) -> list[dict]:
             options = []
             key = f'{proxy.proto}{proxy.transport}{proxy.cdn}{proxy.l3}'
 
-            if proxy.proto in [ProxyProto.dnstt,ProxyProto.ssh, ProxyProto.tuic, ProxyProto.hysteria2, ProxyProto.anytls, ProxyProto.wireguard, ProxyProto.amneziawg, ProxyProto.ss,ProxyProto.mieru] \
+            if proxy.proto in [ProxyProto.dnstt,ProxyProto.ssh, ProxyProto.tuic, ProxyProto.hysteria2, ProxyProto.anytls, ProxyProto.wireguard, ProxyProto.amneziawg, ProxyProto.ss,ProxyProto.mieru, ProxyProto.xdns, ProxyProto.xicmp] \
                 or (proxy.proto==ProxyProto.naive and proxy.l3==ProxyL3.h3_quic) :
                 if noDomainProxies and all([x in added_ip[key] for x in ips]):
                     continue
@@ -300,6 +317,8 @@ def get_valid_proxies(domains: list[Domain]) -> list[dict]:
                 elif proxy.proto == ProxyProto.mieru:
                     options = [{'pport':0}]
                 elif proxy.proto == ProxyProto.dnstt:
+                    options = [{'pport':0}]
+                elif proxy.proto in (ProxyProto.xdns, ProxyProto.xicmp):
                     options = [{'pport':0}]
                 elif proxy.proto == ProxyProto.naive:
                     options = [{'pport': hconfigs[ConfigEnum.naive_port]}]
@@ -530,6 +549,32 @@ def make_proxy(hconfigs: dict, proxy: Proxy, domain_db: Domain, phttp=80, ptls=4
         base['tunnel_per_resolver']=4
         base.update(extra_params_json)
         base['password']="h"
+        return base
+
+    if base["proto"] == ProxyProto.xdns:
+        # DNS-tunneled traffic (Xray-core's xdns finalmask, XTLS/Xray-core#5633)
+        # dials one of these public resolvers, not this server's own IP -
+        # the domain being tunneled is encoded inside the DNS query itself.
+        # See xray/configs/05_inbounds_05_xdns.json.j2 for the matching
+        # server-side inbound this has to mirror exactly.
+        base['xdns_domain'] = domain
+        base['resolvers'] = [r.strip() for r in domain_db.effective_xdns_resolvers.split(",") if r.strip()]
+        base['password'] = "h"
+        return base
+
+    if base["proto"] == ProxyProto.xicmp:
+        # ICMP-tunneled traffic (Xray-core's xicmp finalmask,
+        # XTLS/Xray-core#5560) dials this server's real IP directly - ICMP
+        # has no ports, so 'port' here is only a nominal identifier (see
+        # xray/configs/05_inbounds_06_xicmp.json.j2).
+        base['server'] = hutils.network.get_direct_host_or_ip(4)
+        # Clients should default to the unprivileged datagram ICMP socket
+        # (Xray docs: dgram=true is client-only, lower-privilege) regardless
+        # of this server's own xicmp_dgram setting, which controls the
+        # server's raw-socket requirement, not the client's.
+        base['xicmp_dgram'] = True
+        base['xicmp_id'] = domain_db.effective_xicmp_id
+        base['password'] = "h"
         return base
 
     if base['proto'] in {ProxyProto.naive}:
