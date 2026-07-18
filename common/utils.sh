@@ -652,15 +652,23 @@ function hiddify-http-api(){
 }
 
 function reload_all_configs(){
-    hiddify-http-api admin/all-configs/ > /opt/hiddify-manager/current.json
-    if [ "$?" != 0 ];then
-        hiddify-panel-cli all-configs > /opt/hiddify-manager/current.json
-        if [ $? != 0 ]; then 
-            return $?
+    local target="/opt/hiddify-manager/current.json"
+    local tmp_file
+    tmp_file=$(mktemp "${target}.XXXXXX")
+
+    hiddify-http-api admin/all-configs/ > "$tmp_file"
+    if [ "$?" != 0 ] || ! jq -e . "$tmp_file" >/dev/null 2>&1; then
+        hiddify-panel-cli all-configs > "$tmp_file"
+        if [ $? != 0 ] || ! jq -e . "$tmp_file" >/dev/null 2>&1; then
+            rm -f "$tmp_file"
+            error "reload_all_configs: could not fetch a valid config; keeping the previous $target untouched"
+            return 1
         fi
     fi
-    chmod 600 /opt/hiddify-manager/current.json
-    cat /opt/hiddify-manager/current.json
+
+    chmod 600 "$tmp_file"
+    mv -f "$tmp_file" "$target"
+    cat "$target"
 }
 
 
