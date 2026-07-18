@@ -596,8 +596,12 @@
         // Ports card for DNSTT mode (which has no HTTP/TLS ports at all),
         // not just its two individual fields - a card left with a visible
         // "Ports" legend and an empty body would look broken.
-        var $ports = buildFieldset('{{ _("Ports") }}', [['#http_port', '#tls_port']]).attr('id', 'ports-fieldset');
-        var $advanced = buildFieldset('{{ _("Advanced") }}', ['#show_domains', '#download_domain', '#extra_params']).attr('id', 'advanced-fieldset');
+        var $ports = buildFieldset('{{ _("Ports") }}', [['#http_port', '#tls_port'], '#reality_port']).attr('id', 'ports-fieldset');
+        var $advanced = buildFieldset('{{ _("Advanced") }}', [
+            '#servernames', '#cdn_ip',
+            '#reality_private_key', '#reality_public_key', '#reality_short_id',
+            '#show_domains', '#download_domain', '#extra_params'
+        ]).attr('id', 'advanced-fieldset');
         $resolveIp.closest('.form-group').after($ports, $advanced);
     }
 
@@ -679,10 +683,12 @@
                 $("#reality_short_id").parent().hide();
             }
 
-            // DNSTT doesn't use HTTP/TLS ports at all - hide the whole
-            // Ports card, not just its two fields, so it doesn't render as
-            // an empty bordered box with nothing under its legend.
-            if ($("#mode").val() == "dnstt") {
+            // DNSTT doesn't use HTTP/TLS ports at all, and sub_link_only
+            // ("Only for Subscription") domains don't serve traffic
+            // directly either - hide the whole Ports card for both, not
+            // just its fields, so it doesn't render as an empty bordered
+            // box with nothing under its legend.
+            if (["dnstt", "sub_link_only"].includes($("#mode").val())) {
                 $("#ports-fieldset").hide();
             } else {
                 $("#ports-fieldset").show();
