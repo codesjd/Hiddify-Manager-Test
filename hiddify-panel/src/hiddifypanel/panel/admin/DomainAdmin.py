@@ -43,8 +43,8 @@ class DnsTT(BaseModel):
     # dropped any key that wasn't one of the dnstt-specific fields below.
     #
     # Also doubles as the per-domain override schema for xdns/xicmp-mode
-    # domains (xdns_resolvers/xicmp_dgram/xicmp_id below) - same reasoning,
-    # these modes have no dedicated DB columns either.
+    # domains (xdns_resolvers/xicmp_id below) - same reasoning, these modes
+    # have no dedicated DB columns either.
     model_config = ConfigDict(extra='allow')
 
     mtu: int = Field(0, description="maximum size of DNS responses (0-> use default 1232)")
@@ -62,11 +62,15 @@ class DnsTT(BaseModel):
     # DNS-tunneled queries through. Empty -> falls back to the server-wide
     # xdns_resolvers hconfig default.
     xdns_resolvers: str = Field("", description='comma-separated "ip:port" resolvers for this xdns domain ("" -> use the server default)')
-    # xicmp mode only (Xray-core finalmask, XTLS/Xray-core#5560): dgram=true
-    # uses an unprivileged UDP-datagram ICMP socket (client-only per Xray's
-    # docs - Linux/Mac/iOS); the server side needs a real raw ICMP socket
-    # (dgram=false, requires CAP_NET_RAW - see xray.service).
-    xicmp_dgram: bool = Field(False, description="use unprivileged datagram ICMP sockets instead of raw sockets (client-only; server needs CAP_NET_RAW either way)")
+    # No admin-facing xicmp_dgram knob: the server always needs a real raw
+    # ICMP socket (dgram=false - Xray already runs as root, so CAP_NET_RAW
+    # is never actually a problem), and the client link/config always asks
+    # for the unprivileged datagram socket (dgram=true, Xray's own
+    # recommended default for end-user clients that don't run elevated).
+    # Both sides are hardcoded (xray/configs/05_inbounds_06_xicmp.json.j2,
+    # xrayjson.py's add_mask_finalmask_stream()) rather than exposed here,
+    # since there's no scenario where either side legitimately wants the
+    # other value.
     # Echo-ID filter that lets the server tell this tunnel's ICMP echo
     # packets apart from ordinary ping traffic on the same host. 0 -> derive
     # one deterministically from the domain's row id (see Domain.xicmp_id).

@@ -149,7 +149,6 @@ class Domain(db.Model):
             data["internal_port_xdns"] = self.internal_port_xdns
             data["internal_port_xicmp"] = self.internal_port_xicmp
             data["xdns_resolvers"] = self.effective_xdns_resolvers
-            data["xicmp_dgram"] = self.effective_xicmp_dgram
             data["xicmp_id"] = self.effective_xicmp_id
             data["internal_port_anytls"] = self.internal_port_anytls
             data["need_valid_ssl"] = self.need_valid_ssl
@@ -306,10 +305,6 @@ class Domain(db.Model):
     @property
     def effective_xdns_resolvers(self) -> str:
         return self.extra_params_json().get('xdns_resolvers') or hconfig(ConfigEnum.xdns_resolvers, self.child_id) or "8.8.8.8:53,1.1.1.1:53"
-
-    @property
-    def effective_xicmp_dgram(self) -> bool:
-        return bool(self.extra_params_json().get('xicmp_dgram', False))
 
     @property
     def effective_xicmp_id(self) -> int:

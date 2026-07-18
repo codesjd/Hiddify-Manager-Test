@@ -31,7 +31,12 @@
                             {
                                 "type": "xicmp",
                                 "settings": {
-                                    "dgram": {{ 'true' if d['xicmp_dgram'] else 'false' }},
+                                    {# Hardcoded, not admin-configurable - see
+                                       DomainAdmin.py's comment on the retired
+                                       xicmp_dgram field. Xray runs as root
+                                       here, so the real raw socket is always
+                                       available and always correct. #}
+                                    "dgram": false,
                                     "ip": "0.0.0.0",
                                     "id": {{d['xicmp_id']}}
                                 }
