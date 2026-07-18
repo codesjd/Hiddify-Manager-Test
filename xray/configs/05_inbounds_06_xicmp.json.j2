@@ -7,11 +7,12 @@
             {% set port = d['internal_port_xicmp'] %}
             {
                 "tag": "xicmpin_{{port}}",
-                {# ICMP has no ports - the raw socket xicmp opens is bound by
-                   its own "listenIp" mask setting below, not by listen/port
-                   here. listen/port only exist to satisfy Xray's
-                   InboundConfig schema and give this inbound a unique
-                   tag/log identity. #}
+                {# ICMP has no ports - listen/port only exist to satisfy
+                   Xray's InboundConfig schema and give this inbound a
+                   unique tag/log identity; the actual raw socket bind
+                   address is always 0.0.0.0/:: internally (see
+                   transport/internet/finalmask/xicmp/server.go's
+                   NewConnServer). #}
                 "listen": "127.0.0.1",
                 "port": {{port}},
                 {% set protocol='vless' %}
@@ -27,18 +28,27 @@
                         "downlinkCapacity": 20,
                         "congestion": false
                     },
-                    {# Real Xray-core JSON schema (infra/conf/transport_internet.go's
-                       Xicmp struct, verified against v26.3.27 source):
-                       "listenIp" (not "ip") and "id" only - there is no
-                       "dgram" field in this Xray version's config schema at
-                       all, so it's not something either side can configure. #}
+                    {# Real Xray-core JSON schema (transport/internet/finalmask/
+                       xicmp/{client,server}.go, verified against v26.6.1 source
+                       - common/packages.lock pins this version now). "dgram"
+                       selects raw ICMP socket (false, needed server-side - Xray
+                       already runs as root) vs unprivileged UDP-datagram socket
+                       (true, what clients should use). "ips" is only an
+                       optional peer-address allowlist/rotation list - empty
+                       means "accept from/dial to whatever address the
+                       connection already implies", which is exactly what's
+                       wanted here (this domain's own dedicated inbound, not a
+                       multi-IP setup). No per-domain "id" concept exists in
+                       this schema - demuxing is done via an embedded client ID
+                       in the ICMP payload instead, not the echo ID field an
+                       older Xray-core version used. #}
                     "finalmask": {
                         "udp": [
                             {
                                 "type": "xicmp",
                                 "settings": {
-                                    "listenIp": "0.0.0.0",
-                                    "id": {{d['xicmp_id']}}
+                                    "dgram": false,
+                                    "ips": []
                                 }
                             }
                         ]

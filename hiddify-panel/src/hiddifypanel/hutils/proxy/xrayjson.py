@@ -498,13 +498,15 @@ def add_mask_finalmask_stream(ss: dict, proxy: dict):
     # 05_inbounds_06_xicmp.json.j2) - xdns's own docs say its MTU is too
     # small for QUIC, hence the much smaller mtu there than xicmp's.
     #
-    # finalmask.settings schema below is taken directly from Xray-core's own
-    # infra/conf/transport_internet.go (Xdns/Xicmp structs, verified against
-    # the v26.3.27 source) - NOT from any doc summary. There is no
-    # "resolvers"/"domains" (plural) field for xdns, and no "dgram" field
-    # for xicmp at all in this schema; getting this wrong previously made
-    # Xray-core hard-reject the whole config at startup ("failed to build
-    # mask with type xdns > infra/conf: empty domain").
+    # finalmask.settings schema below is taken directly from Xray-core's
+    # actual runtime source (transport/internet/finalmask/{xdns,xicmp}/
+    # client.go, verified against v26.6.1 - common/packages.lock pins this
+    # version now), not any doc summary. xdns is asymmetric: the client's
+    # NewConnClient only ever reads "resolvers" (hard-errors "empty
+    # resolvers" if missing) and never looks at "domains" at all - that's
+    # server-only (see xray/configs/05_inbounds_05_xdns.json.j2). Each
+    # resolver string must be "<domain>[:method]+udp://<host>:<port>"
+    # (parseResolver() in xdns/spec.go).
     ss['network'] = 'mkcp'
     if proxy['proto'] == ProxyProto.xdns:
         ss['kcpSettings'] = {
@@ -514,11 +516,13 @@ def add_mask_finalmask_stream(ss: dict, proxy: dict):
             'downlinkCapacity': 20,
             'congestion': False,
         }
+        resolvers = proxy.get('resolvers') or ['8.8.8.8:53']
+        xdns_domain = proxy['xdns_domain']
         ss['finalmask'] = {
             'udp': [{
                 'type': 'xdns',
                 'settings': {
-                    'domain': proxy['xdns_domain'],
+                    'resolvers': [f'{xdns_domain}+udp://{r}' for r in resolvers],
                 }
             }]
         }
@@ -534,8 +538,11 @@ def add_mask_finalmask_stream(ss: dict, proxy: dict):
             'udp': [{
                 'type': 'xicmp',
                 'settings': {
-                    'listenIp': '0.0.0.0',
-                    'id': proxy['xicmp_id'],
+                    # true: unprivileged UDP-datagram socket, the client-side
+                    # default per xicmp/client.go (server needs the real raw
+                    # socket instead - see the inbound template's dgram=false).
+                    'dgram': True,
+                    'ips': [],
                 }
             }]
         }

@@ -1,3 +1,5 @@
+xray|26.6.1|amd64|https://github.com/XTLS/Xray-core/releases/download/v26.6.1/Xray-linux-64.zip|136e822e99e616692550723e8b607cd8858c62a390aea5704938bc27930904ba
+xray|26.6.1|arm64|https://github.com/XTLS/Xray-core/releases/download/v26.6.1/Xray-linux-arm64-v8a.zip|5c0f397b2605a853e5b308ae6485ad2ec395ca11ed7ae0fd023c480c7fdb279d
 xray|25.3.6|amd64|https://github.com/XTLS/Xray-core/releases/download/v25.3.6/Xray-linux-64.zip|82d4be3a5ed8bd2621df9c9913c3a2761b86a42ae8485da836f7447ff2ec3d4d
 xray|25.3.6|arm64|https://github.com/XTLS/Xray-core/releases/download/v25.3.6/Xray-linux-arm64-v8a|1595f446b3d3a2bfe4a737e3cdb4c189c8c4e271322a7a2a0f5ea735b9511e80
 xray|25.2.21|amd64|https://github.com/XTLS/Xray-core/releases/download/v25.2.21/Xray-linux-64.zip|3e90f0bbb5bbb2b397f46fec96b0eb4a240448bf8d282666da2f80cbaaa24fe7
