@@ -210,6 +210,23 @@ def to_link(proxy: dict) -> str | dict:
             else:
                 baseurl += "&insecure=1&allow_insecure=1"
         return f"{baseurl}#{name_link}"
+    if proxy['proto'] == ProxyProto.hysteria:
+        # Xray-core's native "hysteria" protocol/inbound - a separate
+        # server (see xray/configs/05_inbounds_07_hysteria.json.j2) from
+        # the sing-box hysteria2 one above, on its own port, with no obfs/
+        # salamander support at all (confirmed against Xray's own docs),
+        # so unlike the hysteria2 branch above this never adds obfs
+        # params. Reuses the same hysteria2:// URI scheme since Xray's
+        # implementation is wire-compatible with the standard Hysteria2
+        # protocol - existing clients that already parse hysteria2://
+        # links (v2rayN, NekoBox, etc) need no new scheme to support this.
+        baseurl = f'hysteria2://{proxy["uuid"]}@{proxy["server"]}:{proxy["port"]}?hiddify=1&sni={proxy["sni"]}'
+        if proxy['mode'] == 'Fake' or proxy['allow_insecure']:
+            if proxy.get('pinned_cert_sha256'):
+                baseurl += f"&pcs={proxy['pinned_cert_sha256']}"
+            else:
+                baseurl += "&insecure=1&allow_insecure=1"
+        return f"{baseurl}#{name_link}"
     if proxy['proto'] == ProxyProto.wireguard:
         if g.user_agent.get('is_streisand'):
             query = {

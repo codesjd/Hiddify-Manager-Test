@@ -1,0 +1,52 @@
+{
+	{% if hconfigs['hysteria_enable'] %}
+		"inbounds": [
+			{% for d in domains if d['internal_port_xray_hysteria'] %}
+				{%set domain=d['domain']%}
+				{%set port=d['internal_port_xray_hysteria']%}
+				{% if exec("[ -f /opt/hiddify-manager/ssl/"+domain[0:64]+".crt ] && echo -n 'true' || echo -n 'false'")=='true' %}
+					{%set _cert_file="/opt/hiddify-manager/ssl/"+domain[0:64]+".crt"%}
+				{%else%}
+					{%set _cert_file=exec("ls /opt/hiddify-manager/ssl/*.crt | tail -1").strip()%}
+				{%endif%}
+			{
+				"tag": "hysteria_xray_in_{{port}}",
+				"listen": "::",
+				"port": {{port}},
+				"protocol": "hysteria",
+				"settings": {
+					"version": 2,
+					"users": [
+						{% for u in users %}
+							{"auth": "{{ u['uuid'] }}", "email": "{{ u['uuid'] }}@hiddify.com"},
+						{% endfor%}
+					]
+				},
+				"streamSettings": {
+					"network": "hysteria",
+					"security": "tls",
+					"tlsSettings": {
+						"alpn": ["h3"],
+						"minVersion": "1.2",
+						"maxVersion": "1.3",
+						"certificates": [
+							{
+								"certificateFile": "{{_cert_file}}",
+								"keyFile": "{{_cert_file}}.key"
+							}
+						]
+					},
+					"hysteriaSettings": {
+						"version": 2,
+						"udpIdleTimeout": 60
+					}
+				},
+				"sniffing": {
+					"enabled": true,
+					"destOverride": ["http", "tls", "quic"]
+				}
+			},
+			{%endfor%}
+		]
+	{% endif %}
+}

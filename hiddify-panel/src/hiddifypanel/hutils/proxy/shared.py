@@ -111,6 +111,10 @@ def get_port(proxy: Proxy, hconfigs: dict, domain_db: Domain, ptls: int, phttp: 
         port = domain_db.internal_port_tuic
     elif proxy.proto == "hysteria2":
         port = domain_db.internal_port_hysteria2
+    elif proxy.proto == ProxyProto.hysteria:
+        # Xray-core's own native "hysteria" protocol - separate inbound/
+        # port from hysteria2 above (see internal_port_xray_hysteria).
+        port = domain_db.internal_port_xray_hysteria
     elif proxy.proto == "anytls":
         port = domain_db.internal_port_anytls
     elif proxy.proto == ProxyProto.xdns:
@@ -220,7 +224,10 @@ def get_proxies(child_id: int = 0, only_enabled=False) -> list['Proxy']:
     if not hconfig(ConfigEnum.ssh_server_enable, child_id):
         proxies = [c for c in proxies if c.proto != ProxyProto.ssh]
     if not hconfig(ConfigEnum.hysteria_enable, child_id):
-        proxies = [c for c in proxies if c.proto != ProxyProto.hysteria2]
+        # Xray-core's native "hysteria" proxy is gated on the same toggle
+        # as sing-box's hysteria2 - they're both "Hysteria2 support",
+        # just via two different inbounds/ports for two different cores.
+        proxies = [c for c in proxies if c.proto not in (ProxyProto.hysteria2, ProxyProto.hysteria)]
     if not hconfig(ConfigEnum.anytls_enable, child_id):
         proxies = [c for c in proxies if c.proto != ProxyProto.anytls]
     if not hconfig(ConfigEnum.shadowsocks2022_enable, child_id):
@@ -302,7 +309,7 @@ def get_valid_proxies(domains: list[Domain]) -> list[dict]:
             options = []
             key = f'{proxy.proto}{proxy.transport}{proxy.cdn}{proxy.l3}'
 
-            if proxy.proto in [ProxyProto.dnstt,ProxyProto.ssh, ProxyProto.tuic, ProxyProto.hysteria2, ProxyProto.anytls, ProxyProto.wireguard, ProxyProto.amneziawg, ProxyProto.ss,ProxyProto.mieru, ProxyProto.xdns, ProxyProto.xicmp] \
+            if proxy.proto in [ProxyProto.dnstt,ProxyProto.ssh, ProxyProto.tuic, ProxyProto.hysteria2, ProxyProto.hysteria, ProxyProto.anytls, ProxyProto.wireguard, ProxyProto.amneziawg, ProxyProto.ss,ProxyProto.mieru, ProxyProto.xdns, ProxyProto.xicmp] \
                 or (proxy.proto==ProxyProto.naive and proxy.l3==ProxyL3.h3_quic) :
                 if noDomainProxies and all([x in added_ip[key] for x in ips]):
                     continue
@@ -335,6 +342,8 @@ def get_valid_proxies(domains: list[Domain]) -> list[dict]:
                     options = [{'pport': hconfigs[ConfigEnum.naive_port]}]
                 elif proxy.proto == ProxyProto.hysteria2:
                     options = [{'pport': hconfigs[ConfigEnum.hysteria_port]}]
+                elif proxy.proto == ProxyProto.hysteria:
+                    options = [{'pport': hconfigs[ConfigEnum.xray_hysteria_port]}]
                 elif proxy.proto == ProxyProto.anytls:
                     options = [{'pport': hconfigs[ConfigEnum.anytls_port]}]
             else:
@@ -638,13 +647,22 @@ def make_proxy(hconfigs: dict, proxy: Proxy, domain_db: Domain, phttp=80, ptls=4
         
 
             
-    if proxy.proto in ['tuic', 'hysteria2']:
+    if proxy.proto in ['tuic', 'hysteria2', 'hysteria']:
         base['alpn'] = "h3"
         if proxy.proto == 'hysteria2':
             base['hysteria_up_mbps'] = hconfigs.get(ConfigEnum.hysteria_up_mbps)
             base['hysteria_down_mbps'] = hconfigs.get(ConfigEnum.hysteria_down_mbps)
             base['hysteria_obfs_enable'] = hconfigs.get(ConfigEnum.hysteria_obfs_enable)
             base['hysteria_obfs_password'] = hconfigs.get(ConfigEnum.proxy_path)  # TODO: it should not be correct
+        elif proxy.proto == 'hysteria':
+            # Xray-core's own native "hysteria" protocol has no obfs/
+            # salamander support at all (confirmed against Xray's own
+            # docs), unlike sing-box's hysteria2 above - deliberately not
+            # setting hysteria_obfs_enable/hysteria_obfs_password here so
+            # nothing downstream tries to negotiate obfs against a server
+            # that can't speak it.
+            base['hysteria_up_mbps'] = hconfigs.get(ConfigEnum.hysteria_up_mbps)
+            base['hysteria_down_mbps'] = hconfigs.get(ConfigEnum.hysteria_down_mbps)
         elif proxy.proto == 'tuic':
             # Was missing entirely - add_tuic() in singbox.py hardcoded
             # "cubic" regardless of the admin's Settings choice, so the

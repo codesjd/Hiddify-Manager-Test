@@ -142,6 +142,7 @@ class Domain(db.Model):
             data['child_id'] = self.child_id
         if dump_ports:
             data["internal_port_hysteria2"] = self.internal_port_hysteria2
+            data["internal_port_xray_hysteria"] = self.internal_port_xray_hysteria
             data["internal_port_tuic"] = self.internal_port_tuic
             data["internal_port_naive"] = self.internal_port_naive
             data["internal_port_special"] = self.internal_port_special
@@ -241,6 +242,16 @@ class Domain(db.Model):
         if self.mode not in [DomainType.direct, DomainType.relay, DomainType.fake]:
             return 0
         return self._safe_port_offset(int(hconfig(ConfigEnum.hysteria_port, self.child_id)), self.port_index)
+
+    @property
+    def internal_port_xray_hysteria(self):
+        # Xray-core's own native "hysteria" protocol needs its own inbound/
+        # port, separate from internal_port_hysteria2 above - Xray's
+        # implementation has no salamander/obfs support, so it can't share
+        # the sing-box hysteria2 inbound's port.
+        if self.mode not in [DomainType.direct, DomainType.relay, DomainType.fake]:
+            return 0
+        return self._safe_port_offset(int(hconfig(ConfigEnum.xray_hysteria_port, self.child_id)), self.port_index)
 
     @property
     def internal_port_dnstt(self):
