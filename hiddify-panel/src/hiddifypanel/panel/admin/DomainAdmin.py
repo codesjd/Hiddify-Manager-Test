@@ -42,9 +42,9 @@ class DnsTT(BaseModel):
     # touching the global config. Without extra='allow', pydantic silently
     # dropped any key that wasn't one of the dnstt-specific fields below.
     #
-    # Also doubles as the per-domain override schema for xdns/xicmp-mode
-    # domains (xdns_resolvers/xicmp_id below) - same reasoning, these modes
-    # have no dedicated DB columns either.
+    # Also doubles as the per-domain override schema for xdns-mode domains
+    # (xdns_resolvers below) - same reasoning, this mode has no dedicated DB
+    # column either.
     model_config = ConfigDict(extra='allow')
 
     mtu: int = Field(0, description="maximum size of DNS responses (0-> use default 1232)")
@@ -62,19 +62,18 @@ class DnsTT(BaseModel):
     # DNS-tunneled queries through. Empty -> falls back to the server-wide
     # xdns_resolvers hconfig default.
     xdns_resolvers: str = Field("", description='comma-separated "ip:port" resolvers for this xdns domain ("" -> use the server default)')
-    # No admin-facing xicmp_dgram knob: the server always needs a real raw
+    # No admin-facing xicmp knobs at all: the server always needs a real raw
     # ICMP socket (dgram=false - Xray already runs as root, so CAP_NET_RAW
-    # is never actually a problem), and the client link/config always asks
+    # is never actually a problem) and the client link/config always asks
     # for the unprivileged datagram socket (dgram=true, Xray's own
     # recommended default for end-user clients that don't run elevated).
     # Both sides are hardcoded (xray/configs/05_inbounds_06_xicmp.json.j2,
     # xrayjson.py's add_mask_finalmask_stream()) rather than exposed here,
     # since there's no scenario where either side legitimately wants the
-    # other value.
-    # Echo-ID filter that lets the server tell this tunnel's ICMP echo
-    # packets apart from ordinary ping traffic on the same host. 0 -> derive
-    # one deterministically from the domain's row id (see Domain.xicmp_id).
-    xicmp_id: int = Field(0, description="ICMP echo ID filter distinguishing this tunnel's packets from real ping traffic (0 -> auto-derive from the domain)", ge=0, le=65535)
+    # other value. There's also no per-domain "id"/echo-ID concept in
+    # Xray-core's current xicmp finalmask schema (v26.6.1+) - client
+    # demuxing is done via an embedded client ID in the ICMP payload
+    # instead, not anything configured in JSON.
 
 
 class DomainAdmin(AdminLTEModelView):
