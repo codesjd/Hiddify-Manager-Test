@@ -286,10 +286,18 @@ input::placeholder { color: var(--text-secondary); opacity: 1; }
 
       {% if hconfig(ConfigEnum.first_setup) %}
       <div style="background:oklch(0.85 0.12 55 / 0.18);border:1px solid oklch(0.68 0.15 55 / 0.45);border-radius:10px;padding:12px 14px;font-size:12.5px;color:var(--text-primary);">
-        <strong>{{ _('Default credentials') }}:</strong>
-        {{ _('Username') }}: <code style="background:var(--track);border-radius:4px;padding:1px 5px;">admin</code>
-        &nbsp;/&nbsp;
-        {{ _('Password') }}: <code style="background:var(--track);border-radius:4px;padding:1px 5px;">admin</code>
+        {# "admin/admin" is only a *pre-filled convenience default* on the
+           Quick Setup wizard's password step, and only becomes a real,
+           working login after you submit that step. It is NOT already
+           active on a fresh install - a banner that flatly claimed
+           "Default credentials: admin/admin" here (before Quick Setup was
+           ever completed) was actively misleading first-time admins into
+           typing a password that's guaranteed to be rejected. First login
+           only works via the secret admin link with the PASSWORD FIELD
+           LEFT BLANK (a fresh account's real stored password is empty,
+           not "admin") - explain that instead of a false claim. #}
+        <strong>{{ _('First time here?') }}</strong>
+        {{ _('Use your secret admin link (shown at the end of installation) and leave the password field below blank to sign in - you can set a real username/password afterward in Quick Setup.') }}
       </div>
       {% endif %}
 
