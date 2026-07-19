@@ -8,8 +8,17 @@ global
     # option forwardfor except 127.0.0.1  # Add X-Forwarded-For header except for HAProxy itself
     # log /opt/hiddify/hiddify-manager/log/system/haproxy.log local0
 
-    log /opt/hiddify-manager/log/system/haproxy.err.log local0 warning
-        
+    # HAProxy's `log <address>` directive requires a syslog target - a
+    # UDP/TCP address or a Unix *socket* - not a plain file path. Pointing
+    # it at a regular file path here silently produced nothing (there was
+    # never a haproxy.err.log to tail at all), so every haproxy-side
+    # diagnosis had zero log data to work with. `log stdout` (HAProxy
+    # 2.0+) writes to the process's own stdout instead, which
+    # hiddify-haproxy.service's systemd defaults already capture into the
+    # journal - `journalctl -u hiddify-haproxy` now actually shows
+    # something.
+    log stdout format raw local0 warning
+
     {%endif%}
 
 
