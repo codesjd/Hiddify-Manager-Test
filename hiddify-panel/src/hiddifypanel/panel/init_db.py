@@ -912,7 +912,16 @@ def _v31():
     add_config_if_not_exist(ConfigEnum.reality_public_key, key_pair['public_key'])
     db.session.bulk_save_objects(get_proxy_rows_v1())
     if not (AdminUser.query.filter(AdminUser.id == 1).first()):
-        db.session.add(AdminUser(id=1, uuid=hconfig(ConfigEnum.admin_secret), name="Owner", mode=AdminMode.super_admin, comment=""))
+        owner = AdminUser(id=1, uuid=hconfig(ConfigEnum.admin_secret), name="Owner", username="admin", mode=AdminMode.super_admin, comment="")
+        # Fresh installs get a real, working username/password from the
+        # first login (matches Quick Setup's own admin_pass default of
+        # "admin" and validate_username_unique's self-exclusion, so
+        # keeping these defaults through Quick Setup is a no-op, not a
+        # conflict). Previously this left username/password blank,
+        # forcing every fresh install through the secret-link+blank-
+        # password flow with no working admin/admin login at all.
+        owner.update_password("admin")
+        db.session.add(owner)
         execute("update admin_user set id=1 where name='owner'")
     for i in range(1, 10):
         for d in hutils.network.get_random_domains(50):
