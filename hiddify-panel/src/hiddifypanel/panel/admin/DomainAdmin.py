@@ -49,7 +49,7 @@ class DnsTT(BaseModel):
     # column either.
     model_config = ConfigDict(extra='allow')
 
-    mtu: int = Field(0, description="maximum size of DNS responses (0-> use default 1232)")
+    mtu: int = Field(0, description="dnstt: maximum size of DNS responses (0-> default 1232). xdns: mKCP MTU for this domain's Xray inbound (0-> default 500) - lower this if xdns handshakes but data doesn't actually flow, which usually means the real path's usable payload per round-trip is smaller than the current MTU.")
 
     keepalive: int = Field(0, description='keepalive ping interval in seconds; must be less than idle-timeout (0-> use default 2s)', ge=0,le=100)
     idle_timeout:int = Field(0, description='session idle timeout in seconds; tears down sessions with no data within this period (0-> use default 10 seconds)', ge=0,le=100)

@@ -27,8 +27,16 @@
                        the finalmask below only ever changes the wire format
                        for this domain's own tunnel. #}
                     "network": "mkcp",
+                    {# extra_params.mtu (DnsTT pydantic model - same field
+                       dnstt-server's own -mtu flag reads in run.sh.j2) was
+                       already documented as xdns's per-domain override
+                       schema but never actually wired into this inbound -
+                       500 was hardcoded regardless, giving no way to test
+                       whether it's actually the right value for a given
+                       path's real overhead without editing this template
+                       by hand. #}
                     "kcpSettings": {
-                        "mtu": 500,
+                        "mtu": {{ d.extra_params.get("mtu", 0) or 500 }},
                         "tti": 20,
                         "uplinkCapacity": 5,
                         "downlinkCapacity": 20,
