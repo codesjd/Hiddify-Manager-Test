@@ -14,6 +14,37 @@ class CustomRedisCache(RedisCache):
 
     def cache(self, ttl=0, limit=0, namespace=None, exception_handler=None):
         res = super().cache(ttl, limit, namespace, exception_handler)
+        # python-redis-cache's cached-function wrapper only fails open on
+        # reads (a broken client.get() falls back to calling the real
+        # function) - invalidate()/invalidate_all() have no exception
+        # handling at all, so a Redis hiccup during any set_hconfig() (or
+        # any other cache invalidation, anywhere in the app) crashes the
+        # whole request with a raw ConnectionError instead of just leaving
+        # a stale cache entry to expire on its own via ttl. Wrap both so a
+        # flaky/restarting Redis (e.g. mid-install, when Quick Setup's
+        # final step itself restarts every service including Redis) can't
+        # take down the request that triggered it.
+        real_invalidate = res.invalidate
+        real_invalidate_all = res.invalidate_all
+
+        def safe_invalidate(*args, **kwargs):
+            try:
+                return real_invalidate(*args, **kwargs)
+            except Exception as err:
+                with logger.contextualize(error=err):
+                    logger.error(f"Failed to invalidate cache for {res.get_full_prefix()}")
+                return False
+
+        def safe_invalidate_all(*args, **kwargs):
+            try:
+                return real_invalidate_all(*args, **kwargs)
+            except Exception as err:
+                with logger.contextualize(error=err):
+                    logger.error(f"Failed to invalidate_all cache for {res.get_full_prefix()}")
+                return False
+
+        res.invalidate = safe_invalidate
+        res.invalidate_all = safe_invalidate_all
         self.cached_functions.add(res)
         return res
 

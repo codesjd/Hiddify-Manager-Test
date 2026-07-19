@@ -8,6 +8,13 @@ Type=notify
 ExecStart=/usr/bin/redis-server /opt/hiddify-manager/other/redis/redis.conf --supervised systemd --daemonize no
 PIDFile=/var/run/hiddify-redis-server.pid
 TimeoutStopSec=0
+# systemd's default TimeoutStartSec (90s) can be too tight on a fresh
+# install: many other services are starting/reloading concurrently and
+# redis's sd_notify(READY=1) call can be delayed past it under that
+# I/O/CPU contention, which systemd then reports as a failed start -
+# Restart=always retries, but each attempt can hit the same contention
+# and it can take several cycles before one lands inside the window.
+TimeoutStartSec=180
 Restart=always
 User=redis
 Group=redis
