@@ -40,11 +40,18 @@ def configs_as_json(domains: list[Domain], **kwargs) -> dict:
         # still get their own independent links, see to_link()).
         if pinfo.get('proto') in (ProxyProto.ssh, ProxyProto.mieru, ProxyProto.naive, ProxyProto.amneziawg, ProxyProto.dnstt):
             continue
-        # ProxyProto.hysteria (not hysteria2) is Xray-core's own native
+        # ProxyProto.hysteria (not hysteria2), xdns and xicmp are all
+        # Xray-core-exclusive concepts - hysteria is Xray-core's own native
         # hysteria protocol/inbound (xray/configs/05_inbounds_07_hysteria.
-        # json.j2) - sing-box has no matching concept for it and to_singbox()
-        # below has no branch for this proto, so skip it here the same way.
-        if pinfo.get('proto') == ProxyProto.hysteria:
+        # json.j2), xdns/xicmp are Xray-core's finalmask DNS/ICMP-tunneled
+        # vless (xray/configs/05_inbounds_0{5,6}_x{dns,icmp}.json.j2).
+        # sing-box has no matching concept for any of the three, and
+        # to_singbox() below has no branch for them either - without this,
+        # they fell through to the generic tail of to_singbox() and got
+        # emitted as literal `"type": "hysteria"/"xdns"/"xicmp"` outbounds,
+        # which aren't real sing-box outbound types at all (unlike
+        # hysteria2/tuic, which sing-box actually implements).
+        if pinfo.get('proto') in (ProxyProto.hysteria, ProxyProto.xdns, ProxyProto.xicmp):
             continue
         sing = to_singbox(pinfo)
         if 'msg' not in sing:
