@@ -611,7 +611,7 @@
         // "Ports" legend and an empty body would look broken.
         var $ports = buildFieldset('{{ _("Ports") }}', [['#http_port', '#tls_port'], '#reality_port']).attr('id', 'ports-fieldset');
         var $advanced = buildFieldset('{{ _("Advanced") }}', [
-            '#servernames', '#cdn_ip',
+            '#also_enable_xicmp', '#servernames', '#cdn_ip',
             '#reality_private_key', '#reality_public_key', '#reality_short_id',
             '#show_domains', '#download_domain', '#extra_params'
         ]).attr('id', 'advanced-fieldset');
