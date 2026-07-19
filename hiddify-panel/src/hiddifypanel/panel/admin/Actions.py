@@ -187,6 +187,16 @@ class Actions(FlaskView):
             direct_domain = next((d for d in direct_domains if not is_ip_or_auto_ip_domain(d.domain)), None)
             if direct_domain:
                 redirect_host = direct_domain.domain
+        elif preferred_type == 'ip':
+            # Explicit "redirect to IP" choice (e.g. Quick Setup, when the
+            # domain's DNS isn't pointed at this server yet) - redirect_host
+            # already defaults to the IP above, so this is a no-op, but it
+            # must stay its own branch. Falling through to the "no
+            # preference" else below would let the "stay on current host"
+            # check silently override an explicit IP choice back onto
+            # whatever domain the admin happens to be browsing from right
+            # now - including the one they just added in this same step.
+            pass
         else:
             # If no preference is specified (e.g. standard Apply Configs button),
             # stay on the same host the admin is currently using, if valid.
