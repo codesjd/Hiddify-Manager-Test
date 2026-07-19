@@ -1729,10 +1729,10 @@ msgid "config.log_level.WARNING"
 msgstr "config.log_level.WARNING"
 
 msgid "config.log_level.description"
-msgstr "config.log_level.description"
+msgstr "Log verbosity for Xray/Sing-box. Defaults to CRITICAL (effectively no logs, to save disk) - set to INFO or WARNING temporarily when you need to see connection attempts in `journalctl -u hiddify-xray` / `journalctl -u hiddify-singbox`, then switch back to CRITICAL once you're done, since verbose logging on a busy server fills disk quickly."
 
 msgid "config.log_level.label"
-msgstr "config.log_level.label"
+msgstr "📋 Log Level"
 
 msgid "config.mieru.description"
 msgstr ""

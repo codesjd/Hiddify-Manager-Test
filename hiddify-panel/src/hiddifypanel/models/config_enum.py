@@ -274,7 +274,13 @@ class ConfigEnum(metaclass=FastEnum):
     panel_mode = _TypedConfigDscr(PanelMode, ConfigCategory.hidden, hide_in_virtual_child=True)
     # endregion
 
-    log_level = _TypedConfigDscr(LogLevel, ConfigCategory.hidden, ApplyMode.reinstall, hide_in_virtual_child=True)
+    # Visible (not hidden): _v83() force-sets this to CRITICAL for every
+    # install (quieter logs/less disk by default), which also makes
+    # xray/configs/00_log.json.j2 turn output/error/access/dnsLog fully
+    # off - there was previously no way to turn logging back on short of
+    # a direct DB edit, which meant every "check the Xray logs" diagnosis
+    # request had nothing to work with by default.
+    log_level = _TypedConfigDscr(LogLevel, ConfigCategory.advanced, ApplyMode.reinstall, hide_in_virtual_child=True)
 
     unique_id = _StrConfigDscr(ConfigCategory.hidden)
     last_hash = _StrConfigDscr(ConfigCategory.hidden)

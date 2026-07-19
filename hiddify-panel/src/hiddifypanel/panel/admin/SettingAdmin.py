@@ -254,6 +254,12 @@ def get_config_form():
                 if hconfig(c.key) == "develop":
                     package_modes.append(("develop", _("Develop")))
                 field = wtf.SelectField(_(f"config.{c.key}.label"), choices=package_modes, description=_(f"config.{c.key}.description"), default=hconfig(c.key))
+            elif c.key == ConfigEnum.log_level:
+                field = wtf.SelectField(
+                    _(f"config.{c.key}.label"),
+                    choices=[(lvl.value, lvl.value) for lvl in LogLevel],
+                    description=_(f"config.{c.key}.description"),
+                    default=hconfig(c.key))
             
 
             # the shadowsocks2022_method is hidden now, because it only has one option to choose
