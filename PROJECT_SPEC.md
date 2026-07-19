@@ -39,7 +39,7 @@ Farsi). Treat it as the changelog/rationale log. This spec is the forward-lookin
 |---|---|---|
 | `claude/saving-mechanism-bug-yvzifn` | Primary feature/dev branch | Default target for new work. |
 | `optimize` | Parallel integration branch | Receives cherry-picks of feature-branch commits. **A separate, concurrent process also pushes here** (e.g. the schema-reconciler commits `9c09bde7`/`5869b880`/`bf98e727` appeared here without going through this workflow). Always `git fetch` before cherry-picking. |
-| `claude/dashboard-modern-redesign` | "Orbit Admin" dashboard redesign | Standalone, **not merged**. Only touches the admin Dashboard page. |
+| `claude/dashboard-modern-redesign` | "Orbit Admin" dashboard redesign | **Stale ref, safe to delete** (see §5.5) — its tip (`f17eec4`) is a plain git ancestor of the feature branch with zero unique commits. The actual redesign work landed on the feature branch itself (`592957c`) and is live on both active branches, wired into `Dashboard.py::index_modern.html`. |
 
 ### 1.3 Dual-branch commit workflow (mandatory)
 For every change:
@@ -188,7 +188,7 @@ fully field-tested · **C** = implemented but known-uncertain/open.
 ### 4.5 Admin UI
 | Item | State | Notes |
 |---|---|---|
-| "Orbit Admin" dashboard redesign | B | On `claude/dashboard-modern-redesign`, **unmerged**, Dashboard page only. |
+| "Orbit Admin" dashboard redesign | A | **Live on both `claude/saving-mechanism-bug-yvzifn` and `optimize`** (commit `592957c`, `index_modern.html`, wired in `Dashboard.py`). The `claude/dashboard-modern-redesign` branch name is a stale, fully-subsumed pointer, not the actual location of this work — see §5.5. |
 | Settings/Domain/Proxies form redesigns, CSRF fixes | A/B | Duplicate-CSRF-field save bug fixed `f3cd04d`. |
 
 ---
@@ -277,9 +277,29 @@ revisit only if the divergence keeps causing real friction.
 **Done-criteria.** ✅ Written rule in this repo (§3 rule 5, §7) + a verified, working no-duplicate/
 no-stale-MAX_DB_VERSION AST checker passing on both branches.
 
-### 5.5 Decide the fate of `claude/dashboard-modern-redesign`  ·  priority: low
-It's an unmerged, Dashboard-only redesign. Decide: merge into the feature branch (and re-test the
-Dashboard render + admin nav), keep as an opt-in, or retire. No code work until that call is made.
+### 5.5 Decide the fate of `claude/dashboard-modern-redesign`  ·  priority: low  ·  **RESOLVED — premise was wrong**
+**Investigated, not assumed.** `git merge-base --is-ancestor claude/dashboard-modern-redesign
+claude/saving-mechanism-bug-yvzifn` returns true, and `git log claude/saving-mechanism-bug-yvzifn..
+claude/dashboard-modern-redesign` is empty: the branch's tip (`f17eec4`) has **zero commits** the
+feature branch doesn't already have. It is not "unmerged standalone work" — it's a plain historical
+checkpoint ref that was never advanced.
+
+The actual "Orbit Admin" redesign (`index_modern.html`, the design-brief-scoped single-screen
+Dashboard rebuild) landed via commit `592957c` directly on the shared history and is **already live**
+on both `claude/saving-mechanism-bug-yvzifn` and `optimize` — confirmed by finding it wired into
+`Dashboard.py`'s actual render path (`return render_template('index_modern.html', ...)` for the
+non-parent-mode case, with `index.html` explicitly kept for parent/child-status mode since the
+redesign brief was single-screen-dashboard-only). There is no separate "merge it in" decision to
+make; that already happened. §4.5's confidence rating is corrected A→A (was mislabeled B/unmerged).
+
+**Action taken:** corrected §1.2 and §4.5 above to state the true location of this work. **Action
+recommended, not taken:** delete the `claude/dashboard-modern-redesign` ref (local + remote) since it
+is fully subsumed and its name now actively misleads anyone reading branch history — deleting a
+remote ref is the kind of visible, shared-state action this project's operating rules ask to be
+confirmed rather than done unilaterally. If you want it gone: `git push origin --delete
+claude/dashboard-modern-redesign && git branch -D claude/dashboard-modern-redesign`.
+**Done-criteria.** ✅ Investigated and documented. ⬜ Optional cleanup (branch deletion) pending a
+go-ahead.
 
 ---
 
