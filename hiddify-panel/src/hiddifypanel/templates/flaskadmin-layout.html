@@ -696,6 +696,16 @@
                 $("#reality_short_id").parent().hide();
             }
 
+            // also_enable_xicmp (DomainAdmin.py's after_model_change())
+            // only means anything for direct-mode domains - xicmp itself
+            // has no such field (it's already the target), and every
+            // other mode has its own unrelated semantics.
+            if ($("#mode").val() == "direct") {
+                $("#also_enable_xicmp").closest('.form-group').show();
+            } else {
+                $("#also_enable_xicmp").closest('.form-group').hide();
+            }
+
             // DNSTT/xdns/xicmp don't use HTTP/TLS ports at all (each gets
             // its own dedicated, non-editable internal port - see
             // Domain.internal_port_dnstt/xdns/xicmp), and sub_link_only
