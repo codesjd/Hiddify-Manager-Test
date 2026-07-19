@@ -115,6 +115,18 @@ class SettingAdmin(FlaskView):
                 # html inputs santitizing
                 if k in {ConfigEnum.branding_title, ConfigEnum.branding_site, ConfigEnum.branding_freetext}:
                     v = bleach_clean(v, tags=ALLOWED_TAGS)
+                if k == ConfigEnum.core_type and v == "auto":
+                    # "Auto" is a form-only sentinel (see the SelectField
+                    # above) - core_type itself only ever stores "xray" or
+                    # "singbox" (everything downstream, install.sh included,
+                    # compares it against those two literal strings), so
+                    # writing "auto" into it would break every one of those
+                    # checks. Hand off to core_type_auto instead and leave
+                    # core_type as whatever it already is - install.sh's own
+                    # xhttp-usage resolution overwrites it with a real value
+                    # on the very next apply/install.
+                    set_hconfig(ConfigEnum.core_type_auto, True, commit=False)
+                    continue
                 set_hconfig(k, v, commit=False)
                 if k == ConfigEnum.core_type:
                     # Admin explicitly picked a core here - stop auto-managing
@@ -255,9 +267,9 @@ def get_config_form():
                 field = SwitchField(_(f'config.{c.key}.label'), default=c.value, description=_(f'config.{c.key}.description'))
             elif c.key == ConfigEnum.core_type:
                 field = wtf.SelectField(_(f"config.{c.key}.label"),
-                                        choices=[("xray", _("Xray")), ("singbox", _("SingBox"))],
+                                        choices=[("auto", _("Auto")), ("xray", _("Xray")), ("singbox", _("SingBox"))],
                                         description=_(f"config.{c.key}.description"),
-                                        default=hconfig(c.key))
+                                        default=("auto" if hconfig(ConfigEnum.core_type_auto) else hconfig(c.key)))
             elif c.key == ConfigEnum.lang or c.key == ConfigEnum.admin_lang:
                 field = wtf.SelectField(
                     _(f"config.{c.key}.label"),

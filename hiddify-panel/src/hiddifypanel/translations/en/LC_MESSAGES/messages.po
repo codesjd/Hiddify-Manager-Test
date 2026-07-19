@@ -1409,18 +1409,16 @@ msgstr "🔑 Cloudflare API"
 
 msgid "config.core_type.description"
 msgstr ""
+"🪄 Auto : Recomputed automatically on every Apply Configs based on what's actually in use (xhttp/xdns/xicmp/native-hysteria in use -> Xray, otherwise Sing-box).\n"
+"<br>\n"
 "☢️ XRay : Is a Complete Core\n"
 "<br>\n"
-"📦 Singbox : Developed by SagerNet. It is also a good core. Sing-box covers most protocols and runs a single core process; xray is only required for the xhttp transport."
+"📦 Singbox : Developed by SagerNet. It is also a good core. Sing-box covers most protocols and runs a single core process; xray is only required for the xhttp transport.\n"
+"<br>\n"
+"Picking Xray or Sing-box directly pins it - it stays that way until you switch back to Auto here."
 
 msgid "config.core_type.label"
 msgstr "🎛️ Core"
-
-msgid "config.core_type_auto.label"
-msgstr "🪄 Auto Core"
-
-msgid "config.core_type_auto.description"
-msgstr "When on, the core above is recomputed automatically on every Apply Configs based on what's actually in use (xhttp/xdns/xicmp/native-hysteria in use -> Xray, otherwise Sing-box) instead of staying fixed. Turns off by itself the moment you pick a Core value directly, so it never overrides a deliberate choice - turn it back on here to hand control back to auto-detection."
 
 msgid "config.country.description"
 msgstr ""
