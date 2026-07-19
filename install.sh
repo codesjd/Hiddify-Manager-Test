@@ -106,18 +106,19 @@ function main() {
         #update_progress "${PROGRESS_ACTION}" "ShadowTLS" 60
         #install_run other/shadowtls $(hconfig "shadowtls_enable")
         
-        # core_type only decides the PRIMARY core. The two cores are
-        # complementary, not redundant: xray serves vless/vmess/trojan/reality,
-        # while hysteria2/tuic/shadowsocks2022/anytls/mieru/naive exist ONLY as
-        # singbox inbounds (there is no xray/configs/ template for them). So on
-        # an xray-core install singbox must ALSO run, or every one of those
-        # protocols points at a dead port. They don't collide: singbox's
-        # overlapping inbounds (vless/vmess/trojan/reality) self-exclude via
-        # `{% if core_type=="singbox" %}` gates, and the two cores use distinct
-        # control/socks ports (xray 10085/1234, singbox 10086/2000). The panel
-        # also polls singbox on 10086 for usage stats, so it must be up.
-        # Only the SINGBOX-primary case can safely drop xray (xhttp is the sole
-        # xray-only transport and is already filtered from singbox subs).
+        # core_type only decides the PRIMARY core; each core is additionally
+        # switched on if anything EXCLUSIVE to it is actually in use, so a
+        # lean single-protocol install doesn't pay for a core it never
+        # touches. xray-exclusive: xhttp transport, xdns/xicmp finalmask,
+        # and native (non-singbox) hysteria - none of these have a
+        # sing-box template. singbox-exclusive: hysteria2/tuic/
+        # shadowsocks2022/anytls/mieru/naive - none of these have an
+        # xray/configs/ template. See the enable-resolution block below
+        # (past core_type_auto) for the actual XRAY_ENABLE/SINGBOX_ENABLE
+        # decision - every overlapping inbound (vless/vmess/trojan/reality
+        # over ws/grpc/tcp/httpupgrade) self-excludes via a matching
+        # `core_type=="xray"|"singbox"` gate in its own template on BOTH
+        # sides, so running both cores at once is always collision-free.
         CORE_TYPE=$(hconfig "core_type")
         XRAY_ENABLE=0
         SINGBOX_ENABLE=0
@@ -160,7 +161,23 @@ function main() {
         if [[ "$CORE_TYPE" == "xray" ]] || [[ "$(hconfig "xhttp_enable")" == "True" ]] || [[ "$HAS_XHTTP_DOMAIN" == "True" ]]; then
             XRAY_ENABLE=1
         fi
-        
+        # xdns/xicmp (finalmask) and native hysteria (ProxyProto.hysteria,
+        # NOT hysteria2) are xray-exclusive too - no sing-box template for
+        # any of them (see the comment above CORE_TYPE=$(hconfig...)) - so
+        # each needs xray running the same way xhttp does, independent of
+        # which core is primary. hysteria_enable is the same flag that
+        # gates sing-box's hysteria2 below. Unlike xhttp (which needed the
+        # extra HAS_XHTTP_DOMAIN domain-presence check above because
+        # xhttp_enable alone isn't authoritative for it), the flag alone
+        # is sufficient for xdns/xicmp: get_proxies() in hutils/proxy/
+        # shared.py already filters ProxyProto.xdns/xicmp out of every
+        # subscription entirely whenever their *_enable flag is off, so a
+        # domain sitting in xdns/xicmp mode with the flag off is already
+        # inert regardless of xray running or not.
+        for f in hysteria_enable xdns_enable xicmp_enable; do
+            [[ "$(hconfig "$f")" == "True" ]] && XRAY_ENABLE=1
+        done
+
         if [[ "$CORE_TYPE" == "singbox" ]]; then
             SINGBOX_ENABLE=1
         fi

@@ -356,9 +356,9 @@ function check_hiddify_panel() {
 
         # (cd hiddify-panel && python3 -m hiddifypanel admin-links)
         
+        # Both cores always run regardless of core_type (see install.sh's
+        # XRAY_ENABLE/SINGBOX_ENABLE comment) - each is checked unconditionally.
         for s in hiddify-xray hiddify-singbox hiddify-nginx hiddify-haproxy mysql; do
-            [ $s == "hiddify-xray" ] && [ "$(hconfig 'core_type')" != "xray" ] && continue
-            [ $s == "hiddify-singbox" ] && [ "$(hconfig 'core_type')" == "xray" ] && continue
             s=${s##*/}
             s=${s%%.*}
             for i in $(seq 1 10); do
