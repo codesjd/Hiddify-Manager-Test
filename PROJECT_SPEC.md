@@ -45,8 +45,9 @@ Farsi). Treat it as the changelog/rationale log. This spec is the forward-lookin
 For every change:
 1. Commit to `claude/saving-mechanism-bug-yvzifn`, verify (§7), push with retry/backoff.
 2. In the `optimize` worktree: `git fetch origin optimize`, cherry-pick the commit, re-verify, push.
-3. **Migration numbers are NOT portable between branches** (see §3.5). If the cherry-pick touches
-   `init_db.py`/`config_enum.py`, expect a conflict and renumber for the destination branch.
+3. **Migration numbers are NOT portable between branches** (see §3 rule 5). If the cherry-pick touches
+   `init_db.py`/`config_enum.py`, expect a conflict, renumber for the destination branch, then run
+   `python3 common/check_migrations.py <path-to-init_db.py-on-that-branch>` before continuing.
 
 ---
 
@@ -120,6 +121,14 @@ extra columns) is treated as ambiguous: it logs an ERROR, returns `False`, and t
    exercise real xray/sing-box traffic.
 5. **Migration numbers are per-branch.** Check the destination branch's actual `MAX_DB_VERSION` and
    highest `_vNNN` before adding/cherry-picking a migration; never assume the source number is free.
+   Enforce this mechanically, not by eyeballing: `python3 common/check_migrations.py <path/to/init_db.py>`
+   parses the file's AST (no import, no side effects) and fails if any `_vNNN` name is defined twice
+   (Python silently lets the later definition shadow the earlier one — the first migration's body
+   then never runs for anyone who already passed that version) or if `MAX_DB_VERSION` is lower than
+   the highest defined `_vNNN` (that migration would never be dispatched). Run it against the
+   destination branch's `init_db.py` **after** renumbering and **before** completing the cherry-pick
+   or committing a new migration — treat a non-zero exit as a hard blocker, same as a failing verify
+   gate in §7.
 6. **Production DB caution.** Stop the panel before schema-widening ALTERs. Look at what you're about
    to delete/overwrite before doing it.
 7. **Do not make speculative changes to REALITY routing.** `special_reality_tcp` binds directly (not
@@ -249,17 +258,24 @@ server and promote B→A or open a fix:
 - Public webhook delivery (enable/disable events) against a real receiver.
 Each: exercise the real flow, capture evidence, record result in CHANGES, update §4 confidence.
 
-### 5.4 Migration-numbering divergence policy  ·  priority: medium  ·  structural
+### 5.4 Migration-numbering divergence policy  ·  priority: medium  ·  structural  ·  **DONE (b)**
 **Problem.** `claude/saving-mechanism-bug-yvzifn` and `optimize` have different `_vNNN` numbers for
 the same conceptual migrations, so cherry-picks that touch migrations conflict and must be
 hand-renumbered. This is error-prone and has already bitten (`_v148` on feature = `_v149` on
 optimize).
-**Change (choose one, document it):** either (a) adopt a single source-of-truth ordering and
-re-sequence one branch once to match, or (b) codify a checklist step: before any migration
-cherry-pick, read destination `MAX_DB_VERSION` + AST-scan for duplicate `_vN` names, renumber, then
-continue. Until (a) happens, (b) is mandatory.
-**Done-criteria.** A written, followed rule in this repo (extend §3.5) plus, if (a), a verified
-no-duplicate `_vN` AST check passing on both branches.
+**Change.** Option (b) shipped: `common/check_migrations.py` — an AST-based checker (no import, no
+side effects) that fails on a duplicate `_vNNN` function name (Python silently lets the later
+definition shadow the earlier one, so the first migration's body becomes permanently dead code for
+anyone who already passed that version) or on `MAX_DB_VERSION` being lower than the highest defined
+`_vNNN`. The rule to run it before every migration cherry-pick/addition is now written into §3 rule 5
+and §7. Verified against both branches at write time: feature branch (90 functions, `MAX_DB_VERSION=148`)
+and `optimize` (92 functions, `MAX_DB_VERSION=149`) both pass clean; the duplicate- and
+stale-MAX_DB_VERSION-detection paths were each exercised against a synthetic broken file to confirm
+they actually fire. Option (a) (re-sequencing one branch to match the other) was **not** done — it's
+a larger, riskier one-time migration-history rewrite that wasn't justified just to add a lint check;
+revisit only if the divergence keeps causing real friction.
+**Done-criteria.** ✅ Written rule in this repo (§3 rule 5, §7) + a verified, working no-duplicate/
+no-stale-MAX_DB_VERSION AST checker passing on both branches.
 
 ### 5.5 Decide the fate of `claude/dashboard-modern-redesign`  ·  priority: low
 It's an unmerged, Dashboard-only redesign. Decide: merge into the feature branch (and re-test the
@@ -300,6 +316,8 @@ Dashboard render + admin nav), keep as an opt-in, or retire. No code work until 
 **Dual-branch:**
 - [ ] Committed + pushed to `claude/saving-mechanism-bug-yvzifn`.
 - [ ] `git fetch origin optimize`, cherry-picked, migration numbers checked, re-verified, pushed.
+- [ ] If the change touches `init_db.py`: `python3 common/check_migrations.py <path/to/init_db.py>`
+      passes (exit 0) on **both** branches after any renumbering — non-zero is a hard blocker.
 
 **PRs:** open as ready-for-review; mirror any repo PR template; subscribe to PR activity and drive CI
 to green.
