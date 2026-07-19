@@ -887,7 +887,26 @@ def _v42():
 def _v41():
     add_config_if_not_exist(ConfigEnum.core_type, "xray")
     if not (Domain.query.filter(Domain.domain == hconfig(ConfigEnum.reality_fallback_domain)).first()):
-        db.session.add(Domain(domain=hconfig(ConfigEnum.reality_fallback_domain), servernames=hconfig(ConfigEnum.reality_server_names), mode=DomainType.reality))
+        # Unlike a domain created through DomainAdmin's form, this raw
+        # db.session.add() bypasses on_model_change()'s
+        # _validate_reality_settings(), which is the only place that fills
+        # in reality_port/reality_private_key/reality_public_key/
+        # reality_short_id for a new domain - 05_inbounds_02_reality_main.
+        # json.j2 reads those fields directly with no fallback, so leaving
+        # them unset here rendered a broken/empty REALITY inbound on every
+        # fresh install until the domain was deleted and recreated by hand.
+        # Reuse the account-wide keypair/short-id _v31() already generated
+        # (same values, just actually wired into the domain row) rather
+        # than minting a redundant second set.
+        db.session.add(Domain(
+            domain=hconfig(ConfigEnum.reality_fallback_domain),
+            servernames=hconfig(ConfigEnum.reality_server_names),
+            mode=DomainType.reality,
+            reality_port=hutils.random.get_random_unused_port(),
+            reality_private_key=hconfig(ConfigEnum.reality_private_key),
+            reality_public_key=hconfig(ConfigEnum.reality_public_key),
+            reality_short_id=hconfig(ConfigEnum.reality_short_ids),
+        ))
 
 
 def _v38():
