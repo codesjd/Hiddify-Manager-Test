@@ -226,6 +226,11 @@ def get_quick_setup_form(empty=False):
                 "required": "",
                 "placeholder": "sub.domain.com"})
 
+        enable_xicmp = SwitchField(
+            _("Also enable xICMP on this domain"),
+            description=_("xICMP needs no DNS/NS setup, so even a bare server IP entered above works as an xICMP target too - enable this to get it set up during install instead of adding it separately later."),
+            default=False)
+
         cdn_domain = wtf.StringField(
             _("quicksetup.cdn_domain.label"),
             cdn_domain_validators,
@@ -252,6 +257,12 @@ def get_quick_setup_form(empty=False):
             if domain:
                 if not Domain.query.filter(Domain.domain == domain).first():
                     db.session.add(Domain(domain=domain, mode=DomainType.direct))
+                # Same dual-purpose mechanism as DomainAdmin.py's
+                # also_enable_xicmp - xICMP needs no DNS/NS setup, so the
+                # domain entered above (even a bare server IP) can serve
+                # xICMP at the same time as Direct.
+                if self.enable_xicmp.data and not Domain.query.filter(Domain.domain == domain, Domain.mode == DomainType.xicmp).first():
+                    db.session.add(Domain(domain=domain, mode=DomainType.xicmp))
             if self.cdn_domain.data:
                 cdn_domain = self.cdn_domain.data.lower()
                 if not Domain.query.filter(Domain.domain == cdn_domain).first():

@@ -13,6 +13,8 @@ from markupsafe import Markup
 from flask_babel import gettext as __
 from flask_babel import lazy_gettext as _
 from hiddifypanel.panel.run_commander import Command, commander
+from hiddifypanel.database import db
+import wtforms as wtf
 from wtforms.validators import Regexp, ValidationError, Optional, NumberRange
 from sqlalchemy import inspect as sa_inspect
 
@@ -87,7 +89,14 @@ class DomainAdmin(AdminLTEModelView):
                     # "extra_params":custom_widgets.CustomJSONField(DnsTT, "Extra Params")
                     }
     form_extra_fields = {
-        "extra_params": custom_widgets.CustomJSONField(DnsTT, "Extra Params / Per-Domain Override")
+        "extra_params": custom_widgets.CustomJSONField(DnsTT, "Extra Params / Per-Domain Override"),
+        # xicmp needs no DNS/NS setup (see the mode description below), so
+        # the server's own IP works as an xicmp target exactly as well as
+        # any other domain would - this just automates creating/removing
+        # the companion Domain(mode=xicmp) row that actually makes it one,
+        # instead of requiring a second, manually-created "Add Domain" for
+        # the identical domain string. See after_model_change() below.
+        "also_enable_xicmp": wtf.BooleanField(_("Also enable xICMP on this domain")),
     }
     form_widget_args = {
         'description': {
@@ -103,6 +112,7 @@ class DomainAdmin(AdminLTEModelView):
                "dnstt mode is DNS tunneling: it does NOT work like the other modes (no CDN/A-record setup). You must delegate an NS record for this subdomain to your server's IP first, or it will never connect. "
                "xdns mode tunnels traffic inside DNS queries (Xray-core's xdns finalmask) - same NS delegation requirement as dnstt, and gets its own isolated inbound so it never affects your other connection modes. "
                "xicmp mode tunnels traffic inside ICMP (ping) packets (Xray-core's xicmp finalmask) - no DNS/NS setup needed, but the server needs CAP_NET_RAW to open a raw ICMP socket."),
+        also_enable_xicmp=_("xICMP needs no DNS/NS setup, so this domain (including a bare server IP) can serve xICMP at the same time as its main mode. Creates/removes a matching xICMP entry for you - equivalent to adding it separately with the same domain value."),
         cdn_ip=_("config.cdn_forced_host.description"),
         show_domains=_('domain.show_domains_description'),
         alias=_('The name shown in the configs for this domain.'),
@@ -163,6 +173,7 @@ class DomainAdmin(AdminLTEModelView):
     column_searchable_list = ["domain", "mode"]
     column_labels = {
         "domain": _("domain.domain"),
+        'also_enable_xicmp': _('Also enable xICMP on this domain'),
         'sub_link_only': _('Only for sublink?'),
         "mode": _("domain.mode"),
         "cdn_ip": _("config.cdn_forced_host.label"),
@@ -181,7 +192,7 @@ class DomainAdmin(AdminLTEModelView):
         'reality_short_id': _('REALITY Short ID'),
     }
 
-    form_columns = ['mode', 'domain', 'alias', 'servernames', 'cdn_ip', 'resolve_ip', 'http_port', 'tls_port',
+    form_columns = ['mode', 'domain', 'also_enable_xicmp', 'alias', 'servernames', 'cdn_ip', 'resolve_ip', 'http_port', 'tls_port',
                     'reality_port', 'reality_private_key', 'reality_public_key', 'reality_short_id',
                     'show_domains', 'download_domain', "extra_params"]
     
@@ -251,6 +262,23 @@ class DomainAdmin(AdminLTEModelView):
                 form.reality_public_key.data = keys['public_key']
             if not form.reality_short_id.data:
                 form.reality_short_id.data = uuid.uuid4().hex[0:random.randint(1, 8) * 2]
+        return form
+
+    def edit_form(self, obj=None):
+        # also_enable_xicmp isn't a model column - it's a plain checkbox
+        # (see form_extra_fields), so it has no obj value to prefill from
+        # automatically the way every real column does. Reflect whether a
+        # companion xICMP row already exists for this domain string, or
+        # editing-and-resaving without touching the checkbox would read as
+        # "no" and after_model_change() below would delete it.
+        form = super().edit_form(obj)
+        if request.method == 'GET' and obj is not None:
+            form.also_enable_xicmp.data = Domain.query.filter(
+                Domain.domain == obj.domain,
+                Domain.mode == DomainType.xicmp,
+                Domain.child_id == obj.child_id,
+                Domain.id != obj.id,
+            ).first() is not None
         return form
 
     # def on_form_prefill(self, form, id):
@@ -499,6 +527,16 @@ class DomainAdmin(AdminLTEModelView):
         if hconfig(ConfigEnum.cloudflare) and model.mode not in [DomainType.fake, DomainType.reality, DomainType.relay] and "special" not in model.mode:
             if not hutils.network.cf_api.delete_dns_record(model.domain):
                 hutils.flask.flash(_('cf-delete.failed'), 'warning')  # type: ignore
+        if model.mode == DomainType.direct:
+            # Companion of after_model_change()'s also_enable_xicmp sync -
+            # don't leave an orphaned xICMP entry behind once the direct
+            # domain it was tied to is gone.
+            Domain.query.filter(
+                Domain.domain == model.domain,
+                Domain.mode == DomainType.xicmp,
+                Domain.child_id == model.child_id,
+                Domain.id != model.id,
+            ).delete()
         model.showed_by_domains = []
         # db.session.commit()
         hutils.apply_scope.mark_dirty(hutils.apply_scope.DOMAIN_CHANGE_SUBSYSTEMS)
@@ -513,6 +551,30 @@ class DomainAdmin(AdminLTEModelView):
             set_hconfig(ConfigEnum.first_setup, False)
         if model.need_valid_ssl and "*" not in model.domain:
             commander(Command.get_cert, domain=model.domain)
+        if model.mode == DomainType.direct:
+            # also_enable_xicmp (form_extra_fields above) isn't a real
+            # column on `model` - sync a companion Domain(mode=xicmp) row
+            # with the same domain string to match it. Only for direct
+            # mode: xicmp needs no DNS/NS setup (unlike dnstt/xdns), so a
+            # bare server IP works here exactly as well as a real domain -
+            # this is what lets one domain (or the IP itself) serve both
+            # Direct and xICMP at once instead of requiring two separate
+            # "Add Domain" entries with the identical value.
+            xicmp_companion = Domain.query.filter(
+                Domain.domain == model.domain,
+                Domain.mode == DomainType.xicmp,
+                Domain.child_id == model.child_id,
+                Domain.id != model.id,
+            ).first()
+            if form.also_enable_xicmp.data:
+                if not xicmp_companion:
+                    db.session.add(Domain(domain=model.domain, mode=DomainType.xicmp, child_id=model.child_id))
+                    db.session.commit()
+                    hutils.apply_scope.mark_dirty(hutils.apply_scope.DOMAIN_CHANGE_SUBSYSTEMS)
+            elif xicmp_companion:
+                db.session.delete(xicmp_companion)
+                db.session.commit()
+                hutils.apply_scope.mark_dirty(hutils.apply_scope.DOMAIN_CHANGE_SUBSYSTEMS)
         if hutils.node.is_child():
             hutils.node.run_node_op_in_bg(hutils.node.child.sync_with_parent, *[hutils.node.child.SyncFields.domains])
 
