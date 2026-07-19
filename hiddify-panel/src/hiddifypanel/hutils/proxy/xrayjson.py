@@ -117,7 +117,14 @@ def to_xray(proxy: dict) -> dict:
     # this skip-list, so any client other than v2rayng requesting the
     # full-Xray-JSON format with a hysteria2 proxy present would get a
     # broken `{"protocol": "hysteria2", "settings": {}}` outbound too.
-    if proxy['proto'] in {ProxyProto.naive, ProxyProto.mieru, ProxyProto.anytls, ProxyProto.tuic, ProxyProto.hysteria2}:
+    #
+    # ssh/dnstt/amneziawg are real, connectable protocols, but not ones most
+    # Xray-JSON clients understand as an outbound alongside vless/vmess/
+    # trojan/etc - they get their own independent links (see to_link()
+    # elsewhere) instead of being bundled into this combined subscription
+    # format, same reasoning as the sing-box subscription's exclusion list.
+    if proxy['proto'] in {ProxyProto.naive, ProxyProto.mieru, ProxyProto.anytls, ProxyProto.tuic, ProxyProto.hysteria2,
+                          ProxyProto.ssh, ProxyProto.dnstt, ProxyProto.amneziawg}:
         return {}
     outbound = {
         'tag': f'{proxy["extra_info"]} {proxy["name"]}',
