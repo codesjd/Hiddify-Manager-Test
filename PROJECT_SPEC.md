@@ -101,13 +101,87 @@ extra columns) is treated as ambiguous: it logs an ERROR, returns `False`, and t
   starves on lock contention.
 
 ### 2.5 Panel code layout (where things live)
-- `models/` — SQLAlchemy models, `config_enum.py`, `domain.py`, `proxy.py`, migrations in
-  `panel/init_db.py`.
+The panel (`hiddify-panel/src/hiddifypanel/`) is a Flask + flask-admin app. Full navigable map is in
+§8; the parts you touch most:
+- `models/` — SQLAlchemy models + enums: `config_enum.py` (all settings), `proxy.py`
+  (`ProxyProto`/`ProxyL3`/`ProxyTransport`/`ProxyCDN`), `domain.py` (`DomainType`, port-offset props),
+  `child.py` (multi-node), `user.py`/`admin.py`/`role.py`, `usage.py`, `routing.py`
+  (custom outbounds/routing rules). Migrations live in `panel/init_db.py` (`_vNNN` functions).
 - `hutils/proxy/` — subscription/config generation: `shared.py` (per-proxy dict builder + `get_port`),
-  `xrayjson.py` (full Xray JSON sub), `singbox.py` (sing-box JSON sub), `xray.py` (share links).
-- `panel/admin/` — flask-admin views (`DomainAdmin`, `Actions`, `OutboundAdmin`, etc).
+  `xrayjson.py` (full Xray JSON sub), `singbox.py` (sing-box JSON sub), `xray.py` (share links),
+  `clash.py`, `wireguard.py`/`amneziawg.py`.
+- `panel/admin/` — flask-admin views (`DomainAdmin`, `SettingAdmin`, `ProxyAdmin`, `Actions`,
+  `OutboundAdmin`, `RoutingRuleAdmin`, `InboundOverrideAdmin`, `NodeAdmin`, `QuickSetup`, `UserAdmin`,
+  `Dashboard`).
+- `panel/hiddify.py` — `all_configs_for_cli()` builds the DB→`current.json` payload (§2.3 pipeline).
+- `panel/cli.py` — `hiddify-panel-cli` entrypoints (`all-configs`, `init-db`, `update-usage`, backup).
+- `drivers/` — the **live control plane** (§2.8), distinct from the render pipeline.
 - Note: **`all_public_ports()` is implemented twice** — `panel/admin/Actions.py` and
   `hutils/network/net.py`. Keep them in sync (drift bug fixed `c7b4ecb`).
+
+### 2.6 Config data model (how a "setting" behaves)
+- Settings are a fixed enum: **`ConfigEnum`** (~243 members). Each member carries a
+  **`ConfigCategory`** (UI grouping: `general`/`proxies`/`tls`/`reality`/`hysteria`/`hidden`/…) and an
+  **`ApplyMode`**: `nothing` | `apply_config` | `reinstall`. Values are stored per-child in
+  `bool_config` / `str_config` tables (typed via `_BoolConfigDscr`/`_StrConfigDscr`/`_IntConfigDscr`/
+  `_TypedConfigDscr`), read with `hconfig(ConfigEnum.x, child_id)`.
+- `ApplyMode` is the contract for **what a settings change triggers**: `apply_config` → re-render +
+  apply (fast), `reinstall` → full `install.sh install` (slow, reruns subsystem installers),
+  `nothing` → stored only. Adding a setting means choosing the *cheapest* correct ApplyMode.
+- Adding a `ConfigEnum` member widens a MySQL `ENUM` column → see the schema-reconciler crash-loop
+  trap in §2.4. This is the single most common way a new setting breaks the panel.
+- `Proxy` rows (protocol × transport × L3 × CDN combinations) are seeded by `init_db.py` migrations
+  and enable/disable which inbounds render. `Domain` rows (with a `DomainType` mode) drive per-domain
+  ports/certs/SNI.
+
+### 2.7 Install / apply modes & the commander (how the panel drives the shell)
+The panel never edits configs on disk directly. It calls **`commander(Command.x)`**
+(`panel/run_commander.py` → `common/commander.py`), which spawns a detached shell process:
+| Command | Runs | When |
+|---|---|---|
+| `apply` | `apply_configs.sh` (= `install.sh apply_configs`, `DO_NOT_INSTALL=true`) | most settings/domain/proxy changes (ApplyMode.apply_config) |
+| `apply_users` | `install.sh apply_users` (`DO_NOT_INSTALL=true`, `MODE=apply_users`) | user add/remove — **fast path**, only re-renders per-user templates + pushes via drivers (§2.8) |
+| `reinstall` | `install.sh install` | ApplyMode.reinstall settings, or Reinstall button |
+| `restart_services` | `restart.sh` | Restart button |
+- `install.sh main()` branches on `MODE`/`DO_NOT_INSTALL`: a full install runs every subsystem
+  installer; `apply_configs` skips installers but re-renders + restarts; `apply_users` skips almost
+  everything except the per-user render + driver push. `HIDDIFY_APPLY_SUBSYSTEMS` can scope an apply
+  to specific subsystems.
+- **The commander runs install.sh as a detached child of `hiddify-panel.service`** — this is why the
+  `systemctl kill --kill-who=main` fix (§4.4) matters: a bare kill would take out the running apply.
+
+### 2.8 Live driver control plane (the *other* path to the cores)
+Parallel to the render pipeline, `drivers/` (`user_driver.py` fans out to `XrayApi`, `SingboxApi`,
+`WireguardApi`, `AmneziaWgApi`, `SSHLibertyBridgeApi`, `TelemtApi`) talks to each running core's
+**control API** (xray gRPC on 10085, singbox on 10086, etc.) to:
+- `get_all_usage()` — pull per-UUID byte counters (drives usage accounting / quota enforcement).
+- `add_client()` / `remove_client()` — push a single user live, no full re-render.
+This is why `apply_users` is cheap and why both cores must stay running even on a single-core install
+(§2.1) — the panel polls them for stats regardless of `core_type`. When debugging "usage not
+counting" or "disabled user still connects," this path, not the render pipeline, is the suspect.
+
+### 2.9 Multi-node (parent / child)
+Real, first-class feature. A `Child` row has a `ChildMode`: `virtual` (single box, the common case),
+`remote` (this panel is a child node of a parent), or `parent`. Config/proxies/domains/usage are all
+per-child (FK to `child.id`). The sync happens over the **commercial REST API v2**
+(`panel/commercial/restapi/v2/{parent,child}/`): children register with a parent, push usage, pull
+config. `hutils/node/{parent,child,shared,api_client}.py` + `panel/admin/NodeAdmin.py` implement it;
+`hutils.node.is_parent()/is_child()` gate behavior (e.g. the Dashboard renders `parent_dash.html`
+instead of the redesigned `index_modern.html` in parent mode — see §5.5). Most single-VPS installs
+never leave `virtual` mode, but **any change to config/usage/domain handling must not assume
+single-node** — check the `child_id` dimension.
+
+### 2.10 Request-serving stack (who answers a browser/client)
+- **nginx** (`nginx/`) fronts the **panel** (Flask app served via uwsgi/asgi on `:9000` — the
+  `hiddify-http-api` curl target in `common/utils.sh` hits `localhost:9000/<api_path>/api/v2/…`) and
+  also acts as a **CDN-facing dispatcher**: unix-socket vhosts (`nginx/run/h1.sock`, `h2.sock`,
+  `nginx_cdn_dispatcher*.sock`, `grpc-singbox.sock`) receive `proxy_protocol` traffic relayed from
+  HAProxy and forward HTTP/1.1, HTTP/2, and gRPC to the right core. Real client IP is recovered via
+  `set_real_ip_from` + the CF/AR real-ip conf snippets.
+- **HAProxy** (`haproxy/`) is the `:443`/`:80` edge splitter (§2.2).
+- **the cores** (`xray/`, `singbox/`) terminate the actual proxy protocols.
+So the end-to-end path for a CDN/WS client is: client → HAProxy `:443` → (relay) → nginx socket →
+core; for the panel: browser → HAProxy/nginx → uwsgi → Flask.
 
 ---
 
@@ -341,3 +415,67 @@ go-ahead.
 
 **PRs:** open as ready-for-review; mirror any repo PR template; subscribe to PR activity and drive CI
 to green.
+
+---
+
+## 8. Full component reference (navigate any part of the repo)
+
+A map of the whole project, not just the session-touched files, so an executor can locate anything.
+
+### 8.1 Root orchestration (shell)
+| Path | Role |
+|---|---|
+| `install.sh` | The engine. `main()` branches on `MODE`/`DO_NOT_INSTALL` into full-install vs `apply_configs` vs `apply_users`; runs each subsystem via `install_run <dir> [enable-flag]`. |
+| `apply_configs.sh` | Thin wrapper → `DO_NOT_INSTALL=true ./install.sh apply_configs`. |
+| `menu.sh` / `status.sh` / `restart.sh` / `uninstall.sh` | Operator CLI, health output, service restart, teardown. |
+| `update.sh` | **Do not run** (§3 rule 1) — pulls upstream. |
+| `docker-init.sh`, `Dockerfile`, `docker-compose.yml` | Container path. |
+
+### 8.2 `common/` (shared install/render machinery)
+| Path | Role |
+|---|---|
+| `utils.sh` | Shell library: `reload_all_configs()` (atomic, §2.3), `hiddify-http-api()`, `allow_port()`/iptables helpers, service health checks. |
+| `jinja.py` | The render engine (§2.3): reads `current.json`, renders every `.j2` via a 4-way process pool. |
+| `commander.py` | Maps `Command.*` → shell entrypoints (the panel's hand on the shell). |
+| `replace_variables.sh` | Substitutes `current.json`-derived vars into non-Jinja config. |
+| `check_migrations.py` | **(new, §5.4)** AST lint for `init_db.py` migration numbering. |
+| `install.sh`, `run.sh.j2`, `hiddify_installer.sh`, `package_manager.sh`, `google-bbr.sh`, `sysctl.conf` | Base OS/tooling setup, BBR, sysctl. |
+| `packages.lock` / `packages.db` | Pinned versions (e.g. Xray-core v26.6.1). |
+
+### 8.3 Config-render subsystems (each: `install.sh` + `run.sh` + `*.service` + `configs/` or `*.j2`)
+| Dir | Role |
+|---|---|
+| `xray/` | xray-core: `configs/*.j2` inbound/outbound templates (finalmask xdns/xicmp, native hysteria, reality, the `05_inbounds_new.json` vless/vmess/trojan matrix), `pre-start.sh`, service. |
+| `singbox/` | sing-box: `configs/*.j2` for hysteria2/tuic/anytls/naive/mieru/ss2022; shared TLS include `common/includes/tls_inbound.pj2`; has a `tests/` suite. |
+| `haproxy/` | `:443`/`:80` splitter (§2.2): `haproxy.cfg.j2`, `fronts/`, `backends/`, `maps/`, `iplists/`. |
+| `nginx/` | Panel front + CDN/gRPC socket dispatcher (§2.10): `nginx.conf.j2`, `conf.d/{xray,singbox}-base.conf.j2`, `parts/`, real-ip snippets. |
+| `acme.sh/` | Cert issuance/renewal: `get_cert.sh`, `prepare_acme.sh`, `generate_self_signed_cert.sh`, `cert_utils.sh`. |
+
+### 8.4 `other/*` subsystems (each gated by an enable-flag in `install.sh`)
+`mysql` / `postgres` (DB backend — postgres/timescaledb opt-in via `DB_BACKEND`) · `redis`
+(own `hiddify-redis` unit with auth — **not** stock `redis-server`) · `amneziawg` (WARP replacement,
+vendored binaries) · `wireguard` · `l2tp` (strongSwan+xl2tpd IPsec) · `dnstt` (DNS tunnel) ·
+`ssfaketls` (simple-obfs) · `ssh` · `telegram` (MTProto) · `hiddify-cli` · `v2ray` (legacy, mostly
+off) · `docker` · `deprecated/` (removal scripts run early in `main()`).
+
+### 8.5 Panel (`hiddify-panel/src/hiddifypanel/`)
+| Area | Contents |
+|---|---|
+| top-level | `__init__.py`/`base.py`/`base_setup.py` (app factory), `database.py` (**schema reconciler**, §2.4), `Events.py` (hooks incl. webhook), `auth.py`, `cache.py`, `celery.py`. |
+| `apps/` | `wsgi_app.py` / `asgi_app.py` / `celery_app*.py` — process entrypoints. |
+| `models/` | ORM + enums (§2.5/§2.6). |
+| `panel/` | `hiddify.py` (`all_configs_for_cli`), `cli.py`, `init_db.py` (migrations), `run_commander.py`, `hlogger.py`, `usage.py`; `admin/` (flask-admin views), `user/` (subscription/user pages), `common_bp/` (login), `node/` (gRPC node bits). |
+| `panel/commercial/` | REST API `restapi/v1` + `restapi/v2/{admin,user,parent,child,panel}`, `telegrambot/`. The v2 admin/user APIs are the programmatic surface; `parent`/`child` power multi-node (§2.9). |
+| `hutils/` | Helpers: `proxy/` (sub generation), `network/net.py` (incl. 2nd `all_public_ports`), `node/` (multi-node), `flask.py`, `crypto.py`, `encode.py`, `system.py`, `webhook.py`, `importer/xui.py` (import from x-ui). |
+| `drivers/` | Live control plane (§2.8). |
+| `static/`, `templates/`, `translations/` | Assets (incl. the AdminLTE plugins), Jinja templates (incl. `admin/templates/index_modern.html` — the Orbit redesign, §5.5), i18n. |
+
+### 8.6 Ops / CI
+`operations/` (lxd + oracle deploy helpers), `release/`, `btn-deploy/` (one-click deploy, incl.
+`oracle/`), `.github/` workflows (e.g. the AmneziaWG cross-build), `docs/`.
+
+### 8.7 Runtime state (not in git, referenced everywhere)
+`/opt/hiddify-manager/current.json` (rendered config source, §2.3) · `/opt/hiddify-manager/ssl/*.crt`
+(+`.key`) · `/opt/hiddify-manager/{xray,singbox}/configs/*.json` (rendered outputs) ·
+`/run/haproxy-master.sock` (stats/introspection, §2.2) · core control ports (xray 10085, singbox
+10086) · panel http-api on `:9000`.
