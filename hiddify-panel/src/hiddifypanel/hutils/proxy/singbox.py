@@ -30,14 +30,15 @@ def configs_as_json(domains: list[Domain], **kwargs) -> dict:
         # plain-link subscription already does in make_v2ray_configs().
         if pinfo.get('transport') == ProxyTransport.xhttp:
             continue
-        # SSH, Mieru, Naive and AmneziaWG outbounds aren't compiled into
-        # every sing-box build (mieru needs CGO, ssh/naive/wireguard are
-        # optional modules some minimal/mobile builds leave out) - unlike
-        # xhttp above this doesn't fail the whole config, but it does
+        # SSH, Mieru, Naive, AmneziaWG and DNSTT outbounds aren't compiled
+        # into every sing-box build (mieru needs CGO, ssh/naive/wireguard/
+        # dnstt are optional modules some minimal/mobile builds leave out) -
+        # unlike xhttp above this doesn't fail the whole config, but it does
         # leave dead, unusable proxy group entries in the client's Select/
         # Auto lists. Excluded from the sing-box JSON specifically; these
-        # protocols are untouched in every other subscription format.
-        if pinfo.get('proto') in (ProxyProto.ssh, ProxyProto.mieru, ProxyProto.naive, ProxyProto.amneziawg):
+        # protocols are untouched in every other subscription format (they
+        # still get their own independent links, see to_link()).
+        if pinfo.get('proto') in (ProxyProto.ssh, ProxyProto.mieru, ProxyProto.naive, ProxyProto.amneziawg, ProxyProto.dnstt):
             continue
         # ProxyProto.hysteria (not hysteria2) is Xray-core's own native
         # hysteria protocol/inbound (xray/configs/05_inbounds_07_hysteria.
