@@ -190,7 +190,11 @@ class ConfigEnum(metaclass=FastEnum):
     # explicit "xray" default untouched. Flips to False permanently the
     # instant an admin picks a value via Settings (SettingAdmin.py), so
     # auto-management can never silently override a deliberate choice.
-    core_type_auto = _BoolConfigDscr(ConfigCategory.hidden, ApplyMode.reinstall, hide_in_virtual_child=True)
+    # Visible (not hidden) so an admin who wants it back on after an
+    # explicit pick has a way to do that - same category as core_type so
+    # they render together, same visible/toggle-driven pattern this file
+    # already uses for utls/utls_auto_rotate elsewhere.
+    core_type_auto = _BoolConfigDscr(ConfigCategory.advanced, ApplyMode.reinstall, hide_in_virtual_child=True)
     # WARP used to be its own Settings section (mode toggle + plus-code +
     # custom-sites list) driving a hardcoded "WARP" outbound bound to a
     # wgcf-managed wg-quick@warp interface, plus built-in geo-routing rules

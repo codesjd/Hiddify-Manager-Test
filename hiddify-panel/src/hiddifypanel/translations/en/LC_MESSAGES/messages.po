@@ -1416,6 +1416,12 @@ msgstr ""
 msgid "config.core_type.label"
 msgstr "🎛️ Core"
 
+msgid "config.core_type_auto.label"
+msgstr "🪄 Auto Core"
+
+msgid "config.core_type_auto.description"
+msgstr "When on, the core above is recomputed automatically on every Apply Configs based on what's actually in use (xhttp/xdns/xicmp/native-hysteria in use -> Xray, otherwise Sing-box) instead of staying fixed. Turns off by itself the moment you pick a Core value directly, so it never overrides a deliberate choice - turn it back on here to hand control back to auto-detection."
+
 msgid "config.country.description"
 msgstr ""
 "It applies the appropriate settings for each country according to the "
