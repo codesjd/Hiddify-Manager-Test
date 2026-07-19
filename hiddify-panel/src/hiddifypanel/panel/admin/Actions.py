@@ -103,6 +103,10 @@ class Actions(FlaskView):
             # sing-box's hysteria2 above (see xray/configs/
             # 05_inbounds_07_hysteria.json.j2).
             udp_ports.add(d.internal_port_xray_hysteria)
+            # xdns/xicmp (finalmask) ride mKCP, which is UDP-based, same as
+            # every other finalmask/QUIC protocol above.
+            udp_ports.add(d.internal_port_xdns)
+            udp_ports.add(d.internal_port_xicmp)
             # AnyTLS is TCP-based (unlike its QUIC/UDP siblings above).
             tcp_ports.add(d.internal_port_anytls)
             if d.tls_port:

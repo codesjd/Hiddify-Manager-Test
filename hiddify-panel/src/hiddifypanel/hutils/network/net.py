@@ -546,6 +546,10 @@ def all_public_ports():
             # sing-box's hysteria2 above (see xray/configs/
             # 05_inbounds_07_hysteria.json.j2).
             udp_ports[d.internal_port_xray_hysteria]="hysteria_xray"
+            # xdns/xicmp (finalmask) ride mKCP, which is UDP-based, same as
+            # every other finalmask/QUIC protocol above.
+            udp_ports[d.internal_port_xdns]="xdns"
+            udp_ports[d.internal_port_xicmp]="xicmp"
             if d.tls_port:
                 tcp_ports[d.tls_port]="tls"
                 udp_ports[d.tls_port]="quic"
