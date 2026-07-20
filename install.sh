@@ -181,7 +181,13 @@ function main() {
         if [[ "$CORE_TYPE" == "singbox" ]]; then
             SINGBOX_ENABLE=1
         fi
-        for f in hysteria_enable tuic_enable anytls_enable shadowsocks2022_enable naive_enable mieru_enable; do
+        # shadowtls_enable was missing here: shadowtls only exists as a
+        # sing-box inbound (singbox/configs/05_inbounds_1030_shadowtls.
+        # json.j2, no xray equivalent), so with core_type=xray and only
+        # shadowtls toggled on (no other singbox-exclusive protocol),
+        # SINGBOX_ENABLE stayed 0 and sing-box never started - shadowtls
+        # silently could never work regardless of the toggle.
+        for f in hysteria_enable tuic_enable anytls_enable shadowsocks2022_enable shadowtls_enable naive_enable mieru_enable; do
             [[ "$(hconfig "$f")" == "True" ]] && SINGBOX_ENABLE=1
         done
 
