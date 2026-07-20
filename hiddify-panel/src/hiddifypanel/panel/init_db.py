@@ -14,7 +14,29 @@ from hiddifypanel.database import db, db_execute
 
 
 from loguru import logger
-MAX_DB_VERSION = 150
+MAX_DB_VERSION = 151
+
+
+def _v151(child_id):
+    """ML-DSA-65 post-quantum REALITY signature (see config_enum.py's
+    reality_mldsa65_seed/verify docstring). Numbered _v151 on this branch
+    (not _v150, which this branch already uses for a different migration -
+    removing the Hysteria (Xray) feature - than the feature branch this
+    was cherry-picked from does), same reasoning as _v149's own docstring
+    already documents for this branch's numbering divergence. Skips
+    entirely (no config rows added) if hutils.crypto.generate_mldsa65_keys()
+    returns None - e.g. the xray binary isn't downloaded yet at migration
+    time - so a missing PQ hardening field never blocks bootstrap; REALITY
+    works identically without it, just without the additional PQ signature.
+    Migrations don't auto-retry, so an install that hits this at exactly
+    the wrong bootstrap moment stays without it until an admin uses the
+    existing "regenerate REALITY keys" action (Actions.py's
+    change_reality_keys(), which also attempts this and runs well after
+    installation, when the binary is reliably present)."""
+    keys = hutils.crypto.generate_mldsa65_keys()
+    if keys:
+        add_config_if_not_exist(ConfigEnum.reality_mldsa65_seed, keys['seed'])
+        add_config_if_not_exist(ConfigEnum.reality_mldsa65_verify, keys['verify'])
 
 
 def _v150(child_id):

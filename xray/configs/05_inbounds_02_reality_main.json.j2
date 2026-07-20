@@ -78,6 +78,15 @@
 							"maxTimeDiff": 7200000,
 							"limitFallbackUpload": {"afterBytes": 0, "bytesPerSec": 1000000, "burstBytesPerSec": 2000000},
 							"limitFallbackDownload": {"afterBytes": 0, "bytesPerSec": 1000000, "burstBytesPerSec": 2000000}
+							{% if hconfigs['reality_mldsa65_seed'] %}
+							{# ML-DSA-65 PQ signature (global-only, see config_enum.py's
+							   reality_mldsa65_seed docstring) - conditional because it's
+							   best-effort generated (may not exist yet on every install,
+							   see init_db.py's _v150) and omitting it entirely is exactly
+							   how Xray-core's own docs say to disable this optional
+							   hardening, rather than sending an empty string. #}
+							,"mldsa65Seed": "{{hconfigs['reality_mldsa65_seed']}}"
+							{% endif %}
 						},
                         "sockopt": {
                             {% if stream=='tcp' %}
