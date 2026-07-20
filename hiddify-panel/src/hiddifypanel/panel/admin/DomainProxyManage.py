@@ -37,7 +37,16 @@ def _get_applicable_proxies(domain: Domain) -> list[Proxy]:
     universe = hutils.proxy.get_proxies(domain.child_id, only_enabled=False)
     applicable = []
     for proxy in universe:
-        port = hutils.proxy.get_port(proxy, hconfigs, domain, domain.effective_tls_port, domain.effective_http_port, None)
+        # get_valid_proxies() picks the real per-protocol pport
+        # (shadowsocks2022_port, ssh_server_port, ...) via a per-proto
+        # `options` dict; get_port()'s final catch-all branch does
+        # `int(pport)` for every protocol not special-cased earlier
+        # (ShadowSocks2022 - l3=custom, proto=ss - is one), so passing None
+        # through unconditionally crashes there. The actual port value
+        # doesn't matter here - only is_proxy_valid()'s truthiness check on
+        # it ("port not defined") does - so a non-zero placeholder is
+        # correct and safe for this applicability check.
+        port = hutils.proxy.get_port(proxy, hconfigs, domain, domain.effective_tls_port, domain.effective_http_port, 1)
         if hutils.proxy.is_proxy_valid(proxy, domain, port) is None:
             applicable.append(proxy)
     return applicable
