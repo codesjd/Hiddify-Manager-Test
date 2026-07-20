@@ -553,10 +553,6 @@ def all_public_ports():
             udp_ports[d.internal_port_tuic]="tuic"
             udp_ports[d.internal_port_naive]="naive"
             udp_ports[d.internal_port_hysteria2]="hysteria"
-            # Xray-core's own native hysteria inbound - separate port from
-            # sing-box's hysteria2 above (see xray/configs/
-            # 05_inbounds_07_hysteria.json.j2).
-            udp_ports[d.internal_port_xray_hysteria]="hysteria_xray"
             # xdns/xicmp (finalmask) ride mKCP, which is UDP-based, same as
             # every other finalmask/QUIC protocol above.
             udp_ports[d.internal_port_xdns]="xdns"

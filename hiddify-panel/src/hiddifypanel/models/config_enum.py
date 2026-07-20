@@ -413,10 +413,12 @@ class ConfigEnum(metaclass=FastEnum):
     hysteria_obfs_enable = _BoolConfigDscr(ConfigCategory.hysteria, ApplyMode.apply_config)
     hysteria_up_mbps = _StrConfigDscr(ConfigCategory.hysteria, ApplyMode.apply_config)
     hysteria_down_mbps = _StrConfigDscr(ConfigCategory.hysteria, ApplyMode.apply_config)
-    # Separate port for Xray-core's own native "hysteria" protocol (see
-    # xray/configs/05_inbounds_07_hysteria.json.j2). Xray's implementation
-    # has no salamander/obfs support unlike the sing-box hysteria2 inbound
-    # above, so it needs its own inbound and can't share that port.
+    # Orphaned: was the port for Xray-core's native "hysteria" protocol
+    # ("Hysteria (Xray)"), removed entirely (see init_db.py's _v149) - no
+    # obfuscation support in Xray's implementation meant its plain QUIC
+    # handshake couldn't survive network paths that only pass obfuscated
+    # traffic cleanly. Left defined (unused) since _v148's historical
+    # migration still references this key and migrations aren't rewritten.
     xray_hysteria_port = _StrConfigDscr(ConfigCategory.hidden, ApplyMode.apply_config, hide_in_virtual_child=True)
 
     shadowsocks2022_enable = _BoolConfigDscr(ConfigCategory.shadowsocks, ApplyMode.apply_config)

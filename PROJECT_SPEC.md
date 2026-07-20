@@ -269,52 +269,27 @@ fully field-tested · **C** = implemented but known-uncertain/open.
 
 ## 5. Open work items (executable specs)
 
-### 5.1 Hysteria (Xray-core native) — get it connecting  ·  priority: high  ·  confidence the *code* is correct: high
-**Problem.** The new `ProxyProto.hysteria` proxy renders correct server + client config, the UDP port
-listens, the QUIC handshake completes (verified by decrypting captured Initial packets — valid
-ServerHello, real ACKs both directions), but the client never establishes a usable session; it
-retransmits its Initial and then restarts with a fresh connection.
+### 5.1 Hysteria (Xray-core native) — REMOVED, not fixed  ·  resolved
+**Outcome.** The feature (`ProxyProto.hysteria`, "Hysteria (Xray)") was removed entirely rather than
+debugged further. Root-caused as far as it could be without upstream access: Xray-core's native
+`hysteria` transport has zero obfuscation support (`transport/internet/hysteria/config.proto` has
+only `auth`/`udp_idle_timeout`/`masq_*` fields — confirmed against current source, no salamander/obfs
+field exists at all). Live testing showed the server-side QUIC handshake genuinely completing
+(tcpdump-confirmed bidirectional traffic, correct ServerHello-class responses) while the client-side
+handshake never finished, over a network path (Cloudflare WARP) that passes *obfuscated* Hysteria2
+(sing-box, same user) without issue. That's consistent with something in that path fingerprinting and
+interfering with plain/unobfuscated QUIC specifically — a client-network-path/protocol-capability gap
+Xray's implementation has no way to work around (no obfuscation option to fall back to), not a config
+bug in this codebase.
 
-**What is already verified correct (do not re-litigate):**
-- Inbound `settings.users[]` JSON exactly matches Xray-core `infra/conf/hysteria.go`
-  (`HysteriaUserConfig{auth,level,email}` → `HysteriaServerConfig.Build()`).
-- TLS cert/key valid, not expired, cryptographically matched (EC key, verified via `openssl pkey`).
-- Client `hysteriaSettings.auth` is the field `dialer.go` reads and sends.
-- Auth is an **HTTP/3 POST** to a fixed masquerade URL *after* the QUIC handshake; on failure the
-  server returns a generic 404 (anti-probe) and **logs nothing** on either path (confirmed in
-  `hub.go::AuthHTTP`). So the total log silence is expected, not a misconfig.
-
-**Two live hypotheses, not yet separated:**
-1. Cloudflare WARP on the test client interfering with unobfuscated QUIC (same signature as TUIC,
-   which also fails for this user over WARP while obfuscated Hysteria2 succeeds).
-2. Immaturity/bug in Xray-core's brand-new native `hysteria` implementation.
-
-**Executable steps (in order):**
-1. **Isolate WARP.** Test the Hysteria (Xray) profile from a client with WARP fully off, on a network
-   that is not otherwise filtering QUIC. If it connects → not our bug; document as
-   "incompatible with WARP/QUIC-filtered networks" (§6) and mark the feature A-with-caveat. **Stop
-   here if it works.**
-2. **If it still fails with WARP off:** build a patched Xray-core to get visibility. `QLOGDIR` and
-   `SSLKEYLOGFILE` are **not** honored by Xray's hysteria code (verified — not wired in), so log
-   hooks won't help; you must add temporary `errors.LogInfo` statements to `hub.go::AuthHTTP`
-   (log `auth` header received, validator hit/miss, chosen congestion branch) and `dialer.go`
-   RoundTrip result, then `go build` and swap the binary on a staging box.
-3. From the patched-binary logs, determine whether: (a) the HTTP/3 POST arrives at all, (b) the
-   `auth` string the server receives equals the user UUID the client sent, (c) `validator.Get(auth)`
-   returns the user. Fix whichever link is broken.
-4. Cross-check congestion config: client sends `CommonHeaderCCRX` (BrutalDown); server picks BBR vs
-   Brutal from it. A `0`/mismatch here won't fail auth but can wedge throughput — confirm it after
-   auth succeeds.
-
-**Files.** Server template `xray/configs/05_inbounds_07_hysteria.json.j2`; client gen
-`hutils/proxy/xrayjson.py` (`add_hysteria_settings`, `add_stream_settings` hysteria branch),
-`hutils/proxy/xray.py` (`to_link` hysteria branch), `hutils/proxy/shared.py` (`get_port`,
-`get_valid_proxies`, `make_proxy`); ports in `panel/admin/Actions.py` + `hutils/network/net.py`;
-migration/enum in `init_db.py` + `config_enum.py`.
-
-**Done-criteria.** A real client (WARP off) connects through the Hysteria (Xray) profile and passes
-traffic, OR the failure is conclusively attributed to WARP/network with the code confirmed correct
-and the feature documented as best-effort in the admin UI.
+**What was removed:** server inbound template (`xray/configs/05_inbounds_07_hysteria.json.j2`,
+deleted), client gen (`hutils/proxy/xrayjson.py`'s `add_hysteria_settings`/stream-settings branch,
+now excluded via the same skip-list as hysteria2/tuic/etc), `hutils/proxy/xray.py`'s `to_link`
+branch, `hutils/proxy/shared.py`'s port/proto handling, ports in `panel/admin/Actions.py` +
+`hutils/network/net.py`, the `internal_port_xray_hysteria` Domain property. `init_db.py`'s `_v149`
+migration deletes any "Hysteria (Xray)" Proxy rows `_v148` already created on existing installs.
+`ConfigEnum.xray_hysteria_port` is left defined but unused/orphaned since `_v148` (historical,
+never rewritten) still references the key.
 
 ### 5.2 TUIC over the user's network  ·  priority: low  ·  likely won't-fix
 **Status.** TUIC fails for this user across ISPs; attributed to unobfuscated-QUIC fingerprinting /

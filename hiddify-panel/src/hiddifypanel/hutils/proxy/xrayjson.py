@@ -106,9 +106,7 @@ def configs_as_json(domains: list[Domain], user: User, expire_days: int, remarks
 
 def to_xray(proxy: dict) -> dict:
     # naive/mieru/anytls/tuic/hysteria2 are all sing-box-only; xray-core has
-    # no protocol implementation for any of them under those names (Xray's
-    # own native hysteria support - ProxyProto.hysteria, not hysteria2 - is
-    # a different protocol string entirely, handled below). tuic was
+    # no protocol implementation for any of them under those names. tuic was
     # previously only filtered conditionally for v2rayng user agents (see
     # the unsupported_protos set above) - every other/unknown client
     # requesting the full-Xray-JSON subscription format fell through to
@@ -118,13 +116,22 @@ def to_xray(proxy: dict) -> dict:
     # full-Xray-JSON format with a hysteria2 proxy present would get a
     # broken `{"protocol": "hysteria2", "settings": {}}` outbound too.
     #
+    # ProxyProto.hysteria (Xray-core's own native hysteria outbound) used to
+    # be handled here as a real, connectable option - removed entirely: its
+    # protocol has no obfuscation support at all (confirmed against
+    # transport/internet/hysteria/config.proto), and in practice its plain
+    # QUIC handshake never completed over network paths that only pass
+    # obfuscated traffic cleanly (e.g. Cloudflare WARP) - a client-network-
+    # path/protocol-capability gap no server-side config could fix. Now
+    # excluded the same way hysteria2/tuic/etc already are.
+    #
     # ssh/dnstt/amneziawg are real, connectable protocols, but not ones most
     # Xray-JSON clients understand as an outbound alongside vless/vmess/
     # trojan/etc - they get their own independent links (see to_link()
     # elsewhere) instead of being bundled into this combined subscription
     # format, same reasoning as the sing-box subscription's exclusion list.
     if proxy['proto'] in {ProxyProto.naive, ProxyProto.mieru, ProxyProto.anytls, ProxyProto.tuic, ProxyProto.hysteria2,
-                          ProxyProto.ssh, ProxyProto.dnstt, ProxyProto.amneziawg}:
+                          ProxyProto.hysteria, ProxyProto.ssh, ProxyProto.dnstt, ProxyProto.amneziawg}:
         return {}
     # ShadowTLS rides on ProxyProto.ss (same as plain Shadowsocks/SS-2022,
     # differentiated only by transport=='shadowtls'), so it isn't caught by
@@ -191,21 +198,6 @@ def add_proto_settings(base: dict, proxy: dict):
     elif proxy['proto'] == ProxyProto.trojan:
         proxy['password'] = proxy['uuid']
         add_trojan_settings(base, proxy)
-    elif proxy['proto'] == ProxyProto.hysteria:
-        add_hysteria_settings(base, proxy)
-
-
-def add_hysteria_settings(base: dict, proxy: dict):
-    # Xray-core's native "hysteria" protocol (XTLS/Xray-core docs:
-    # config/outbounds/hysteria.html) - unlike vless/vmess/trojan above,
-    # settings isn't a vnext/servers array, it's address/port directly.
-    # Auth lives in streamSettings.hysteriaSettings.auth instead (see
-    # add_stream_settings()'s hysteria branch), matching how the real
-    # Hysteria2 wire protocol authenticates per-connection rather than via
-    # a users list on the outbound side.
-    base['settings']['version'] = 2
-    base['settings']['address'] = proxy['server']
-    base['settings']['port'] = proxy['port']
 
 
 def add_wireguard_settings(base: dict, proxy: dict):
@@ -357,22 +349,6 @@ def add_stream_settings(base: dict, proxy: dict):
         # is correct here). Returns early: none of the transport-matching
         # branches below apply to a masked mKCP outbound.
         add_mask_finalmask_stream(ss, proxy)
-        return
-
-    if proxy['proto'] == ProxyProto.hysteria:
-        # Xray-core's native hysteria transport (XTLS/Xray-core docs:
-        # config/transports/hysteria.html) - security/tlsSettings were
-        # already set to 'tls' by _add_security() above since proxy['l3']
-        # is 'tls' same as hysteria2/tuic. auth is the per-user secret
-        # (matches settings.users[].auth on the server inbound side, see
-        # xray/configs/05_inbounds_07_hysteria.json.j2) - deliberately no
-        # obfs/salamander field here, Xray's implementation has none.
-        ss['network'] = 'hysteria'
-        ss['hysteriaSettings'] = {
-            'version': 2,
-            'auth': proxy['uuid'],
-            'udpIdleTimeout': 60,
-        }
         return
 
     if proxy['l3'] == ProxyL3.kcp:
