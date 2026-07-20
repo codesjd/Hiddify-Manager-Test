@@ -1464,6 +1464,12 @@ def _ensure_domain_port_columns_backfilled():
     try:
         changed = False
         for domain in Domain.query.all():
+            if not domain.http_port:
+                domain.http_port = 80
+                changed = True
+            if not domain.tls_port:
+                domain.tls_port = 443
+                changed = True
             for field_name, computed_attr in _DOMAIN_PORT_FIELDS:
                 if not getattr(domain, field_name):
                     computed = getattr(domain, computed_attr)
