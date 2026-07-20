@@ -74,7 +74,10 @@
                     {% if ipv4 or ipv6 %}
                     <div class="quicksetup-ip-intro">{{_('admin.quicksetup_intro',ipv4=ip_btn(ipv4),ipv6=ip_btn(ipv6))}}</div>
                     {%endif%}
-                    {{render_form(form,form_type="",extra_classes="card-columns1 quicksetup-domain-form" if form.step.data in ('3', '4') else "card-columns1")}}
+                    {% set _extra_classes = "card-columns1" %}
+                    {% if form.step.data == "3" %}{% set _extra_classes = "card-columns1 quicksetup-domain-form" %}{% endif %}
+                    {% if form.step.data == "4" %}{% set _extra_classes = "card-columns1 quicksetup-domain-form quicksetup-proxy-grid" %}{% endif %}
+                    {{render_form(form,form_type="",extra_classes=_extra_classes)}}
                 </div>
             </div>
         </div>
@@ -174,6 +177,54 @@
         align-self: start;
         justify-self: center;
         text-align: center;
+    }
+
+    /* Step 4 (proxy toggles) styled to match the real Proxies admin page
+       (admin/templates/proxy.html's .toggle-grid/.custom-switch card
+       design), per explicit request - card-boxed toggle rows instead of
+       bare switches. Same SwitchField widget (flask_bootstrap.SwitchField)
+       renders both pages, so the exact same selectors apply here.
+       Deliberately NOT copying proxy.html's Apply Configs button/merge
+       script - Quick Setup submits via its own Next/Submit flow instead. */
+    .quicksetup-proxy-grid .form-group.custom-switch {
+        background: var(--surface) !important;
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        padding: 16px !important;
+        margin-bottom: 0 !important;
+        display: flex !important;
+        flex-direction: column !important;
+        justify-content: center !important;
+        align-items: flex-start !important;
+        text-align: left !important;
+    }
+    .quicksetup-proxy-grid .form-group.custom-switch .custom-control-label {
+        position: relative !important;
+        padding-left: 2.5rem !important;
+        display: inline-block !important;
+    }
+    .quicksetup-proxy-grid .form-group.custom-switch .custom-control-label::before {
+        left: 0 !important;
+    }
+    .quicksetup-proxy-grid .form-group.custom-switch .custom-control-label::after {
+        left: 0.15rem !important;
+    }
+    .quicksetup-proxy-grid .form-group.custom-switch .form-text.text-muted {
+        padding-left: 0 !important;
+        margin-top: 8px !important;
+        text-align: left !important;
+    }
+    [dir="rtl"] .quicksetup-proxy-grid .form-group.custom-switch .custom-control-label {
+        padding-left: 0 !important;
+        padding-right: 2.5rem !important;
+    }
+    [dir="rtl"] .quicksetup-proxy-grid .form-group.custom-switch .custom-control-label::before {
+        left: auto !important;
+        right: 0 !important;
+    }
+    [dir="rtl"] .quicksetup-proxy-grid .form-group.custom-switch .custom-control-label::after {
+        left: auto !important;
+        right: 0.15rem !important;
     }
 </style>
 {% endblock %}
