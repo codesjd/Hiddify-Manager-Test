@@ -1058,7 +1058,16 @@ def _v1():
     # enforces it strictly and rejects a fresh install's very first
     # migration step outright without this.
     admin_secret = str(uuid.uuid4())
-    db.session.add(AdminUser(id=1, uuid=admin_secret, name="Owner", mode=AdminMode.super_admin, comment=""))
+    # _v1() is the actual fresh-install bootstrap (runs first, before
+    # _v31 ever gets a chance to see AdminUser.id==1 missing) - a prior
+    # fix here targeted _v31()'s own admin-creation block instead of
+    # this one, which is why it never actually took effect on a real
+    # fresh install. Same fix, correct place this time: real
+    # username="admin"/password="admin" from the first login instead of
+    # leaving both blank.
+    owner = AdminUser(id=1, uuid=admin_secret, name="Owner", username="admin", mode=AdminMode.super_admin, comment="")
+    owner.update_password("admin")
+    db.session.add(owner)
     db.session.flush()
 
     data = [
