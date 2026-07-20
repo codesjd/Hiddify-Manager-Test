@@ -14,7 +14,22 @@ from hiddifypanel.database import db, db_execute
 
 
 from loguru import logger
-MAX_DB_VERSION = 149
+MAX_DB_VERSION = 150
+
+
+def _v150(child_id):
+    """Removing the "Hysteria (Xray)" feature added in _v149 (this branch's
+    numbering - see _v149's own docstring for why it differs from the
+    feature branch) entirely. Xray-core's native hysteria protocol has no
+    obfuscation support at all (confirmed against transport/internet/
+    hysteria/config.proto - only auth/udp_idle_timeout/masq_* fields
+    exist), and in real-world testing its plain QUIC handshake never
+    completed over network paths that only pass obfuscated traffic cleanly
+    (e.g. Cloudflare WARP) - a client-network-path/protocol-capability gap
+    no server-side config could fix. Deletes any "Hysteria (Xray)" Proxy
+    rows _v149 already created; the inbound template and all proto=hysteria
+    handling elsewhere are removed in the same change."""
+    Proxy.query.filter(Proxy.proto == ProxyProto.hysteria).delete()
 
 
 def _v149(child_id):
