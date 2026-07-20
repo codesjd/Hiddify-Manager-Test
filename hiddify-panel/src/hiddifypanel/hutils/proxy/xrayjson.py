@@ -126,6 +126,19 @@ def to_xray(proxy: dict) -> dict:
     if proxy['proto'] in {ProxyProto.naive, ProxyProto.mieru, ProxyProto.anytls, ProxyProto.tuic, ProxyProto.hysteria2,
                           ProxyProto.ssh, ProxyProto.dnstt, ProxyProto.amneziawg}:
         return {}
+    # ShadowTLS rides on ProxyProto.ss (same as plain Shadowsocks/SS-2022,
+    # differentiated only by transport=='shadowtls'), so it isn't caught by
+    # the proto-based skip-list above. Xray-core has no ShadowTLS
+    # implementation at all (confirmed against XTLS/Xray-core docs; xray.py's
+    # to_link() already refuses it for the same reason: "ShadowTLS is Not
+    # Supported for this platform"). Without this check it fell through into
+    # the generic Shadowsocks branch below, which builds a plain TLS+TCP
+    # outbound with no ShadowTLS wrapper at all - not just suboptimal, never
+    # connectable, since there's no ShadowTLS server on the other end of a
+    # bare TLS handshake. Plain Shadowsocks/SS-2022 (transport=='shadowsocks')
+    # is unaffected - Xray-core supports 2022-blake3 ciphers natively.
+    if proxy['transport'] == 'shadowtls':
+        return {}
     outbound = {
         'tag': f'{proxy["extra_info"]} {proxy["name"]}',
         'protocol': str(proxy['proto']),
