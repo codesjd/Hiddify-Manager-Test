@@ -47,10 +47,16 @@
                        mtu=500 guarantees mKCP produces segments over that
                        ceiling, so xdns was 100% broken by default
                        regardless of anything else being correct (NS
-                       delegation, resolvers, schema...). 200 leaves
-                       comfortable margin under the real 223-byte cap. #}
+                       delegation, resolvers, schema...). 200 was meant to
+                       leave comfortable margin under the theoretical
+                       223-byte cap, but empirical live testing
+                       (2026-07-20) found 200 still intermittently produced
+                       "too long" errors against a real deployment - the
+                       theory didn't hold exactly in practice. 132 is the
+                       largest value confirmed to produce zero such errors,
+                       so this default is evidence-based, not calculated. #}
                     "kcpSettings": {
-                        "mtu": {{ d.extra_params.get("mtu", 0) or 200 }},
+                        "mtu": {{ d.extra_params.get("mtu", 0) or 132 }},
                         "tti": 20,
                         "uplinkCapacity": 5,
                         "downlinkCapacity": 20,

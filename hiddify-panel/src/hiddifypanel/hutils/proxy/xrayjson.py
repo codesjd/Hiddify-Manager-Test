@@ -572,12 +572,16 @@ def add_mask_finalmask_stream(ss: dict, proxy: dict):
         # Xray-core's real ceiling anyway: xdns's client.go encode() hard-
         # rejects any raw mKCP segment >= 224 bytes, and the caller just
         # drops the packet silently on that error, so every mtu>=224 config
-        # tunnels zero real traffic. 200 mirrors the server inbound's own
-        # corrected default (xray/configs/05_inbounds_05_xdns.json.j2) and
-        # proxy.get('mtu') picks up a per-domain override the same way the
-        # server side already does via apply_domain_overrides().
+        # tunnels zero real traffic. 132 mirrors the server inbound's own
+        # corrected default (xray/configs/05_inbounds_05_xdns.json.j2) -
+        # empirically confirmed via live testing (2026-07-20) as the
+        # largest value producing zero "too long" errors against a real
+        # deployment; the theoretical 223-byte ceiling didn't hold exactly
+        # in practice (200 still intermittently overflowed it). proxy.get(
+        # 'mtu') picks up a per-domain override the same way the server
+        # side already does via apply_domain_overrides().
         ss['kcpSettings'] = {
-            'mtu': proxy.get('mtu') or 200,
+            'mtu': proxy.get('mtu') or 132,
             'tti': 20,
             'uplinkCapacity': 5,
             'downlinkCapacity': 20,
