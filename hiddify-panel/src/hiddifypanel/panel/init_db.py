@@ -1463,6 +1463,41 @@ def _ensure_mieru_naive_relay_variants():
         db.session.rollback()
 
 
+def _ensure_anytls_proxy_rows():
+    """Defensive backfill for the _v138 migration.
+
+    _v138 seeds the direct/relay AnyTLS Proxy rows once, gated on db_version.
+    This codebase's migration numbers have been known to collide across
+    branches/releases (see the _v149/_v150/_v151 renumbering history), which
+    can leave a node's db_version already past 138 without _v138's own body
+    ever having run for it - the AnyTLS toggle then saves fine (it's a plain
+    BoolConfig) but no Proxy row exists, so AnyTLS silently never appears in
+    any generated config or subscription regardless of the toggle. Mirrors
+    _ensure_mieru_naive_relay_variants()'s pattern: safe to call unconditionally
+    on every init_db() run, only adds rows that don't already exist.
+    """
+    try:
+        to_add = []
+        for cdn in [ProxyCDN.direct, ProxyCDN.relay]:
+            exists = Proxy.query.filter_by(proto=ProxyProto.anytls, l3=ProxyL3.tls, cdn=cdn, child_id=0).first()
+            if not exists:
+                to_add.append(Proxy(
+                    name=f"AnyTLS{'Relay' if cdn == ProxyCDN.relay else ''}",
+                    proto=ProxyProto.anytls,
+                    l3=ProxyL3.tls,
+                    transport=ProxyTransport.custom,
+                    cdn=cdn,
+                    enable=True,
+                ))
+        if to_add:
+            db.session.bulk_save_objects(to_add)
+            db.session.commit()
+            logger.info(f"Backfilled {len(to_add)} missing AnyTLS proxy row(s).")
+    except Exception:
+        logger.exception("Failed to backfill AnyTLS proxy rows (non-fatal).")
+        db.session.rollback()
+
+
 def _ensure_default_proxy_rows():
     """get_proxy_rows_v1() is called from inside several version-gated
     migrations (_v.. functions that only ever run once). On installs where
@@ -1518,6 +1553,7 @@ def init_db():
         add_new_enum_values()
         _ensure_mieru_naive_relay_variants()
         _ensure_default_proxy_rows()
+        _ensure_anytls_proxy_rows()
         return
 
     # migrate(db_version)  # Deprecated in favor of Alembic
@@ -1580,6 +1616,7 @@ def init_db():
 
         db.session.commit()
     g.child = Child.by_id(0)
+    _ensure_anytls_proxy_rows()
     return BoolConfig.query.all()
 
 
