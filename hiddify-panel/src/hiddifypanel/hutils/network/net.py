@@ -149,11 +149,27 @@ def invalidate_pinned_cert_cache(host: str, port: int = 443):
 
 
 @cache.cache(300)
-def get_domain_ips_cached(domain: str, retry: int = 3) -> Set[Union[ipaddress.IPv4Address, ipaddress.IPv6Address]]:
+def _get_domain_ips_cached_raw(domain: str, retry: int = 3) -> Set[Union[ipaddress.IPv4Address, ipaddress.IPv6Address]]:
     try:
         return set(ipaddress.ip_address(domain))
     except:
         return get_domain_ips(domain,retry)
+
+
+def get_domain_ips_cached(domain: str, retry: int = 3) -> Set[Union[ipaddress.IPv4Address, ipaddress.IPv6Address]]:
+    result = _get_domain_ips_cached_raw(domain, retry)
+    if not result:
+        # A failed lookup is exactly the case where a 300s cache actively
+        # hurts - e.g. an admin adds a domain before its DNS record
+        # exists, gets a validation error, fixes DNS, and retries within
+        # the window - only to have the same stale "can't resolve"
+        # served back instead of a fresh lookup. Unlike a real answer,
+        # an empty result isn't expensive information worth preserving,
+        # so don't trust/serve it from cache - invalidate and try once
+        # more for real.
+        _get_domain_ips_cached_raw.invalidate(domain, retry)
+        result = get_domain_ips(domain, retry)
+    return result
 
 def get_domain_ips(domain: str, retry: int = 3) -> Set[Union[ipaddress.IPv4Address, ipaddress.IPv6Address]]:
     res = set()
