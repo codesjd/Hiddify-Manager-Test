@@ -209,6 +209,13 @@
         width: 100%;
         word-wrap: break-word;
     }
+    /* also_enable_xicmp sits directly under the Ports fieldset (both live
+       right after Resolve IP) with no gap between the fieldset's own
+       bottom margin and this checkbox's label, unlike every other
+       .form-group here which already has breathing room above it. */
+    .form-group:has(#also_enable_xicmp) {
+        margin-top: 1rem;
+    }
 </style>
 {% endblock %}
 
