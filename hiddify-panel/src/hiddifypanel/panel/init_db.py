@@ -1433,6 +1433,51 @@ def _ensure_anytls_proxy_rows():
         db.session.rollback()
 
 
+# (Domain column, the internal_port_* property it mirrors) for the 7
+# per-domain port overrides added alongside the domain Ports-section
+# completion. Shared with _ensure_domain_port_columns_backfilled below -
+# DomainAdmin.py's own _PORT_FIELD_MODES is the form-side copy of this
+# same list (can't import across those two modules without a cycle, so
+# it's duplicated rather than shared - keep both in sync if this changes).
+_DOMAIN_PORT_FIELDS = (
+    ('hysteria_port', 'internal_port_hysteria2'),
+    ('tuic_port', 'internal_port_tuic'),
+    ('naive_port', 'internal_port_naive'),
+    ('anytls_port', 'internal_port_anytls'),
+    ('dnstt_port', 'internal_port_dnstt'),
+    ('xdns_port', 'internal_port_xdns'),
+    ('xicmp_port', 'internal_port_xicmp'),
+)
+
+
+def _ensure_domain_port_columns_backfilled():
+    """DomainAdmin._auto_assign_ports only ever fills these 7 columns in
+    for a domain at the moment it's created - every domain that already
+    existed before this feature shipped would otherwise show blank port
+    fields in the admin form forever, with the real, actually-in-use port
+    number only ever visible via Domain.internal_port_*'s live computation.
+    Runs unconditionally on every init_db() call, same self-healing
+    pattern as _ensure_anytls_proxy_rows/_ensure_default_proxy_rows above -
+    only fills genuinely blank columns, never touches one a domain (or an
+    admin) already set.
+    """
+    try:
+        changed = False
+        for domain in Domain.query.all():
+            for field_name, computed_attr in _DOMAIN_PORT_FIELDS:
+                if not getattr(domain, field_name):
+                    computed = getattr(domain, computed_attr)
+                    if computed:
+                        setattr(domain, field_name, computed)
+                        changed = True
+        if changed:
+            db.session.commit()
+            logger.info("Backfilled missing per-domain port override values.")
+    except Exception:
+        logger.exception("Failed to backfill domain port columns (non-fatal).")
+        db.session.rollback()
+
+
 def _ensure_default_proxy_rows():
     """get_proxy_rows_v1() is called from inside several version-gated
     migrations (_v.. functions that only ever run once). On installs where
@@ -1473,6 +1518,7 @@ def init_db():
         _ensure_mieru_naive_relay_variants()
         _ensure_default_proxy_rows()
         _ensure_anytls_proxy_rows()
+        _ensure_domain_port_columns_backfilled()
         return
     
     db.create_all()
@@ -1537,6 +1583,7 @@ def init_db():
         db.session.commit()
     g.child = Child.by_id(0)
     _ensure_anytls_proxy_rows()
+    _ensure_domain_port_columns_backfilled()
     return BoolConfig.query.all()
 
 

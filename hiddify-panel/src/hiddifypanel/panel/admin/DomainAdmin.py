@@ -312,28 +312,6 @@ class DomainAdmin(AdminLTEModelView):
                 Domain.child_id == obj.child_id,
                 Domain.id != obj.id,
             ).first() is not None
-            # The 7 protocol ports below are NULL-means-auto (see
-            # Domain.internal_port_* and the hysteria_port/tuic_port/...
-            # columns) - left blank here, not prefilled, so simply re-saving
-            # this form (e.g. to edit the alias) can never accidentally
-            # freeze a domain onto today's computed port, decoupling it
-            # from any future change to the global base port setting. This
-            # just appends what that blank currently, actually resolves to,
-            # so an admin isn't guessing. Not shown from create_form(): the
-            # computed value depends on this domain's own id, which doesn't
-            # exist yet for a not-yet-saved domain.
-            for field_name, current in (
-                ('hysteria_port', obj.internal_port_hysteria2),
-                ('tuic_port', obj.internal_port_tuic),
-                ('naive_port', obj.internal_port_naive),
-                ('anytls_port', obj.internal_port_anytls),
-                ('dnstt_port', obj.internal_port_dnstt),
-                ('xdns_port', obj.internal_port_xdns),
-                ('xicmp_port', obj.internal_port_xicmp),
-            ):
-                field = getattr(form, field_name)
-                if not field.data and current:
-                    field.description = f"{field.description} {_('Currently')}: {current}."
         return form
 
     # def on_form_prefill(self, form, id):
@@ -367,6 +345,8 @@ class DomainAdmin(AdminLTEModelView):
             model.reality_private_key = None
             model.reality_public_key = None
             model.reality_short_id = None
+        self._clear_inapplicable_ports(model)
+        self._auto_assign_ports(model, is_created)
         # Basic validation
         if model.domain == '' and model.mode != DomainType.fake:
             raise ValidationError(_("domain.empty.allowed_for_fake_only"))
@@ -429,6 +409,58 @@ class DomainAdmin(AdminLTEModelView):
             hutils.flask.flash_config_success(restart_mode=ApplyMode.apply_config, domain_changed=True)
 
 
+
+    # (field, modes it applies to) for the 7 per-domain port overrides -
+    # shared between _clear_inapplicable_ports and _auto_assign_ports so
+    # the two can't quietly drift apart on which modes use which port.
+    _PORT_FIELD_MODES = (
+        ('hysteria_port', 'internal_port_hysteria2', [DomainType.direct, DomainType.relay, DomainType.fake]),
+        ('tuic_port', 'internal_port_tuic', [DomainType.direct, DomainType.relay, DomainType.fake]),
+        ('anytls_port', 'internal_port_anytls', [DomainType.direct, DomainType.relay, DomainType.fake]),
+        ('naive_port', 'internal_port_naive', [DomainType.direct, DomainType.relay]),
+        ('dnstt_port', 'internal_port_dnstt', [DomainType.dnstt]),
+        ('xdns_port', 'internal_port_xdns', [DomainType.xdns]),
+        ('xicmp_port', 'internal_port_xicmp', [DomainType.xicmp]),
+    )
+
+    def _clear_inapplicable_ports(self, model):
+        # Same reasoning as the reality_port clearing just above: a stale
+        # value left behind after switching a domain away from a mode that
+        # used it would otherwise keep "claiming" that port forever in
+        # _validate_port_exclusivity's conflict check, permanently blocking
+        # any other domain from ever using it even though this domain no
+        # longer does either.
+        for field_name, _computed_attr, modes in self._PORT_FIELD_MODES:
+            if model.mode not in modes:
+                setattr(model, field_name, None)
+
+    def _auto_assign_ports(self, model, is_created):
+        """Write a concrete value into each still-blank port column the
+        first time this domain is created - never again on a later edit -
+        mirroring exactly how _validate_reality_settings only ever fills
+        reality_port/keys in on creation. Without this, these columns
+        stayed NULL forever unless an admin happened to type a value in by
+        hand, and the admin form only ever showed a blank input with the
+        real, actually-in-use port number buried in a description hint -
+        not what "auto-generated" should look like.
+
+        Needs model.id (internal_port_* keys the offset off it via
+        port_index) to exist first. flask_admin's ModelView.create_model()
+        already does self.session.add(model) before calling
+        on_model_change(), so a flush() here safely assigns the id without
+        committing anything - if a later validation in this same
+        on_model_change call raises, flask_admin's except block rolls back
+        the whole transaction, undoing this flush along with everything
+        else, exactly as if it had never happened.
+        """
+        if not is_created:
+            return
+        db.session.flush()
+        for field_name, computed_attr, _modes in self._PORT_FIELD_MODES:
+            if not getattr(model, field_name):
+                computed = getattr(model, computed_attr)
+                if computed:
+                    setattr(model, field_name, computed)
 
     def _validate_port_exclusivity(self, model):
         # "Exclusive to that domain": a custom (non-default) port can only
