@@ -2887,6 +2887,15 @@ msgstr "Websocket creates a tunnel over HTTP that is useful to be used in CDN"
 msgid "config.ws_enable.label"
 msgstr "🔰 Websocket"
 
+msgid "config.xdns_enable.description"
+msgstr ""
+"Tunnels traffic inside DNS queries (Xray-core's xdns finalmask). Needs the "
+"same NS-delegation DNS setup as DNSTT - see the domain's Mode field for "
+"details."
+
+msgid "config.xdns_enable.label"
+msgstr "🧬 xDNS"
+
 msgid "config.xhttp_enable.description"
 msgstr ""
 "This Protocol send and receive information in individual channels.<br />\n"
@@ -2894,6 +2903,15 @@ msgstr ""
 
 msgid "config.xhttp_enable.label"
 msgstr "🈁 XHTTP"
+
+msgid "config.xicmp_enable.description"
+msgstr ""
+"Tunnels traffic inside ICMP (ping) packets (Xray-core's xicmp finalmask). "
+"No DNS/NS setup needed, but the server needs CAP_NET_RAW to open a raw "
+"ICMP socket."
+
+msgid "config.xicmp_enable.label"
+msgstr "📡 xICMP"
 
 msgid "config.xtls_enable.description"
 msgstr "Enables XTLS Protocol"
