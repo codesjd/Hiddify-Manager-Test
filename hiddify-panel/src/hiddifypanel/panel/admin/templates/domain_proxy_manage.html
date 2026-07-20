@@ -1,0 +1,101 @@
+{% from 'bootstrap4/form.html' import render_form %}
+{% extends 'admin-layout.html' %}
+
+{% block title %}{{ _('Manage Proxies') }} - {{ domain.domain }}{% endblock %}
+
+{% block body %}
+{{super()}}
+
+<div class="row">
+    <div class="card col-12">
+        <div class="card-header">
+            {{_('Manage Proxies')}} &mdash; <span class="hf-chip">{{domain.domain}}</span>
+        </div>
+        <div class="card-body">
+            <p class="domain-proxy-manage-note">
+                {{ _('Toggle a proxy off or on for just this domain, without changing it anywhere else. Need to override its SNI, fingerprint, ALPN, or another field for just this domain too?') }}
+                <a href="{{ hurl_for('flask.domain_proxy_override.index_view') }}">{{ _('Domain Proxy Overrides') }}</a>
+            </p>
+            <div class="row">
+                <div class="card-columns domain-proxy-grid">
+                    {{ render_form(form, form_type="", extra_classes="card-columns1") }}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .domain-proxy-manage-note {
+        color: var(--text-secondary, #6c757d);
+        margin-bottom: 16px;
+    }
+
+    .form-group {
+        display: inline-block;
+        width: 100%;
+    }
+
+    @media (min-width: 576px) {
+        .card-columns.domain-proxy-grid {
+            column-count: 2;
+        }
+    }
+
+    /* Same card-boxed toggle-row design as the Proxies admin page
+       (proxy.html's .toggle-grid/.custom-switch) and Quick Setup's step 4
+       (quick_setup.html's .quicksetup-proxy-grid) - reused verbatim here so
+       all three "pick which proxies are active" surfaces look consistent. */
+    .domain-proxy-grid .form-group.custom-switch {
+        background: var(--surface) !important;
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        padding: 16px !important;
+        margin-bottom: 16px !important;
+        display: flex !important;
+        flex-direction: column !important;
+        justify-content: center !important;
+        align-items: flex-start !important;
+        text-align: left !important;
+    }
+    .domain-proxy-grid .form-group.custom-switch .custom-control-label {
+        position: relative !important;
+        padding-left: 2.5rem !important;
+        display: inline-block !important;
+    }
+    .domain-proxy-grid .form-group.custom-switch .custom-control-label::before {
+        left: 0 !important;
+    }
+    .domain-proxy-grid .form-group.custom-switch .custom-control-label::after {
+        left: 0.15rem !important;
+    }
+    .domain-proxy-grid .form-group.custom-switch .form-text.text-muted {
+        padding-left: 0 !important;
+        margin-top: 8px !important;
+        text-align: left !important;
+    }
+    [dir="rtl"] .domain-proxy-grid .form-group.custom-switch .custom-control-label {
+        padding-left: 0 !important;
+        padding-right: 2.5rem !important;
+    }
+    [dir="rtl"] .domain-proxy-grid .form-group.custom-switch .custom-control-label::before {
+        left: auto !important;
+        right: 0 !important;
+    }
+    [dir="rtl"] .domain-proxy-grid .form-group.custom-switch .custom-control-label::after {
+        left: auto !important;
+        right: 0.15rem !important;
+    }
+
+    /* SubmitField has no .form-group wrapper (bare <input>), so without a
+       rule it inherits whatever column-count flow gives it instead of
+       sitting centered on its own row - same fix as quick_setup.html's
+       submit button. */
+    .card-columns1 > input[type="submit"],
+    .card-columns1 > button[type="submit"] {
+        column-span: all;
+        display: block;
+        margin: 8px auto 0;
+    }
+</style>
+{% endblock %}

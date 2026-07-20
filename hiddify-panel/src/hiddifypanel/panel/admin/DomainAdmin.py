@@ -201,9 +201,12 @@ class DomainAdmin(AdminLTEModelView):
             return Markup(hutils.flask.hf_chip(model.domain))
         resolve_url = hurl_for('admin.Actions:get_domain_ip', domain=model.domain)
         resolve_title = _("Resolve IP")
+        manage_url = hurl_for('admin.DomainProxyManage:index', domain_id=model.id)
+        manage_title = _("Manage Proxies")
         return Markup(
             hutils.flask.hf_chip(model.domain) +
-            f' <a href="{resolve_url}" title="{resolve_title}"><i class="fa-solid fa-dharmachakra"></i></a>')
+            f' <a href="{resolve_url}" title="{resolve_title}"><i class="fa-solid fa-dharmachakra"></i></a>'
+            f' <a href="{manage_url}" title="{manage_title}"><i class="fa-solid fa-sliders"></i></a>')
 
     def _domain_ip(view, context, model, name):
         dips = hutils.network.get_domain_ips_cached(model.domain)

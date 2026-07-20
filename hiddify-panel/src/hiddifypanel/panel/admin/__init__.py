@@ -59,6 +59,7 @@ def init_app(app):
     from .Actions import Actions
     from .Backup import Backup
     from .QuickSetup import QuickSetup
+    from .DomainProxyManage import DomainProxyManage
     Dashboard.register(admin_bp, route_base="/")
     SettingAdmin.register(admin_bp)
     ProxyAdmin.register(admin_bp)
@@ -66,6 +67,7 @@ def init_app(app):
     CommercialInfo.register(admin_bp)
     QuickSetup.register(admin_bp)
     Backup.register(admin_bp)
+    DomainProxyManage.register(admin_bp)
 
     @app.before_request
     def _admin_csrf_protect():
