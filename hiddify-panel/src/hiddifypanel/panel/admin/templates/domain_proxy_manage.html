@@ -16,7 +16,7 @@
                 {{ _('Toggle a proxy off or on for just this domain, without changing it anywhere else. Need to override its SNI, fingerprint, ALPN, or another field for just this domain too?') }}
                 <a href="{{ hurl_for('flask.domain_proxy_override.index_view') }}">{{ _('Domain Proxy Overrides') }}</a>
             </p>
-            <div class="row">
+            <div class="row domain-proxy-grid-row">
                 <div class="domain-proxy-grid">
                     {{ render_form(form, form_type="", extra_classes="domain-proxy-grid-form") }}
                 </div>
@@ -34,6 +34,16 @@
     .form-group {
         display: inline-block;
         width: 100%;
+    }
+
+    /* Bootstrap/AdminLTE's own .row sets display:flex - a flex item
+       (.domain-proxy-grid) doesn't behave the same as a normal block child
+       (e.g. it can end up sized to its content instead of the row's full
+       width), which fights the CSS grid inside it below. Scoped to just
+       this row (not every .row on the page, which relies on the flex
+       behavior elsewhere). */
+    .domain-proxy-grid-row {
+        display: block;
     }
 
     /* Real 2-column grid, not CSS multi-column (column-count) - a masonry
