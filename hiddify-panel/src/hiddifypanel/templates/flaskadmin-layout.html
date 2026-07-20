@@ -606,10 +606,18 @@
         }
 
         // Given stable ids so hide_domain_elements() can hide the whole
-        // Ports card for DNSTT mode (which has no HTTP/TLS ports at all),
-        // not just its two individual fields - a card left with a visible
-        // "Ports" legend and an empty body would look broken.
-        var $ports = buildFieldset('{{ _("Ports") }}', [['#http_port', '#tls_port'], '#reality_port']).attr('id', 'ports-fieldset');
+        // Ports card for sub_link_only mode (which serves no traffic
+        // directly and so has no ports of its own at all), not just
+        // individual fields - a card left with a visible "Ports" legend
+        // and an empty body would look broken. Every other mode now shows
+        // at least one port field here (its own protocol-specific one(s),
+        // or http_port/tls_port for the general-purpose modes).
+        var $ports = buildFieldset('{{ _("Ports") }}', [
+            ['#http_port', '#tls_port'],
+            ['#hysteria_port', '#tuic_port'], ['#naive_port', '#anytls_port'],
+            '#dnstt_port', '#xdns_port', '#xicmp_port',
+            '#reality_port',
+        ]).attr('id', 'ports-fieldset');
         var $advanced = buildFieldset('{{ _("Advanced") }}', [
             '#also_enable_xicmp', '#servernames', '#cdn_ip',
             '#reality_private_key', '#reality_public_key', '#reality_short_id',
@@ -674,13 +682,19 @@
                 $("#show_domains").parent().show()
             }
 
+            var _mode = ($("#mode").val()) ?? "";
+            var _isReality = _mode.indexOf('reality') >= 0;
+            var _isDirectLike = ["direct", "relay", "fake"].includes(_mode);
+
             // REALITY (any special_reality_* mode, or the deprecated bare
             // "reality") has its own direct port/keys/short id (below) -
-            // the shared HTTP/TLS port fields don't apply to it. Checked
+            // the shared HTTP/TLS port fields, and every other protocol's
+            // own port field, don't apply to it (Domain.internal_port_*
+            // all return 0 for a REALITY-mode domain). Checked
             // unconditionally (not nested under the sub_link_only/dnstt/
             // else branching below) so switching straight from a REALITY
             // mode to sub_link_only/dnstt still resets these correctly.
-            if ((($("#mode").val()) ?? "").indexOf('reality') >= 0) {
+            if (_isReality) {
                 $("#http_port").parent().hide();
                 $("#tls_port").parent().hide();
                 $("#reality_port").parent().show();
@@ -696,6 +710,31 @@
                 $("#reality_short_id").parent().hide();
             }
 
+            // Hysteria2/TUIC/Naive/AnyTLS each get their own internal port
+            // only for the general-purpose modes (Domain.internal_port_*
+            // all gate on direct/relay/fake, or direct/relay for naive -
+            // showing naive_port on a fake-mode domain is harmless (its own
+            // property still returns 0 there regardless of this field) but
+            // grouping all four together here is simpler than a 5th
+            // near-identical branch just for that one edge case.
+            if (_isDirectLike) {
+                $("#hysteria_port").parent().show();
+                $("#tuic_port").parent().show();
+                $("#naive_port").parent().show();
+                $("#anytls_port").parent().show();
+            } else {
+                $("#hysteria_port").parent().hide();
+                $("#tuic_port").parent().hide();
+                $("#naive_port").parent().hide();
+                $("#anytls_port").parent().hide();
+            }
+            // DNSTT/xdns/xicmp are each their own single-purpose mode with
+            // one dedicated port of their own - only show that one mode's
+            // own field, matching how none of these three ever coexist.
+            $("#dnstt_port").parent().toggle(_mode == "dnstt");
+            $("#xdns_port").parent().toggle(_mode == "xdns");
+            $("#xicmp_port").parent().toggle(_mode == "xicmp");
+
             // also_enable_xicmp (DomainAdmin.py's after_model_change())
             // only means anything for direct-mode domains - xicmp itself
             // has no such field (it's already the target), and every
@@ -706,14 +745,12 @@
                 $("#also_enable_xicmp").closest('.form-group').hide();
             }
 
-            // DNSTT/xdns/xicmp don't use HTTP/TLS ports at all (each gets
-            // its own dedicated, non-editable internal port - see
-            // Domain.internal_port_dnstt/xdns/xicmp), and sub_link_only
-            // ("Only for Subscription") domains don't serve traffic
-            // directly either - hide the whole Ports card for all of them,
-            // not just its fields, so it doesn't render as an empty
-            // bordered box with nothing under its legend.
-            if (["dnstt", "xdns", "xicmp", "sub_link_only"].includes($("#mode").val())) {
+            // sub_link_only ("Only for Subscription") domains don't serve
+            // traffic directly at all, so none of the ports above apply -
+            // hide the whole Ports card, not just its fields, so it doesn't
+            // render as an empty bordered box with nothing under its
+            // legend. Every other mode now shows at least one port field.
+            if (_mode == "sub_link_only") {
                 $("#ports-fieldset").hide();
             } else {
                 $("#ports-fieldset").show();
