@@ -566,8 +566,18 @@ def add_mask_finalmask_stream(ss: dict, proxy: dict):
     # (parseResolver() in xdns/spec.go).
     ss['network'] = 'mkcp'
     if proxy['proto'] == ProxyProto.xdns:
+        # 500 used to be hardcoded here regardless of the domain's
+        # extra_params.mtu override (unlike the server-side inbound
+        # template, which already respected it) - and 500 itself is above
+        # Xray-core's real ceiling anyway: xdns's client.go encode() hard-
+        # rejects any raw mKCP segment >= 224 bytes, and the caller just
+        # drops the packet silently on that error, so every mtu>=224 config
+        # tunnels zero real traffic. 200 mirrors the server inbound's own
+        # corrected default (xray/configs/05_inbounds_05_xdns.json.j2) and
+        # proxy.get('mtu') picks up a per-domain override the same way the
+        # server side already does via apply_domain_overrides().
         ss['kcpSettings'] = {
-            'mtu': 500,
+            'mtu': proxy.get('mtu') or 200,
             'tti': 20,
             'uplinkCapacity': 5,
             'downlinkCapacity': 20,

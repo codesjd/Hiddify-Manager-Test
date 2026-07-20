@@ -34,9 +34,23 @@
                        500 was hardcoded regardless, giving no way to test
                        whether it's actually the right value for a given
                        path's real overhead without editing this template
-                       by hand. #}
+                       by hand.
+
+                       500 is also flatly wrong as a default: Xray-core's
+                       xdns client.go encode() hard-rejects any raw mKCP
+                       segment >= 224 bytes ("too long"), and WriteTo()
+                       silently drops the packet when that happens (no
+                       retry, no fragmentation) - confirmed live against a
+                       real client (Xray 26.7.11), where every data packet
+                       logged "xdns wireformat err ... too long" at sizes
+                       265-405 and the tunnel carried zero real traffic.
+                       mtu=500 guarantees mKCP produces segments over that
+                       ceiling, so xdns was 100% broken by default
+                       regardless of anything else being correct (NS
+                       delegation, resolvers, schema...). 200 leaves
+                       comfortable margin under the real 223-byte cap. #}
                     "kcpSettings": {
-                        "mtu": {{ d.extra_params.get("mtu", 0) or 500 }},
+                        "mtu": {{ d.extra_params.get("mtu", 0) or 200 }},
                         "tti": 20,
                         "uplinkCapacity": 5,
                         "downlinkCapacity": 20,
