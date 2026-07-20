@@ -127,6 +127,13 @@ class DomainAdmin(AdminLTEModelView):
         reality_private_key=_("REALITY private key for this domain. Auto-generated the first time this domain is saved as a REALITY mode if left empty; edit it to set your own."),
         reality_public_key=_("REALITY public key for this domain, matching the private key above. Auto-generated the first time this domain is saved as a REALITY mode if left empty; edit it to set your own."),
         reality_short_id=_("REALITY short ID for this domain. Auto-generated the first time this domain is saved as a REALITY mode if left empty; edit it to set your own."),
+        hysteria_port=_("Hysteria2 port for this domain (direct/relay/fake modes only). Leave empty to keep the automatically assigned port; set a value to pin this domain to a specific one."),
+        tuic_port=_("TUIC port for this domain (direct/relay/fake modes only). Leave empty to keep the automatically assigned port; set a value to pin this domain to a specific one."),
+        naive_port=_("Naive port for this domain (direct/relay modes only). Leave empty to keep the automatically assigned port; set a value to pin this domain to a specific one."),
+        anytls_port=_("AnyTLS port for this domain (direct/relay/fake modes only). Leave empty to keep the automatically assigned port; set a value to pin this domain to a specific one."),
+        dnstt_port=_("DNSTT port for this domain (dnstt mode only). Leave empty to keep the automatically assigned port; set a value to pin this domain to a specific one."),
+        xdns_port=_("xDNS port for this domain (xdns mode only). Leave empty to keep the automatically assigned port; set a value to pin this domain to a specific one."),
+        xicmp_port=_("xICMP port for this domain (xicmp mode only). Leave empty to keep the automatically assigned port; set a value to pin this domain to a specific one."),
         extra_params=_("The dnstt-specific fields below are pre-filled with defaults. You can also add ANY other key here "
                         "(e.g. \"fingerprint\": \"firefox\", \"hysteria_obfs_password\": \"...\", \"alpn\": \"h2\") to override "
                         "just THIS domain's transport/security settings instead of the global config every domain shares."),
@@ -165,7 +172,22 @@ class DomainAdmin(AdminLTEModelView):
         "tls_port": {
             'validators': [Optional(), NumberRange(min=1, max=65535, message=__("Invalid port"))]},
         "reality_port": {
-            'validators': [Optional(), NumberRange(min=1, max=65535, message=__("Invalid port"))]}}
+            'validators': [Optional(), NumberRange(min=1, max=65535, message=__("Invalid port"))]},
+        "hysteria_port": {
+            'validators': [Optional(), NumberRange(min=1, max=65535, message=__("Invalid port"))]},
+        "tuic_port": {
+            'validators': [Optional(), NumberRange(min=1, max=65535, message=__("Invalid port"))]},
+        "naive_port": {
+            'validators': [Optional(), NumberRange(min=1, max=65535, message=__("Invalid port"))]},
+        "anytls_port": {
+            'validators': [Optional(), NumberRange(min=1, max=65535, message=__("Invalid port"))]},
+        "dnstt_port": {
+            'validators': [Optional(), NumberRange(min=1, max=65535, message=__("Invalid port"))]},
+        "xdns_port": {
+            'validators': [Optional(), NumberRange(min=1, max=65535, message=__("Invalid port"))]},
+        "xicmp_port": {
+            'validators': [Optional(), NumberRange(min=1, max=65535, message=__("Invalid port"))]},
+        }
     column_list = ["domain", "alias", "mode",  "show_domains"]
     column_editable_list = ["alias"]
     # column_filters=["domain","mode"]
@@ -190,9 +212,17 @@ class DomainAdmin(AdminLTEModelView):
         'reality_private_key': _('REALITY Private Key'),
         'reality_public_key': _('REALITY Public Key'),
         'reality_short_id': _('REALITY Short ID'),
+        'hysteria_port': _('Hysteria2 Port'),
+        'tuic_port': _('TUIC Port'),
+        'naive_port': _('Naive Port'),
+        'anytls_port': _('AnyTLS Port'),
+        'dnstt_port': _('DNSTT Port'),
+        'xdns_port': _('xDNS Port'),
+        'xicmp_port': _('xICMP Port'),
     }
 
     form_columns = ['mode', 'domain', 'also_enable_xicmp', 'alias', 'servernames', 'cdn_ip', 'resolve_ip', 'http_port', 'tls_port',
+                    'hysteria_port', 'tuic_port', 'naive_port', 'anytls_port', 'dnstt_port', 'xdns_port', 'xicmp_port',
                     'reality_port', 'reality_private_key', 'reality_public_key', 'reality_short_id',
                     'show_domains', 'download_domain', "extra_params"]
     
@@ -282,6 +312,28 @@ class DomainAdmin(AdminLTEModelView):
                 Domain.child_id == obj.child_id,
                 Domain.id != obj.id,
             ).first() is not None
+            # The 7 protocol ports below are NULL-means-auto (see
+            # Domain.internal_port_* and the hysteria_port/tuic_port/...
+            # columns) - left blank here, not prefilled, so simply re-saving
+            # this form (e.g. to edit the alias) can never accidentally
+            # freeze a domain onto today's computed port, decoupling it
+            # from any future change to the global base port setting. This
+            # just appends what that blank currently, actually resolves to,
+            # so an admin isn't guessing. Not shown from create_form(): the
+            # computed value depends on this domain's own id, which doesn't
+            # exist yet for a not-yet-saved domain.
+            for field_name, current in (
+                ('hysteria_port', obj.internal_port_hysteria2),
+                ('tuic_port', obj.internal_port_tuic),
+                ('naive_port', obj.internal_port_naive),
+                ('anytls_port', obj.internal_port_anytls),
+                ('dnstt_port', obj.internal_port_dnstt),
+                ('xdns_port', obj.internal_port_xdns),
+                ('xicmp_port', obj.internal_port_xicmp),
+            ):
+                field = getattr(form, field_name)
+                if not field.data and current:
+                    field.description = f"{field.description} {_('Currently')}: {current}."
         return form
 
     # def on_form_prefill(self, form, id):
@@ -398,6 +450,19 @@ class DomainAdmin(AdminLTEModelView):
             conflict = Domain.query.filter(Domain.reality_port == model.reality_port, Domain.id != model.id, Domain.child_id == model.child_id).first()
             if conflict:
                 raise ValidationError(_("This REALITY port is already assigned to domain: ") + conflict.domain)
+        # Same "no shared default, so any collision fails outright" reasoning
+        # as REALITY above, for the other per-domain port overrides (each
+        # domain's own base-port+id offset is already collision-free by
+        # construction - this only matters once an admin sets one by hand).
+        for field_name, label in (
+            ('hysteria_port', _('Hysteria2')), ('tuic_port', _('TUIC')), ('naive_port', _('Naive')),
+            ('anytls_port', _('AnyTLS')), ('dnstt_port', _('DNSTT')), ('xdns_port', _('xDNS')), ('xicmp_port', _('xICMP')),
+        ):
+            value = getattr(model, field_name)
+            if value:
+                conflict = Domain.query.filter(getattr(Domain, field_name) == value, Domain.id != model.id, Domain.child_id == model.child_id).first()
+                if conflict:
+                    raise ValidationError(f"{_('This')} {label} {_('port is already assigned to domain: ')}{conflict.domain}")
 
     def _update_cloudflare(self, model, ipv4_list,ipv6_list):
         if hconfig(ConfigEnum.cloudflare) and model.mode not in [DomainType.fake, DomainType.relay, DomainType.reality]:
