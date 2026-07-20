@@ -7,7 +7,7 @@ import re
 import json
 from ipaddress import IPv4Address, IPv6Address
 from hiddifypanel.cache import cache
-from hiddifypanel.models import Proxy, ProxyProto, ProxyL3, ProxyTransport, ProxyCDN, Domain, DomainType, ConfigEnum, hconfig, get_hconfigs
+from hiddifypanel.models import Proxy, ProxyProto, ProxyL3, ProxyTransport, ProxyCDN, Domain, DomainType, ConfigEnum, hconfig, get_hconfigs, DomainProxyOverride
 from hiddifypanel import hutils
 
 
@@ -277,6 +277,11 @@ def get_proxies(child_id: int = 0, only_enabled=False) -> list['Proxy']:
     return proxies
 
 
+@cache.cache(ttl=300)
+def get_domain_proxy_overrides(domain_id: int) -> dict[int, 'DomainProxyOverride']:
+    return {o.proxy_id: o for o in DomainProxyOverride.query.filter_by(domain_id=domain_id).all()}
+
+
 def get_valid_proxies(domains: list[Domain]) -> list[dict]:
     allp = []
     allphttp = [p for p in request.args.get("phttp", "").split(',') if p]
@@ -284,6 +289,7 @@ def get_valid_proxies(domains: list[Domain]) -> list[dict]:
     added_ip = defaultdict(set)
     configsmap = {}
     proxeismap = {}
+    all_proxies_by_id_map = {}
     for domain in domains:
         if domain.child_id not in configsmap:
             configsmap[domain.child_id] = get_hconfigs(domain.child_id)
@@ -293,7 +299,21 @@ def get_valid_proxies(domains: list[Domain]) -> list[dict]:
         ips = domain.get_cdn_ips_parsed()
         if not ips:
             ips = hutils.network.get_domain_ips_cached(domain.domain)
-        for proxy in proxeismap[domain.child_id]:
+
+        domain_proxies = proxeismap[domain.child_id]
+        domain_overrides = get_domain_proxy_overrides(domain.id)
+        if domain_overrides:
+            disabled_ids = {pid for pid, o in domain_overrides.items() if o.enable is False}
+            enabled_ids = {pid for pid, o in domain_overrides.items() if o.enable is True}
+            domain_proxies = [p for p in domain_proxies if p.id not in disabled_ids]
+            missing_ids = enabled_ids - {p.id for p in domain_proxies}
+            if missing_ids:
+                if domain.child_id not in all_proxies_by_id_map:
+                    all_proxies_by_id_map[domain.child_id] = {p.id: p for p in Proxy.query.filter_by(child_id=domain.child_id).all()}
+                by_id = all_proxies_by_id_map[domain.child_id]
+                domain_proxies = domain_proxies + [by_id[pid] for pid in missing_ids if pid in by_id]
+
+        for proxy in domain_proxies:
             noDomainProxies = False
             if proxy.proto in [ProxyProto.ssh, ProxyProto.wireguard, ProxyProto.amneziawg, ProxyProto.mieru]:
                 noDomainProxies = True
@@ -358,6 +378,7 @@ def get_valid_proxies(domains: list[Domain]) -> list[dict]:
                 if 'msg' not in pinfo:
                     hutils.proxy.apply_proxy_overrides(pinfo, proxy)
                     hutils.proxy.apply_domain_overrides(pinfo, domain)
+                    hutils.proxy.apply_domain_proxy_overrides(pinfo, domain_overrides.get(proxy.id))
                     allp.append(pinfo)
     return allp
 
@@ -509,6 +530,28 @@ def apply_domain_overrides(pinfo: dict, domain_db: Domain) -> None:
     if not overrides:
         return
     for key, value in overrides.items():
+        if key in _OVERRIDE_BLOCKLIST:
+            continue
+        pinfo[key] = value
+
+
+def apply_domain_proxy_overrides(pinfo: dict, override: 'DomainProxyOverride | None') -> None:
+    """Apply a DomainProxyOverride row's `params` on top of the generated
+    proxy dict, in place. This is the most specific of the three override
+    layers (Proxy.params -> Domain.extra_params -> this), applied last so
+    it wins on any key conflict - it's the only one of the three that's
+    actually scoped to one specific (domain, proxy) pair rather than every
+    domain sharing a proxy row or every proxy on a shared domain.
+
+    `override` is looked up once per domain in get_valid_proxies() (there's
+    at most one override row per domain+proxy pair, enforced by the model's
+    unique constraint) and passed in already resolved, since the enable
+    on/off decision from that same row was already applied earlier in the
+    proxy-selection step, before make_proxy() ever ran.
+    """
+    if not override or not override.params:
+        return
+    for key, value in override.params.items():
         if key in _OVERRIDE_BLOCKLIST:
             continue
         pinfo[key] = value
