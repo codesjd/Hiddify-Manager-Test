@@ -223,6 +223,20 @@ class ConfigEnum(metaclass=FastEnum):
     reality_short_ids = _StrConfigDscr(ConfigCategory.hidden, ApplyMode.apply_config, hide_in_virtual_child=True)
     reality_private_key = _StrConfigDscr(ConfigCategory.hidden, ApplyMode.apply_config, hide_in_virtual_child=True)
     reality_public_key = _StrConfigDscr(ConfigCategory.hidden, ApplyMode.apply_config, hide_in_virtual_child=True)
+    # ML-DSA-65 post-quantum REALITY signature (XTLS/Xray-core only - sing-box's
+    # REALITY has no equivalent, confirmed against sing-box.sagernet.org/
+    # configuration/shared/tls/). Global-only, no per-domain override (unlike
+    # reality_private_key/public_key above) - deliberately scoped smaller: adding
+    # this would mean new Domain columns + DomainAdmin.py form fields, more UI
+    # surface than this optional hardening field is worth. Generated (if at
+    # all) via init_db.py's migration shelling out to the real `xray mldsa65`
+    # CLI command rather than reimplementing FIPS 204 key derivation in Python -
+    # a bit-mismatch between a from-scratch Python implementation and Xray-
+    # core's own Go/CIRCL one would silently break every REALITY handshake
+    # using it, so correctness-by-construction (using Xray's own binary) beats
+    # reimplementing and hoping.
+    reality_mldsa65_seed = _StrConfigDscr(ConfigCategory.hidden, ApplyMode.apply_config, hide_in_virtual_child=True)
+    reality_mldsa65_verify = _StrConfigDscr(ConfigCategory.hidden, ApplyMode.apply_config, hide_in_virtual_child=True)
     reality_port = _StrConfigDscr(ConfigCategory.hidden, ApplyMode.apply_config, hide_in_virtual_child=True)
     special_port = _StrConfigDscr(ConfigCategory.hidden, ApplyMode.apply_config, hide_in_virtual_child=True)
     

@@ -235,6 +235,17 @@ class Actions(FlaskView):
         key = hutils.crypto.generate_x25519_keys()
         set_hconfig(ConfigEnum.reality_private_key, key['private_key'])
         set_hconfig(ConfigEnum.reality_public_key, key['public_key'])
+        # Best-effort: the migration that first tries this
+        # (init_db.py's _v150) can silently skip if the xray binary wasn't
+        # downloaded yet at that point in bootstrap - this button runs well
+        # after installation, so it's a reliable place to actually get it
+        # populated. Still best-effort (returns None on any failure) since
+        # PQ signing is optional hardening, never required for REALITY to
+        # work.
+        mldsa65_keys = hutils.crypto.generate_mldsa65_keys()
+        if mldsa65_keys:
+            set_hconfig(ConfigEnum.reality_mldsa65_seed, mldsa65_keys['seed'])
+            set_hconfig(ConfigEnum.reality_mldsa65_verify, mldsa65_keys['verify'])
         hutils.apply_scope.mark_dirty(hutils.apply_scope.CORE_ONLY_SUBSYSTEMS)
         hutils.flask.flash_config_success(restart_mode=ApplyMode.apply_config, domain_changed=False)
         return redirect(hurl_for('admin.SettingAdmin:index'))

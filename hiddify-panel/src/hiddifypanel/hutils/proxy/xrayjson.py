@@ -616,6 +616,13 @@ def add_reality_stream(ss: dict, proxy: dict, domain_info: dict):
         'publicKey': domain_info['reality_pbk'],
         'show': False,
     }
+    # ML-DSA-65 PQ signature verify value - omitted (not sent as an empty
+    # string) when unset, matching the server's own mldsa65Seed omission
+    # (xray/configs/05_inbounds_02_reality_main.json.j2) - Xray-core
+    # clients treat a missing mldsa65Verify as "no PQ check", same as an
+    # absent field on the server side.
+    if domain_info.get('reality_mldsa65_verify'):
+        ss['realitySettings']['mldsa65Verify'] = domain_info['reality_mldsa65_verify']
 
 
 def add_tls_fragmentation_stream_settings(base: dict, proxy: dict):

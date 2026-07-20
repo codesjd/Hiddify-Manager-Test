@@ -424,6 +424,13 @@ def sni_host_server_extractor(domain_db: Domain, hconfigs):
         base['reality_short_id'] = random.sample(domain_db.effective_reality_short_id.split(','), 1)[0]
         # base['flow']="xtls-rprx-vision"
         base['reality_pbk'] = domain_db.effective_reality_public_key
+        # ML-DSA-65 PQ signature verify value (global-only, no per-domain
+        # override - see config_enum.py's reality_mldsa65_verify docstring).
+        # None on installs where it hasn't been generated yet - Xray-core
+        # clients treat an absent mldsa65Verify as "no PQ check", same as
+        # the server omitting mldsa65Seed entirely (05_inbounds_02_reality_
+        # main.json.j2), so this is safe to leave unset.
+        base['reality_mldsa65_verify'] = hconfig(ConfigEnum.reality_mldsa65_verify, domain_db.child_id) or None
         # del base['host']
 
         # if not domain_db.cdn_ip:
