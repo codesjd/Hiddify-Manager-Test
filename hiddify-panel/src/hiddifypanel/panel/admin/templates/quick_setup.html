@@ -137,7 +137,7 @@
     .quicksetup-domain-form {
         display: grid;
         grid-template-columns: 1fr 1fr;
-        column-gap: 16px;
+        gap: 16px;
     }
 
     @media (max-width: 575px) {
@@ -185,9 +185,13 @@
        bare switches. Same SwitchField widget (flask_bootstrap.SwitchField)
        renders both pages, so the exact same selectors apply here.
        Deliberately NOT copying proxy.html's Apply Configs button/merge
-       script - Quick Setup submits via its own Next/Submit flow instead. */
+       script - Quick Setup submits via its own Next/Submit flow instead.
+       Uses --bg instead of proxy.html's --surface for the card background,
+       per request that these boxes read darker than the Proxies page's -
+       --bg is the darker of the two tokens in both the light and dark
+       theme definitions above, so this holds in either mode. */
     .quicksetup-proxy-grid .form-group.custom-switch {
-        background: var(--surface) !important;
+        background: var(--bg) !important;
         border: 1px solid var(--border);
         border-radius: 14px;
         padding: 16px !important;
