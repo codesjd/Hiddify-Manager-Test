@@ -2,4 +2,14 @@
 "xhttpSettings": {
     "mode": "auto",
     "path":"/{{path}}",
+    {# xPaddingBytes (verified against transport/internet/splithttp/
+       config.proto - RangeConfig{from,to}) adds random-length padding to
+       XHTTP requests/responses, defeating fixed-size traffic fingerprinting.
+       Purely additive/optional - Xray-core defaults to no padding at all
+       when unset, so this can only add obfuscation, never change protocol
+       behavior in a way that could break a connection. Using the {"from",
+       "to"} object form since that's the guaranteed-correct protobuf-JSON
+       mapping (unconfirmed whether a "100-1000" shorthand string is also
+       accepted - the object form works either way). #}
+    "xPaddingBytes": {"from": 100, "to": 1000},
 }

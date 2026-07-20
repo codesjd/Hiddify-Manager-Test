@@ -479,7 +479,14 @@ def _add_xhttp_details(ss: dict, proxy: dict):
         'mode':proxy['xhttp_mode'],
         "extra": {
             "headers": proxy['params'].get('headers', {})
-        }
+        },
+        # Matches the server inbound's own xPaddingBytes (xray/configs/
+        # common/streams/xhttp.pj2, verified against transport/internet/
+        # splithttp/config.proto's Config.xPaddingBytes - a top-level
+        # field, not nested under "extra" like headers above) - purely
+        # additive traffic-size obfuscation, safe on both sides
+        # independently.
+        "xPaddingBytes": {"from": 100, "to": 1000},
     }
     if proxy.get("download"):
         # The download sub-object is only guaranteed to carry WHATEVER
