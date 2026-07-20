@@ -659,6 +659,20 @@ def make_proxy(hconfigs: dict, proxy: Proxy, domain_db: Domain, phttp=80, ptls=4
             # actually used.
             base['tuic_congestion_control'] = hconfigs.get(ConfigEnum.tuic_congestion_control)
         return base
+    if proxy.proto == ProxyProto.anytls:
+        # AnyTLS runs directly over TCP+TLS (proxy.transport is
+        # ProxyTransport.custom, l3 is plain ProxyL3.tls) - it never matches
+        # any of the vless/vmess/trojan-specific transport branches further
+        # down (tcp/ws/httpupgrade/xhttp/grpc/h1), so without this early
+        # return it fell all the way through to the final catch-all "not
+        # valid" error below. That's why enabling AnyTLS never produced a
+        # config: the Proxy DB row and the toggle both worked, but this
+        # function silently rejected every anytls proxy before xray.py's
+        # to_link()/singbox.py's add_anytls() (which already assume a valid
+        # pinfo with 'uuid') ever got a chance to run. Auth is the bare
+        # 'uuid' already in base - both to_link() and add_anytls() read it
+        # directly, no separate 'password' field needed (unlike trojan).
+        return base
     if proxy.proto in ['wireguard']:
         base['wg_pub'] = g.account.wg_pub
         base['wg_pk'] = g.account.wg_pk
