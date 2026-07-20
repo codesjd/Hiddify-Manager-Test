@@ -456,6 +456,15 @@ class DomainAdmin(AdminLTEModelView):
         if not is_created:
             return
         db.session.flush()
+        # http_port/tls_port's fallback (effective_http_port/
+        # effective_tls_port) is a plain hardcoded 80/443, not derived from
+        # any global setting or this domain's id - unlike the 7 fields
+        # below, there's nothing that could ever change out from under a
+        # filled-in value later, so this is unconditional.
+        if not model.http_port:
+            model.http_port = 80
+        if not model.tls_port:
+            model.tls_port = 443
         for field_name, computed_attr, _modes in self._PORT_FIELD_MODES:
             if not getattr(model, field_name):
                 computed = getattr(model, computed_attr)
