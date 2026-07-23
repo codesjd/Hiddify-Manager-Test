@@ -1,4 +1,5 @@
 from collections import defaultdict
+from concurrent.futures import ThreadPoolExecutor
 import ipaddress
 from flask import current_app, request, g
 import glob
@@ -290,6 +291,21 @@ def get_valid_proxies(domains: list[Domain]) -> list[dict]:
     configsmap = {}
     proxeismap = {}
     all_proxies_by_id_map = {}
+
+    # Domains without a manually-set CDN IP list need a live DNS lookup.
+    # Doing that inline in the loop below serialized every domain's lookup
+    # one after another - N domains meant N DNS round trips back to back,
+    # turning a page with a few dozen domains into a multi-minute request.
+    # Resolve them all up front, concurrently, so the total wait is roughly
+    # one lookup's worth of time instead of the sum of all of them.
+    domains_needing_dns = {d.domain for d in domains if not d.get_cdn_ips_parsed()}
+    resolved_ips: dict = {}
+    if domains_needing_dns:
+        with ThreadPoolExecutor(max_workers=min(len(domains_needing_dns), 20)) as executor:
+            future_to_domain = {executor.submit(hutils.network.get_domain_ips_cached, d): d for d in domains_needing_dns}
+            for future, d in future_to_domain.items():
+                resolved_ips[d] = future.result()
+
     for domain in domains:
         if domain.child_id not in configsmap:
             configsmap[domain.child_id] = get_hconfigs(domain.child_id)
@@ -298,7 +314,9 @@ def get_valid_proxies(domains: list[Domain]) -> list[dict]:
         hconfigs = configsmap[domain.child_id]
         ips = domain.get_cdn_ips_parsed()
         if not ips:
-            ips = hutils.network.get_domain_ips_cached(domain.domain)
+            ips = resolved_ips.get(domain.domain)
+            if ips is None:
+                ips = hutils.network.get_domain_ips_cached(domain.domain)
 
         domain_proxies = proxeismap[domain.child_id]
         domain_overrides = get_domain_proxy_overrides(domain.id)
