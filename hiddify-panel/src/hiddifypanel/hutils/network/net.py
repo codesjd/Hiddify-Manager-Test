@@ -156,9 +156,24 @@ def _get_domain_ips_cached_raw(domain: str, retry: int = 3) -> Set[Union[ipaddre
         return get_domain_ips(domain,retry)
 
 
+_failed_dns_lookup_at: dict = {}
+# Bounds how often a domain that never resolves (e.g. resolve_ip enabled on a
+# domain with no real DNS record) can trigger a full synchronous DNS
+# resolution. Without this, every call for such a domain did a fresh,
+# multi-second lookup (see the invalidate-on-empty-result path below) with no
+# floor at all - sni_host_server_extractor() calls get_domain_ips_cached()
+# once per proxy per domain, so a single broken domain turned every
+# subscription/config page load into dozens of consecutive multi-second DNS
+# resolutions, hanging the request for minutes.
+_FAILED_DNS_LOOKUP_RETRY_SECONDS = 10
+
+
 def get_domain_ips_cached(domain: str, retry: int = 3) -> Set[Union[ipaddress.IPv4Address, ipaddress.IPv6Address]]:
     result = _get_domain_ips_cached_raw(domain, retry)
     if not result:
+        last_failure = _failed_dns_lookup_at.get(domain)
+        if last_failure is not None and (time.time() - last_failure) < _FAILED_DNS_LOOKUP_RETRY_SECONDS:
+            return result
         # A failed lookup is exactly the case where a 300s cache actively
         # hurts - e.g. an admin adds a domain before its DNS record
         # exists, gets a validation error, fixes DNS, and retries within
@@ -166,9 +181,14 @@ def get_domain_ips_cached(domain: str, retry: int = 3) -> Set[Union[ipaddress.IP
         # served back instead of a fresh lookup. Unlike a real answer,
         # an empty result isn't expensive information worth preserving,
         # so don't trust/serve it from cache - invalidate and try once
-        # more for real.
+        # more for real, but no more than once every
+        # _FAILED_DNS_LOOKUP_RETRY_SECONDS for the same domain.
         _get_domain_ips_cached_raw.invalidate(domain, retry)
         result = get_domain_ips(domain, retry)
+        if not result:
+            _failed_dns_lookup_at[domain] = time.time()
+        else:
+            _failed_dns_lookup_at.pop(domain, None)
     return result
 
 def get_domain_ips(domain: str, retry: int = 3) -> Set[Union[ipaddress.IPv4Address, ipaddress.IPv6Address]]:
