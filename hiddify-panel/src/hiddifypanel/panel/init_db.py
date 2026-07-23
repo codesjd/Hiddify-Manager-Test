@@ -1525,7 +1525,27 @@ def _ensure_domain_port_columns_backfilled():
     pattern as _ensure_anytls_proxy_rows/_ensure_default_proxy_rows above -
     only fills genuinely blank columns, never touches one a domain (or an
     admin) already set.
+
+    add_column() calls for these 7 fields were missing entirely until now -
+    db.create_all() only creates tables that don't exist yet, it never
+    ALTERs an existing table to add a new column to it (see the
+    add_column(Domain.reality_port)/add_column(Domain.http_port) calls
+    elsewhere in this file, from when THOSE fields were added the same
+    way). Without this, the `domain` table on any already-migrated
+    install never actually gained these 7 columns even though the ORM
+    model claims they exist - every single Domain query (the admin
+    domain list, subscription generation, literally everything) started
+    raising a raw "no such column" SQL error, which is what actually
+    caused the reported hang/freeze across the whole panel, not a
+    performance regression.
     """
+    add_column(Domain.hysteria_port)
+    add_column(Domain.tuic_port)
+    add_column(Domain.naive_port)
+    add_column(Domain.anytls_port)
+    add_column(Domain.dnstt_port)
+    add_column(Domain.xdns_port)
+    add_column(Domain.xicmp_port)
     try:
         changed = False
         for domain in Domain.query.all():
