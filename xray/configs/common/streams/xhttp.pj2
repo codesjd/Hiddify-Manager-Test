@@ -2,14 +2,21 @@
 "xhttpSettings": {
     "mode": "auto",
     "path":"/{{path}}",
-    {# xPaddingBytes (verified against transport/internet/splithttp/
-       config.proto - RangeConfig{from,to}) adds random-length padding to
-       XHTTP requests/responses, defeating fixed-size traffic fingerprinting.
-       Purely additive/optional - Xray-core defaults to no padding at all
-       when unset, so this can only add obfuscation, never change protocol
-       behavior in a way that could break a connection. Using the {"from",
-       "to"} object form since that's the guaranteed-correct protobuf-JSON
-       mapping (unconfirmed whether a "100-1000" shorthand string is also
-       accepted - the object form works either way). #}
-    "xPaddingBytes": {"from": 100, "to": 1000},
+    {# xPaddingBytes adds random-length padding to XHTTP requests/responses,
+       defeating fixed-size traffic fingerprinting. Purely additive/optional -
+       Xray-core defaults to no padding at all when unset, so this can only
+       add obfuscation, never change protocol behavior in a way that could
+       break a connection.
+
+       infra/conf's RangeConfig.UnmarshalJSON (same parser PortRange uses)
+       only accepts a plain integer or a "100-1000" string - it tries to
+       unmarshal the raw JSON into an int, then into a string, and errors
+       out on anything else ("Invalid integer range, expected either string
+       of form \"1-2\" or plain integer."). The previously-used {"from":100,
+       "to":1000} object form hit exactly that error path and made Xray
+       refuse to start entirely (every xhttp inbound lives in this same
+       05_inbounds_new.json, so one bad field here took the whole file
+       down). The string form below is the only one the unmarshaler
+       actually accepts. #}
+    "xPaddingBytes": "100-1000",
 }
