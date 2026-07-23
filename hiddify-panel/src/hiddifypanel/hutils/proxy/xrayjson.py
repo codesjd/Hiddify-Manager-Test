@@ -481,12 +481,14 @@ def _add_xhttp_details(ss: dict, proxy: dict):
             "headers": proxy['params'].get('headers', {})
         },
         # Matches the server inbound's own xPaddingBytes (xray/configs/
-        # common/streams/xhttp.pj2, verified against transport/internet/
-        # splithttp/config.proto's Config.xPaddingBytes - a top-level
-        # field, not nested under "extra" like headers above) - purely
-        # additive traffic-size obfuscation, safe on both sides
-        # independently.
-        "xPaddingBytes": {"from": 100, "to": 1000},
+        # common/streams/xhttp.pj2) - a top-level field, not nested under
+        # "extra" like headers above. infra/conf's Int32Range.UnmarshalJSON
+        # (the type this field actually decodes into) only accepts a plain
+        # integer or a "100-1000" string - an object like {"from":100,
+        # "to":1000} fails both parse attempts and gets rejected outright,
+        # which is exactly why some clients "don't even recognize" this
+        # config at all rather than just ignoring an unknown field.
+        "xPaddingBytes": "100-1000",
     }
     if proxy.get("download"):
         # The download sub-object is only guaranteed to carry WHATEVER
