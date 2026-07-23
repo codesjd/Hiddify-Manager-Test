@@ -145,7 +145,7 @@ def invalidate_pinned_cert_cache(host: str, port: int = 443):
 
 
 @cache.cache(300)
-def _get_domain_ips_cached_raw(domain: str, retry: int = 3) -> Set[Union[ipaddress.IPv4Address, ipaddress.IPv6Address]]:
+def _get_domain_ips_cached_raw(domain: str, retry: int = 0) -> Set[Union[ipaddress.IPv4Address, ipaddress.IPv6Address]]:
     try:
         return set(ipaddress.ip_address(domain))
     except:
@@ -164,11 +164,27 @@ _failed_dns_lookup_at: dict = {}
 _FAILED_DNS_LOOKUP_RETRY_SECONDS = 10
 
 
-def get_domain_ips_cached(domain: str, retry: int = 3) -> Set[Union[ipaddress.IPv4Address, ipaddress.IPv6Address]]:
+# retry=0 here (unlike get_domain_ips's own retry=3 default): get_domain_ips
+# recurses once per unit of retry with no delay/backoff between attempts, so
+# retrying a domain that has no DNS record just repeats the identical failing
+# query several times over. That's harmless for the one-off manual
+# get_domain_ips() calls (e.g. the admin "test DNS" action), but this cached
+# entry point is what get_valid_proxies()/DomainAdmin's domain list call once
+# per domain in a plain loop - multiplying each domain's cost by the retry
+# count turns a handful of stale domains into a multi-minute page load.
+def get_domain_ips_cached(domain: str, retry: int = 0) -> Set[Union[ipaddress.IPv4Address, ipaddress.IPv6Address]]:
     result = _get_domain_ips_cached_raw(domain, retry)
     if not result:
         last_failure = _failed_dns_lookup_at.get(domain)
-        if last_failure is not None and (time.time() - last_failure) < _FAILED_DNS_LOOKUP_RETRY_SECONDS:
+        if last_failure is None:
+            # First time this domain has ever come back empty - the lookup
+            # we just did was already fresh (a cold cache miss), so redoing
+            # it now would just repeat the same dead query. Record the
+            # failure and return; a retry only makes sense once some time
+            # has passed (handled below).
+            _failed_dns_lookup_at[domain] = time.time()
+            return result
+        if (time.time() - last_failure) < _FAILED_DNS_LOOKUP_RETRY_SECONDS:
             return result
         # A failed lookup is exactly the case where a 300s cache actively
         # hurts - e.g. an admin adds a domain before its DNS record
