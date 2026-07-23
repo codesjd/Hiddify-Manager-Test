@@ -93,6 +93,13 @@
                             "acceptProxyProtocol": false,
                             {%else%}
                             "acceptProxyProtocol": true,
+                            {# xhttp here rides HAProxy's HTTP dispatch same as
+                               the shared v10-*-xhttp inbounds (05_inbounds_new.
+                               json.j2) - same reasoning applies: acceptProxyProtocol
+                               already carries the real client IP, so explicitly
+                               distrust any client-supplied X-Forwarded-For
+                               instead of leaving Xray's implicit-trust default. #}
+                            "trustedXForwardedFor": [],
                             {%endif%}
                             "tcpFastOpen": true
                         }
