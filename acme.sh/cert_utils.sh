@@ -104,24 +104,38 @@ function get_cert() {
         # fi
         
         if isipv4 "$DOMAIN"; then
-            acmecmd -d $DOMAIN --server letsencrypt --certificate-profile shortlived --days 6 
+            acmecmd -d $DOMAIN --server letsencrypt --certificate-profile shortlived --days 6
+            err=$?
         elif isipv6 "$DOMAIN"; then
             acmecmd -d [$DOMAIN] --server letsencrypt --certificate-profile shortlived --days 6 --listen-v6
+            err=$?
         else
             acmecmd -d "$DOMAIN" --server letsencrypt
-            if [ "$?" -ne 0 ] && is_ok_domain_zerossl "$DOMAIN"; then
+            err=$?
+            if [ "$err" -ne 0 ] && is_ok_domain_zerossl "$DOMAIN"; then
                 acmecmd -d "$DOMAIN" --server zerossl
+                err=$?
             fi
 
         fi
-        
-        acme.sh --installcert -d $DOMAIN \
-            --fullchainpath $ssl_cert_path/$DOMAIN.crt \
-            --keypath $ssl_cert_path/$DOMAIN.crt.key \
-            --reloadcmd "echo success"
-        
-        err=$?
-        
+
+        # Only attempt --installcert once an --issue attempt above actually
+        # succeeded. Previously this ran unconditionally, so when every
+        # --issue attempt failed or got stuck (e.g. a ZeroSSL order left
+        # "processing" - see acmecmd()'s timeout comment), --installcert
+        # would still try to install from that incomplete cert directory,
+        # fail on a missing fullchain.cer, and only then fall through to the
+        # self-signed fallback below - masking the real cause behind a
+        # confusing "seems to already have a cert" / "no such file" chain.
+        if [ "$err" -eq 0 ]; then
+            acme.sh --installcert -d $DOMAIN \
+                --fullchainpath $ssl_cert_path/$DOMAIN.crt \
+                --keypath $ssl_cert_path/$DOMAIN.crt.key \
+                --reloadcmd "echo success"
+
+            err=$?
+        fi
+
     else
         err=1
     fi
