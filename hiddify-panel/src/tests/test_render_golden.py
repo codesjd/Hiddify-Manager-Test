@@ -1,4 +1,5 @@
 import pytest
+from flask import g
 from hiddifypanel.models import Domain, Proxy, ConfigEnum, DomainType, User, get_hconfigs
 from hiddifypanel.hutils.proxy.shared import make_proxy
 
@@ -31,7 +32,12 @@ def test_render_golden_proxies(seeded_app):
         from hiddifypanel.database import db
         user = User.query.first()
         domain = Domain.query.first()
-        
+        # make_proxy() reads the subscribing account from g.account (set by
+        # the real auth flow in panel/auth_back2.py per-request) rather than
+        # taking it as a parameter - set it explicitly here to stand in for
+        # that request-scoped state.
+        g.account = user
+
         hconfigs = get_hconfigs()
         proxies = db.session.query(Proxy).filter(Proxy.enable == True).all()
         results = []
