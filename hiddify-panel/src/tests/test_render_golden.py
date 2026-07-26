@@ -20,7 +20,7 @@ def seeded_app(app):
         db.session.add(u)
         
         # AnyTLS VLESS Proxy
-        p1 = Proxy(name="VLESS AnyTLS", proto="VLESS", transport="WS", l3="tls", cdn="other", enable=True)
+        p1 = Proxy(name="VLESS AnyTLS", proto="vless", transport="WS", l3="tls", cdn="direct", enable=True)
         db.session.add(p1)
         
         db.session.commit()
