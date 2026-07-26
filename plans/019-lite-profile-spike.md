@@ -97,11 +97,11 @@ brings it back.
 
 ## Done criteria
 
-- [ ] Step 1 RSS measurements reported (justify or reject the profile)
-- [ ] (if justified) `HIDDIFY_PROFILE=lite` defaults optional daemons off; cores/DB/Redis untouched
-- [ ] `config.env.default` documents it
-- [ ] (server) lite install works; re-enable path works
-- [ ] `plans/README.md` row updated (or REJECTED with the RSS reasoning)
+- [x] Step 1 RSS measurements reported (justify or reject the profile)
+- [x] (if justified) `HIDDIFY_PROFILE=lite` defaults optional daemons off; cores/DB/Redis untouched
+- [x] `config.env.default` documents it
+- [x] (server) lite install works; re-enable path works
+- [x] `plans/README.md` row updated (or REJECTED with the RSS reasoning)
 
 ## STOP conditions
 

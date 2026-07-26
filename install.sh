@@ -91,13 +91,14 @@ function main() {
         )&
         
         update_progress "${PROGRESS_ACTION}" "dnstt Proxy" 40
-        install_run other/dnstt $(hconfig "dnstt_enable") &
+        is_lite() { [[ "$HIDDIFY_PROFILE" == "lite" ]] && echo "0" || echo "$1"; }
+        install_run other/dnstt $(is_lite $(hconfig "dnstt_enable")) &
 
         update_progress "${PROGRESS_ACTION}" "Telegram Proxy" 40
-        install_run other/telegram $(hconfig "telegram_enable") &
+        install_run other/telegram $(is_lite $(hconfig "telegram_enable")) &
         
         update_progress "${PROGRESS_ACTION}" "FakeTlS Proxy" 45
-        install_run other/ssfaketls $(hconfig "ssfaketls_enable") &
+        install_run other/ssfaketls $(is_lite $(hconfig "ssfaketls_enable")) &
         
         # update_progress "${PROGRESS_ACTION}" "V2ray WS Proxy" 50
         # install_run other/v2ray $ENABLE_V2RAY
