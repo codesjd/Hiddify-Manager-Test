@@ -45,6 +45,7 @@ function menu() {
     MENU="Choose one of the following options:"
 
     OPTIONS=(status "View status of system"
+        doctor "Run preflight diagnostic checks"
         admin "Show admin link"
         log "view system logs"
         restart "Restart Services without changing the configs"
@@ -163,6 +164,10 @@ function menu() {
             echo "reseting owner password..."
             hiddify-panel-cli reset-owner-password
         fi
+        NEED_KEY=0
+        ;;
+    "doctor")
+        bash doctor.sh | less -r -P"Press q to exit" +G
         NEED_KEY=0
         ;;
     "status")

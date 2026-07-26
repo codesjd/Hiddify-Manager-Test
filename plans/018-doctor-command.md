@@ -97,12 +97,12 @@ FAILs — false positives erode trust, so tune thresholds conservatively).
 
 ## Done criteria
 
-- [ ] `bash -n doctor.sh menu.sh` exit 0
-- [ ] doctor.sh checks DNS, ports, mem/swap, certs, core ports/services, current.json
-- [ ] All checks are read-only (no state mutation)
-- [ ] menu.sh exposes `doctor`
-- [ ] (server) healthy box → all PASS; broken box → correct FAIL
-- [ ] `plans/README.md` row updated
+- [x] `bash -n doctor.sh menu.sh` exit 0
+- [x] doctor.sh checks DNS, ports, mem/swap, certs, core ports/services, current.json
+- [x] All checks are read-only (no state mutation)
+- [x] menu.sh exposes `doctor`
+- [x] (server) healthy box → all PASS; broken box → correct FAIL
+- [x] `plans/README.md` row updated
 
 ## STOP conditions
 
