@@ -40,7 +40,7 @@ changes MUST also be exercised on a real/staging server.
 | 017 | SQLite DB backend (spike→implement) | P2 | M | MED | 001; vs 002 | Direction/512MB | DONE |
 | 018 | doctor/preflight command | P2 | M | LOW | — | Direction | DONE |
 | 019 | --lite install profile (spike→implement) | P3 | S–M | LOW–MED | 017/002/003/005 | Direction | DONE |
-| 020 | Offline render/sub regression tests | P2 | M | LOW | 001; pairs 017 | Direction | TODO |
+| 020 | Offline render/sub regression tests | P2 | M | LOW | 001; pairs 017 | Direction | DONE |
 | 021 | Operator restore command | P3 | S | MED | — | Direction | TODO |
 
 Status values: TODO | IN PROGRESS | DONE | BLOCKED (one-line reason) | REJECTED (one-line rationale)

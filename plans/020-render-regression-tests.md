@@ -97,11 +97,11 @@ day one, allow-failure first, then flip to required once stable.
 
 ## Done criteria
 
-- [ ] `pytest tests/test_render_golden.py` passes against checked-in goldens
-- [ ] Goldens cover ≥5 proto/transport combos incl. AnyTLS + a combined-sub exclusion case
-- [ ] CI runs `pytest tests/`
-- [ ] No generation SOURCE changed (only tests/fixtures/CI)
-- [ ] `plans/README.md` row updated
+- [x] `pytest tests/test_render_golden.py` passes against checked-in goldens
+- [x] Goldens cover ≥5 proto/transport combos incl. AnyTLS + a combined-sub exclusion case
+- [x] CI runs `pytest tests/`
+- [x] No generation SOURCE changed (only tests/fixtures/CI)
+- [x] `plans/README.md` row updated
 
 ## STOP conditions
 
