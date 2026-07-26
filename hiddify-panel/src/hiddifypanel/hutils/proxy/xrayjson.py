@@ -1,5 +1,4 @@
 import json
-import copy
 from flask import render_template, g
 from hiddifypanel import hutils
 from hiddifypanel.models import ProxyTransport, ProxyL3, ProxyProto, Domain, User
@@ -79,14 +78,9 @@ def configs_as_json(domains: list[Domain], user: User, expire_days: int, remarks
         # connection silently falls through instead of using the proxy.
         if len(outbounds) > 1:
             for out in outbounds:
-                base = copy.deepcopy(base_config)
+                base = dict(base_config)
                 base['remarks'] = out['tag']
-                out = copy.deepcopy(out)
-                out['tag'] = 'proxy'
-                base['outbounds'].insert(0, out)
-                # if all_configs:
-                #     all_configs.insert(0, copy.deepcopy(base_config))
-                # else:
+                base['outbounds'] = [{**out, 'tag': 'proxy'}] + base_config['outbounds']
                 all_configs.append(base)
 
         elif len(outbounds) == 1:  # single outbound

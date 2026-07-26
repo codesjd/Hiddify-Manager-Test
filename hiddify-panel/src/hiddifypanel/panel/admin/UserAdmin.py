@@ -11,6 +11,7 @@ from flask_babel import lazy_gettext as _
 from flask import g, request  # type: ignore
 from markupsafe import Markup
 from sqlalchemy import desc, func
+from sqlalchemy.orm import joinedload
 from flask_admin.contrib.sqla import form, filters as sqla_filters, tools
 from hiddifypanel.hutils.flask import hurl_for
 from wtforms.validators import Regexp, ValidationError
@@ -151,7 +152,9 @@ class UserAdmin(AdminLTEModelView):
 
         link = hutils.flask.hf_chip(_("Current Domain"), href=href, extra_attrs=f"class='share-link' data-copy='{href}'")
 
-        domains = [d for d in Domain.get_domains() if d.domain != request.host]
+        if not hasattr(g, '_useradmin_all_domains_cache'):
+            g._useradmin_all_domains_cache = Domain.get_domains()
+        domains = [d for d in g._useradmin_all_domains_cache if d.domain != request.host]
         return Markup(link + " " + " ".join([hiddify.get_html_user_link(model, d) for d in domains]))
 
     # def _usage_formatter(view, context, model, name):
@@ -383,7 +386,7 @@ class UserAdmin(AdminLTEModelView):
 
     def get_query(self):
         # Get the base query
-        query = super().get_query()
+        query = super().get_query().options(joinedload(User.admin))
 
         try:
             admin_id = int(request.args.get("admin_id") or g.account.id)
