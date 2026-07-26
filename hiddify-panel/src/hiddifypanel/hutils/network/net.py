@@ -151,7 +151,7 @@ def invalidate_pinned_cert_cache(host: str, port: int = 443):
 @cache.cache(300)
 def _get_domain_ips_cached_raw(domain: str, retry: int = 0) -> Set[Union[ipaddress.IPv4Address, ipaddress.IPv6Address]]:
     try:
-        return set(ipaddress.ip_address(domain))
+        return {ipaddress.ip_address(domain)}
     except:
         return get_domain_ips(domain,retry)
 

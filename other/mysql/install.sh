@@ -63,8 +63,19 @@ if ! grep -q "^[^#]*bind-address\s*=\s*127.0.0.1" "$MARIADB_CONF"; then
     
 fi
 
-# Deploy tuning overrides to mariadb.conf.d
-cp 99-tuning.cnf /etc/mysql/mariadb.conf.d/99-tuning.cnf
-chmod 644 /etc/mysql/mariadb.conf.d/99-tuning.cnf
+# Deploy low-RAM tuning overrides to mariadb.conf.d
+cat >/etc/mysql/mariadb.conf.d/60-hiddify.cnf <<'EOF'
+# Hiddify low-RAM tuning (512 MB VPS target). Values chosen for a tiny
+# working set (config tables + users). Loaded after 50-server.cnf, so these win.
+[mysqld]
+innodb_buffer_pool_size = 64M
+performance_schema = OFF
+max_connections = 40
+sort_buffer_size = 1M
+join_buffer_size = 1M
+tmp_table_size = 8M
+max_heap_table_size = 8M
+EOF
+chmod 644 /etc/mysql/mariadb.conf.d/60-hiddify.cnf
 
-systemctl start mariadb
+systemctl restart mariadb

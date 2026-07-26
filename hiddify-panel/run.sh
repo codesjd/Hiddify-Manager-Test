@@ -57,5 +57,5 @@ fi
 hiddify-panel-cli init-db
 
 systemctl start hiddify-panel.service
-systemctl restart hiddify-panel-background-tasks.service
+# systemctl restart hiddify-panel-background-tasks.service
 

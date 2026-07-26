@@ -39,7 +39,7 @@ add_package() {
 
     # Download the file to calculate the hash
     temp_file="/tmp/${package_name}_${version}_${arch}.tmp"
-    wget -q "$url" -O "$temp_file"
+    wget -q --timeout=10 --tries=3 "$url" -O "$temp_file"
     if [[ $? -ne 0 ]]; then
         error "Error downloading file: $url"
         return 1
@@ -111,7 +111,7 @@ download_package() {
     # Download the file
     echo "Downloading package $package_name version $requested_version for $arch... current version is $existing_version"
     local tmp_file=$(mktemp)
-    curl -sL -o "$tmp_file" "$url"
+    curl -sL --connect-timeout 10 --max-time 300 -o "$tmp_file" "$url"
     if [[ $? -ne 0 ]]; then
         error "Error downloading file: $url"
         rm "$tmp_file"

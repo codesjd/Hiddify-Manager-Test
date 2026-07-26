@@ -348,8 +348,8 @@ if [[ " $@ " == *" --no-gui "* ]]; then
         main
     else
         main |& tee $LOG_FILE
+        error_code=${PIPESTATUS[0]}
     fi
-    error_code=$?
     remove_lock $NAME
 else
     show_progress_window --subtitle $(get_installed_config_version) --log $LOG_FILE ./install.sh $@ --no-gui --no-log

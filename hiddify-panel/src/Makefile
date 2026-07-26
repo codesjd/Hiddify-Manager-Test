@@ -32,7 +32,7 @@ show:             ## Show the current environment.
 install:          ## Install the project in dev mode.
 	@if [ "$(USING_POETRY)" ]; then poetry install && exit; fi
 	@echo "Don't forget to run 'make virtualenv' if you got errors."
-	$(ENV_PREFIX)pip install -e cython .[test]
+	$(ENV_PREFIX)pip install -e cython .[dev]
 
 .PHONY: fmt
 fmt:              ## Format code using black & isort.
@@ -83,7 +83,7 @@ virtualenv:       ## Create a virtual environment.
 	@rm -rf .venv
 	@python3 -m venv .venv
 	@./.venv/bin/pip install -U pip
-	@./.venv/bin/pip install -e .[test]
+	@./.venv/bin/pip install -e .[dev]
 	@echo
 	@echo "!!! Please run 'source .venv/bin/activate' to enable the environment !!!"
 

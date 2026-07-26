@@ -44,12 +44,10 @@ def update_local_usage_not_lock():
         raise
 
 
-def add_users_usage_uuid(uuids_bytes: Dict[str, Dict], child_id, sync=False):
+def add_users_usage_uuid(uuids_bytes: dict, child_id, sync=False):
     uuids_bytes = {u: v for u, v in uuids_bytes.items() if v and v.get('usage', 0) > 0}
-    uuids = uuids_bytes.keys()
-    users = db.session.query(User).filter(User.uuid.in_(uuids))
-    dbusers_bytes = {u: uuids_bytes.get(u.uuid, {"usage": 0}) for u in users}
-    _add_users_usage(dbusers_bytes, child_id, sync)  # type: ignore
+    data = [{'uuid': uuid, 'usage': v['usage']} for uuid, v in uuids_bytes.items()]
+    return add_users_usage_new(data, child_id=child_id, sync=sync)
 
 
 def _reset_priodic_usage() -> bool:

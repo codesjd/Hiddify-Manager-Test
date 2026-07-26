@@ -654,7 +654,7 @@ def make_proxy(hconfigs: dict, proxy: Proxy, domain_db: Domain, phttp=80, ptls=4
         # 'allow_insecure': domain_db.mode == DomainType.fake or "Fake" in proxy.cdn,
         'dbe': proxy,
         'dbdomain': domain_db,
-        'params': proxy.params or {},
+        'params': dict(proxy.params) if proxy.params else {},
     }
     extra_params_json=domain_db.extra_params_json()
 

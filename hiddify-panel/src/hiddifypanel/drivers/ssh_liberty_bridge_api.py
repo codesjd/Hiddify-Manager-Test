@@ -55,7 +55,7 @@ class SSHLibertyBridgeApi(DriverABS):
             redis_client.delete(temp_key)
         except Exception:
             allusage = {}
-        return allusage
+        return {k: int(v) for k, v in allusage.items()}
         # return {u: int(allusage.get(u.uuid) or 0) for u in users}
         # return {u: self.get_usage_imp(u.uuid) for u in users}
 

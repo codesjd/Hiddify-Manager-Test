@@ -205,7 +205,7 @@ class UserAdmin(AdminLTEModelView):
     }
 
     def on_model_delete(self, model):
-        if len(User.query.all()) <= 1:
+        if User.query.count() <= 1:
             raise ValidationError(f"at least one user should exist")
         user_driver.remove_client(model)
         # hutils.flask.flash_config_success()
@@ -273,7 +273,7 @@ class UserAdmin(AdminLTEModelView):
             model.max_ips = 1000
             
         # Show donation message
-        if len(User.query.all()) % 4 == 0:
+        if User.query.count() % 4 == 0:
             hutils.flask.flash(('<div id="show-modal-donation"></div>'), ' d-none')
             
         # Validate UUID

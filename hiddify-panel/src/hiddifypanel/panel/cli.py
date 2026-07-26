@@ -103,7 +103,7 @@ def tuic_domain_port():
         return
     out = []
     for domain in Domain.query.filter(Domain.mode.in_([DomainType.direct, DomainType.relay, DomainType.fake])).all():
-        out.append(f"{domain}:{int(hconfig(ConfigEnum.tuic_port))+domain.id}")
+        out.append(f"{domain.domain}:{int(hconfig(ConfigEnum.tuic_port))+domain.id}")
     print(";".join(out))
 
 
@@ -197,7 +197,7 @@ def init_app(app):
                 if hconfig(boolmap[k]) is None:
                     data.append(BoolConfig(key=boolmap[k], value=config[k]))
                 else:
-                    BoolConfig.query.filter(BoolConfig.key == strmap[k]).update({
+                    BoolConfig.query.filter(BoolConfig.key == boolmap[k]).update({
                         'value': config[k]
                     })
         if len(data):
@@ -212,6 +212,19 @@ def init_app(app):
             print('success')
         except Exception as e:
             print(f'failed to import xui data: Error: {e}')
+
+    
+    @app.cli.command()
+    @click.option("--backup-file", "-b", required=True, help="Path to backup.json")
+    @click.option("--yes", "-y", is_flag=True, help="Confirm destructive restore")
+    def restore(backup_file, yes):
+        if not yes:
+            print("ERROR: Restore is destructive (overwrites users, domains, settings). Pass --yes to confirm.")
+            sys.exit(1)
+        with open(backup_file, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        hiddify.set_db_from_json(data, remove_users=True, remove_domains=True, override_root_admin=True)
+        print("Restore complete.")
 
     @ app.cli.command()
     def tgbot_info():

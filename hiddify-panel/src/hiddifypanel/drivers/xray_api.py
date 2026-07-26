@@ -203,7 +203,7 @@ class XrayApi(DriverABS):
                 # Parse JSON output
                 data = json.loads(result.stdout)
                 users= [splt[0] for splt in [u.get('email','').split("@") for u in data.get('users',[])] if len(splt)==2 and splt[1]=="hiddify.com"]
-                if len(data)>0:
+                if len(users)>0:
                     return users
 
             except subprocess.CalledProcessError as e:
