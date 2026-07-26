@@ -51,6 +51,8 @@ function main() {
             export DB_BACKEND="${DB_BACKEND:-mysql}"
             if [ "$DB_BACKEND" == "postgres" ] || [ "$DB_BACKEND" == "timescaledb" ]; then
                 install_run other/postgres &
+            elif [ "$DB_BACKEND" == "sqlite" ]; then
+                echo "Using SQLite backend (no daemon started)"
             else
                 install_run other/mysql &
             fi

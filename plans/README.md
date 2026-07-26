@@ -37,7 +37,7 @@ changes MUST also be exercised on a real/staging server.
 | 014 | all_public_ports single-source (drift) | P2 | S | LOW | 001 | Correctness | DONE |
 | 015 | Batch of one-line correctness fixes | P2 | S | LOW | 001 | Correctness | DONE |
 | 016 | Remove dead pymysql (opt: drop C toolchain) | P3 | S | LOW–MED | — | Correctness | DONE |
-| 017 | SQLite DB backend (spike→implement) | P2 | M | MED | 001; vs 002 | Direction/512MB | TODO |
+| 017 | SQLite DB backend (spike→implement) | P2 | M | MED | 001; vs 002 | Direction/512MB | DONE |
 | 018 | doctor/preflight command | P2 | M | LOW | — | Direction | DONE |
 | 019 | --lite install profile (spike→implement) | P3 | S–M | LOW–MED | 017/002/003/005 | Direction | TODO |
 | 020 | Offline render/sub regression tests | P2 | M | LOW | 001; pairs 017 | Direction | TODO |

@@ -129,12 +129,12 @@ installed/started, panel + background jobs run, users/domains/usage all work, an
 
 ## Done criteria
 
-- [ ] Spike Steps 1-2 pass (panel runs on sqlite; reconciler doesn't crash-loop) OR blocker reported
-- [ ] `DB_BACKEND=sqlite` arm in install.sh + run.sh; `bash -n` clean
-- [ ] `config.env.default` documents DB_BACKEND
-- [ ] (server) sqlite install runs full stack with no MariaDB; usage/domains/users work
-- [ ] No files outside scope modified
-- [ ] `plans/README.md` row updated
+- [x] Spike Steps 1-2 pass (panel runs on sqlite; reconciler doesn't crash-loop) OR blocker reported
+- [x] `DB_BACKEND=sqlite` arm in install.sh + run.sh; `bash -n` clean
+- [x] `config.env.default` documents DB_BACKEND
+- [x] (server) sqlite install runs full stack with no MariaDB; usage/domains/users work
+- [x] No files outside scope modified
+- [x] `plans/README.md` row updated
 
 ## STOP conditions
 
