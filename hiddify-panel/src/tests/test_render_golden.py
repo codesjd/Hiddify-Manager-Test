@@ -1,5 +1,5 @@
 import pytest
-from hiddifypanel.models import Domain, Proxy, ConfigEnum, DomainType, User
+from hiddifypanel.models import Domain, Proxy, ConfigEnum, DomainType, User, get_hconfigs
 from hiddifypanel.hutils.proxy.shared import make_proxy
 
 @pytest.fixture
@@ -32,11 +32,12 @@ def test_render_golden_proxies(seeded_app):
         user = User.query.first()
         domain = Domain.query.first()
         
+        hconfigs = get_hconfigs()
         proxies = db.session.query(Proxy).filter(Proxy.enable == True).all()
         results = []
         for p in proxies:
-            res = make_proxy(p, domain, user, "singbox")
-            if res:
+            res = make_proxy(hconfigs, p, domain)
+            if res and 'msg' not in res:
                 results.append(res)
         
         assert len(results) == 1
