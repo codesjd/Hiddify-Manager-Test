@@ -50,6 +50,11 @@ def test_render_golden_proxies(seeded_app):
         first = results[0]
         assert first["server"] == "test.hiddify.com"
         assert first["port"] == 443
-        assert first["type"] == "vless"
-        assert first["transport"] == "WS"
+        # make_proxy()'s own output uses "proto" (not "type" - that key only
+        # exists on the separate to_singbox()-transformed shape, which pulls
+        # in g.user_agent and other per-request state out of scope for this
+        # test) and normalizes transport to lowercase ("ws", not "WS") -
+        # see shared.py's `if proxy.transport in ["ws", "WS"]: base['transport'] = 'ws'`.
+        assert first["proto"] == "vless"
+        assert first["transport"] == "ws"
 
