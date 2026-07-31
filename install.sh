@@ -43,7 +43,17 @@ function main() {
         runsh install.sh common &
         if [ "$MODE" != "docker" ];then
             install_run other/redis &
-            install_run other/mysql &
+            # DB_BACKEND defaults to mysql (unchanged behavior for every
+            # existing install). Set DB_BACKEND=postgres or
+            # DB_BACKEND=timescaledb before running install.sh to opt into
+            # the new backend instead - e.g.:
+            #   DB_BACKEND=timescaledb ./install.sh --no-gui
+            export DB_BACKEND="${DB_BACKEND:-mysql}"
+            if [ "$DB_BACKEND" == "postgres" ] || [ "$DB_BACKEND" == "timescaledb" ]; then
+                install_run other/postgres &
+            else
+                install_run other/mysql &
+            fi
         fi    
         wait
         # Because we need to generate reality pair in panel
@@ -107,9 +117,22 @@ function main() {
             install_run other/warp 0 &
         fi
 
+        # core_type decides which proxy core actually runs as a service.
+        # Previously xray was hardcoded to 1 and singbox had no flag at all,
+        # so switching core_type in the panel never stopped the unused core -
+        # both kept running and could fight over the same ports/sockets.
+        CORE_TYPE=$(hconfig "core_type")
+        XRAY_ENABLE=1
+        SINGBOX_ENABLE=1
+        if [[ "$CORE_TYPE" == "xray" ]]; then
+            SINGBOX_ENABLE=0
+        elif [[ "$CORE_TYPE" == "singbox" ]]; then
+            XRAY_ENABLE=0
+        fi
+
         update_progress "${PROGRESS_ACTION}" "Xray" 75
         
-        install_run xray 1 &
+        install_run xray $XRAY_ENABLE &
         
         
         update_progress "${PROGRESS_ACTION}" "HiddifyCli" 80
@@ -120,16 +143,27 @@ function main() {
 
     update_progress "${PROGRESS_ACTION}" "Wireguard" 85
     install_run other/wireguard $(hconfig "wireguard_enable") &
-    
+
+    update_progress "${PROGRESS_ACTION}" "AmneziaWG" 90
+    install_run other/amneziawg $(hconfig "has_amneziawg_outbound") &
+
     update_progress "${PROGRESS_ACTION}" "Singbox" 95
-    install_run singbox &
+    install_run singbox ${SINGBOX_ENABLE:-1} &
     
     update_progress "${PROGRESS_ACTION}" "Almost Finished" 98
     wait 
     echo "---------------------Finished!------------------------"
     remove_lock $NAME
     if [ "$MODE" != "apply_users" ]; then
-        systemctl kill -s SIGTERM hiddify-panel
+        # --kill-who=main: `systemctl kill` (unlike `restart`/`stop`) ignores
+        # the unit's KillMode= entirely and defaults to --kill-who=all, i.e.
+        # every process in hiddify-panel.service's cgroup. When this install
+        # run itself was launched from the panel (commander()'s detached
+        # child, see run_commander.py), install.sh IS one of those
+        # processes - so the bare form here was killing this very script
+        # mid-run, well before it ever reached the rest of the install
+        # steps. Restrict the kill to the tracked main PID only.
+        systemctl kill -s SIGTERM --kill-who=main hiddify-panel
     fi
     systemctl start hiddify-panel
     update_progress "${PROGRESS_ACTION}" "Done" 100

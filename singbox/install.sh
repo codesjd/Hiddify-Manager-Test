@@ -11,7 +11,7 @@ download_package singbox sb.tar.gz $version
 if [ "$?" == "0"  ] || ! is_installed ./hiddify-core; then
     tar -xzf sb.tar.gz  || exit 1
     cp -f hiddify-core-*/* . 2>/dev/null || exit 2
-    rm -r sb.zip hiddify-core-* 2>/dev/null || exit 3
+    rm -rf sb.tar.gz hiddify-core-* 2>/dev/null
     chown root:root hiddify-core || exit 4
     chmod +x hiddify-core || exit 5
     ln -sf /opt/hiddify-manager/singbox/hiddify-core /usr/bin/hiddify-core || exit 6

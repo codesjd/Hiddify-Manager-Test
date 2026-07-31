@@ -27,7 +27,24 @@ isipv6() {
   [[ $1 =~ ^([0-9a-fA-F]{0,4}:){2,7}[0-9a-fA-F]{0,4}$ ]]
 }
 acmecmd() {
-    acme.sh --issue \
+    # timeout: acme.sh polls the CA's order status every ~15s with no
+    # built-in cap on this codepath. A CA order that gets stuck
+    # "processing" (seen with ZeroSSL) makes this hang for as long as the CA
+    # leaves it stuck - and since get_cert() for every domain is `wait`-ed on
+    # together in run.sh, ALL domains would sit blocked behind that one
+    # stuck domain, so nginx/haproxy never get reloaded with the new certs
+    # for domains that succeeded, and the rest of install.sh never proceeds.
+    # 240s covers a real (slow) issuance; past that, treat it as failed so
+    # get_cert()'s existing self-signed fallback kicks in for this domain
+    # only and everything else keeps moving.
+    #
+    # `timeout` execs its argument directly (execvp), bypassing shell
+    # aliases/functions entirely - "acme.sh" only resolves via the alias
+    # `source ./lib/acme.sh.env` sets up above, so `timeout ... acme.sh` was
+    # instantly failing with "No such file or directory" for every single
+    # call, not just stuck ones (every domain silently fell back to
+    # self-signed). Call the real script file instead.
+    timeout 240 /opt/hiddify-manager/acme.sh/lib/acme.sh --issue \
         -w /opt/hiddify-manager/acme.sh/www/ \
         --log /opt/hiddify-manager/log/system/acme.log \
         --pre-hook "bash /opt/hiddify-manager/acme.sh/prepare_acme.sh" \
@@ -39,6 +56,24 @@ stop_nginx_acme(){
     echo "" >/opt/hiddify-manager/nginx/parts/acme.conf
     systemctl reload --now hiddify-nginx
     systemctl reload hiddify-haproxy
+}
+
+
+# The acme-challenge nginx location is identical for every domain (see
+# prepare_acme.sh), so it only needs to be written/nginx-restarted ONCE, up
+# front - not per domain. get_cert() for every domain runs in parallel
+# (run.sh: `get_cert $d &`), and acme.sh's own --pre-hook (prepare_acme.sh)
+# used to `systemctl restart hiddify-nginx` on every single invocation; with
+# several domains racing that restart at the same time, one domain's restart
+# could tear down nginx out from under another domain's HTTP-01 challenge,
+# failing with "Job for hiddify-nginx.service failed" and silently falling
+# back to a self-signed cert for that domain. Doing the restart once here
+# before the parallel loop starts removes the race entirely.
+start_nginx_acme(){
+    mkdir -p /opt/hiddify-manager/acme.sh/www/.well-known/acme-challenge
+    echo "location /.well-known/acme-challenge {root /opt/hiddify-manager/acme.sh/www/;}" >/opt/hiddify-manager/nginx/parts/acme.conf
+    chown -R nginx /opt/hiddify-manager/acme.sh/www/
+    systemctl restart hiddify-nginx
 }
 
 

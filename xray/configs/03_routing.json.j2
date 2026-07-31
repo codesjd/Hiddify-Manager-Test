@@ -114,6 +114,10 @@
         {// Block BitTorrent protocol
           "type": "field", "outboundTag": "blackhole", "protocol": ["bittorrent"]
         },
+        {% set extra = hconfigs.get('additional_configs_xrayjson','') | from_json %}
+        {% for rule in extra.get('routing_rules', []) %}
+        {{ rule | tojson }},
+        {% endfor %}
         {
           "type": "field",
           "port": "0-65535",

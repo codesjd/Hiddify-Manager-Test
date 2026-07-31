@@ -52,6 +52,15 @@
           "action":"reject",
           "method": "default"
         },
+        {# Use a Routing Rule on the admin panel (Match Inbound(s) now lists
+           mieru/naive/tuic/hysteria2, in addition to xray-only tags) to send
+           any inbound's traffic to any outbound, e.g. mieru -> an
+           amneziawg-protocol Outbound - fully admin-controlled instead of a
+           fixed toggle. #}
+        {% set extra = hconfigs.get('additional_configs_singbox','') | from_json %}
+        {% for rule in extra.get('routing_rules', []) %}
+        {{ rule | tojson }},
+        {% endfor %}
         {% if hconfigs['block_iran_sites'] %}
         {
           "action":"reject","method":"default",

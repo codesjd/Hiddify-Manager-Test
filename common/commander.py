@@ -13,7 +13,7 @@ class Command(StrEnum):
     '''The value of each command refers to the command shell file'''
     apply = os.path.join(HIDDIFY_DIR, 'apply_configs.sh')
     install = os.path.join(HIDDIFY_DIR, 'install.sh')
-    # reinstall = os.path.join(HIDDIFY_DIR,'reinstall.sh')
+    reinstall = os.path.join(HIDDIFY_DIR, 'install.sh')
     update = os.path.join(HIDDIFY_DIR, 'update.sh')
     status = os.path.join(HIDDIFY_DIR, 'status.sh')
     restart_services = os.path.join(HIDDIFY_DIR, 'restart.sh')
@@ -54,10 +54,14 @@ def install():
     run(cmd)
 
 
-# @cli.command('reinstall')
-# def reinstall():
-#     cmd = [Command.reinstall.value]
-#     run(cmd)
+@cli.command('reinstall')
+def reinstall():
+    # Full reinstall: re-runs install.sh in "install" mode (not apply_configs),
+    # which forces clean_files() to wipe generated xray/singbox/haproxy configs
+    # first and rebuilds every service from scratch. Useful when "apply" alone
+    # isn't enough because a service is stuck in a bad state.
+    cmd = [Command.reinstall.value, 'install', '--no-gui']
+    run(cmd)
 
 
 @cli.command('update')

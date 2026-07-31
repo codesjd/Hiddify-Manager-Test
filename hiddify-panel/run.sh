@@ -8,13 +8,21 @@ chown -R hiddify-panel:hiddify-panel . >/dev/null 2>&1
 chmod 600 app.cfg
 
 
-# set mysql password to flask app config
+# set db password to flask app config
 sed -i '/^SQLALCHEMY_DATABASE_URI/d' app.cfg
 if [ -z "${SQLALCHEMY_DATABASE_URI}" ]; then
-    if [ -z "${MYSQL_PASS}" ];then
-        MYSQL_PASS=$(cat ../other/mysql/mysql_pass)
+    DB_BACKEND="${DB_BACKEND:-mysql}"
+    if [ "$DB_BACKEND" == "postgres" ] || [ "$DB_BACKEND" == "timescaledb" ]; then
+        if [ -z "${POSTGRES_PASS}" ]; then
+            POSTGRES_PASS=$(cat ../other/postgres/postgres_pass)
+        fi
+        SQLALCHEMY_DATABASE_URI="postgresql+psycopg://hiddifypanel:$POSTGRES_PASS@localhost/hiddifypanel"
+    else
+        if [ -z "${MYSQL_PASS}" ];then
+            MYSQL_PASS=$(cat ../other/mysql/mysql_pass)
+        fi
+        SQLALCHEMY_DATABASE_URI="mysql+mysqldb://hiddifypanel:$MYSQL_PASS@localhost/hiddifypanel?charset=utf8mb4"
     fi
-    SQLALCHEMY_DATABASE_URI="mysql+mysqldb://hiddifypanel:$MYSQL_PASS@localhost/hiddifypanel?charset=utf8mb4"
 fi
 echo "SQLALCHEMY_DATABASE_URI ='$SQLALCHEMY_DATABASE_URI'" >>app.cfg
 
