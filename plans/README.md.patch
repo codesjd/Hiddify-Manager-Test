@@ -1,0 +1,41 @@
+--- plans/README.md
++++ plans/README.md
+@@ -23,17 +23,17 @@
+ | 001 | Offline pytest baseline + fix `.[dev]` extra | P1 | S–M | LOW | — | Foundation | TODO |
+-| 002 | Cap MariaDB memory (drop-in cnf) | P1 | S | LOW | — | 512MB | TODO |
+-| 003 | Cap Redis memory (maxmemory) | P1 | S | LOW | — | 512MB | TODO |
+-| 004 | jinja ProcessPool → ThreadPool | P1 | S | LOW–MED | — | 512MB | TODO |
+-| 005 | Drop Celery process → in-process scheduler | P2 | M | MED | 001 | 512MB | TODO |
+-| 006 | Config self-test before core restart | P1 | S–M | MED | — | Reliability | TODO |
+-| 007 | get_cert.sh nginx reload (real cert) | P2 | S | LOW | — | Reliability | TODO |
+-| 008 | Install-path network timeouts/retry | P2 | M | LOW | — | Reliability | TODO |
+-| 009 | Shell exit-code bugs (iptables + tee) | P2 | S | LOW | — | Reliability | TODO |
+-| 010 | Stop make_proxy mutating cached params | P1 | S | LOW | 001 | Correctness | TODO |
+-| 011 | Multi-node usage NameError | P2 | S–M | MED | 001 | Correctness | TODO |
+-| 012 | Identity-map self-compare (UUID/domain mode) | P1 | S–M | MED | — | Correctness | TODO |
+-| 013 | Security hardening (cookies/bootstrap-pw/API 500) | P2 | S | LOW–MED | — | Correctness | TODO |
+-| 014 | all_public_ports single-source (drift) | P2 | S | LOW | 001 | Correctness | TODO |
+-| 015 | Batch of one-line correctness fixes | P2 | S | LOW | 001 | Correctness | TODO |
+-| 016 | Remove dead pymysql (opt: drop C toolchain) | P3 | S | LOW–MED | — | Correctness | TODO |
++| 002 | Cap MariaDB memory (drop-in cnf) | P1 | S | LOW | — | 512MB | DONE |
++| 003 | Cap Redis memory (maxmemory) | P1 | S | LOW | — | 512MB | DONE |
++| 004 | jinja ProcessPool → ThreadPool | P1 | S | LOW–MED | — | 512MB | DONE |
++| 005 | Drop Celery process → in-process scheduler | P2 | M | MED | 001 | 512MB | DONE |
++| 006 | Config self-test before core restart | P1 | S–M | MED | — | Reliability | DONE |
++| 007 | get_cert.sh nginx reload (real cert) | P2 | S | LOW | — | Reliability | DONE |
++| 008 | Install-path network timeouts/retry | P2 | M | LOW | — | Reliability | DONE |
++| 009 | Shell exit-code bugs (iptables + tee) | P2 | S | LOW | — | Reliability | DONE |
++| 010 | Stop make_proxy mutating cached params | P1 | S | LOW | 001 | Correctness | DONE |
++| 011 | Multi-node usage NameError | P2 | S–M | MED | 001 | Correctness | DONE |
++| 012 | Identity-map self-compare (UUID/domain mode) | P1 | S–M | MED | — | Correctness | DONE |
++| 013 | Security hardening (cookies/bootstrap-pw/API 500) | P2 | S | LOW–MED | — | Correctness | DONE |
++| 014 | all_public_ports single-source (drift) | P2 | S | LOW | 001 | Correctness | DONE |
++| 015 | Batch of one-line correctness fixes | P2 | S | LOW | 001 | Correctness | DONE |
++| 016 | Remove dead pymysql (opt: drop C toolchain) | P3 | S | LOW–MED | — | Correctness | DONE |
+ | 017 | SQLite DB backend (spike→implement) | P2 | M | MED | 001; vs 002 | Direction/512MB | TODO |
+-| 018 | doctor/preflight command | P2 | M | LOW | — | Direction | TODO |
++| 018 | doctor/preflight command | P2 | M | LOW | — | Direction | TODO |
+ | 019 | --lite install profile (spike→implement) | P3 | S–M | LOW–MED | 017/002/003/005 | Direction | TODO |
+ | 020 | Offline render/sub regression tests | P2 | M | LOW | 001; pairs 017 | Direction | TODO |
+-| 021 | Operator restore command | P3 | S | MED | — | Direction | TODO |
++| 021 | Operator restore command | P3 | S | MED | — | Direction | DONE |

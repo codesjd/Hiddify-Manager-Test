@@ -1,0 +1,8 @@
+[mariadbd]
+innodb_buffer_pool_size = 32M
+innodb_log_buffer_size  = 8M
+performance_schema      = OFF
+max_connections         = 30
+table_open_cache        = 64
+tmp_table_size          = 8M
+max_heap_table_size     = 8M

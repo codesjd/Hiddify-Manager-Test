@@ -28,7 +28,7 @@ class BaseAccount(db.Model, FlaskLoginUserMixin):  # type: ignore
         return None
 
     def get_id(self) -> str | None:
-        return f'{self.__class__.name}_{self.id if self.hasattr("id") else "-"}'
+        return f'{self.__class__.__name__}_{self.id if hasattr(self, "id") else "-"}'
 
     def is_username_unique(self) -> bool:
         # cls must be the CLASS, not an instance: self.__class__() would make

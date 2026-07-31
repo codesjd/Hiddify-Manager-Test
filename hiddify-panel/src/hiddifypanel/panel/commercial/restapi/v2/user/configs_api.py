@@ -38,7 +38,7 @@ class AllConfigsAPI(MethodView):
 
         items = []
         base_url = f"https://{urlparse(request.base_url).hostname}/{g.proxy_path}/{g.account.uuid}/"
-        c = get_common_data(g.account.uuid, 'new')
+        c = get_common_data(g.account.uuid, 'new', skip_ip_debug=True)
         config_name = hutils.encode.url_encode(c['user'].name)
 
         # Add Auto

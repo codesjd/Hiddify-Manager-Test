@@ -183,6 +183,18 @@ class ConfigEnum(metaclass=FastEnum):
     ssh_server_enable = _BoolConfigDscr(ConfigCategory.ssh, ApplyMode.reinstall)
     first_setup = _BoolConfigDscr(ConfigCategory.hidden)
     core_type = _StrConfigDscr(ConfigCategory.advanced, ApplyMode.reinstall, hide_in_virtual_child=True)
+    # Whether core_type is auto-managed (recomputed from actual xhttp usage
+    # on every Apply Configs, see install.sh) vs explicitly pinned by the
+    # admin. Seeded True only for genuinely fresh installs (init_db.py's
+    # `if child is None` block) - existing installs keep their historical
+    # explicit "xray" default untouched. Flips to False permanently the
+    # instant an admin picks a value via Settings (SettingAdmin.py), so
+    # auto-management can never silently override a deliberate choice.
+    # No standalone UI of its own - hidden on purpose. It's driven
+    # entirely through core_type's own dropdown (SettingAdmin.py), which
+    # has an "Auto" choice alongside Xray/Sing-box instead of a second,
+    # separate toggle next to it.
+    core_type_auto = _BoolConfigDscr(ConfigCategory.hidden, ApplyMode.reinstall, hide_in_virtual_child=True)
     # WARP used to be its own Settings section (mode toggle + plus-code +
     # custom-sites list) driving a hardcoded "WARP" outbound bound to a
     # wgcf-managed wg-quick@warp interface, plus built-in geo-routing rules
@@ -254,6 +266,20 @@ class ConfigEnum(metaclass=FastEnum):
     # do_update reinstall.
     package_mode = _StrConfigDscr(ConfigCategory.hidden, hide_in_virtual_child=True)
     utls = _StrConfigDscr(ConfigCategory.advanced)
+    # Opt-in periodic uTLS rotation (see hutils/tls_fingerprint_rotation.py):
+    # cycles `utls` itself among the real-browser fingerprint choices every
+    # utls_rotate_days (+/- jitter) instead of leaving it pinned to one
+    # value forever. Deliberately distinct from utls's own "random"/
+    # "randomized" choices, which pick per-connection rather than rotating
+    # a stable value over days. Flips back to False the instant an admin
+    # manually edits `utls` directly (see SettingAdmin.py's save loop) -
+    # same "explicit choice wins" rule as core_type/core_type_auto.
+    utls_auto_rotate = _BoolConfigDscr(ConfigCategory.advanced)
+    utls_rotate_days = _IntConfigDscr(ConfigCategory.advanced)
+    # Bookkeeping only (never rendered - ConfigCategory.hidden is skipped
+    # entirely by SettingAdmin's form loop): ISO timestamp of the last
+    # auto-rotation, so the periodic task knows whether one is due yet.
+    utls_last_rotated_at = _StrConfigDscr(ConfigCategory.hidden)
     telegram_bot_token = _StrConfigDscr(ConfigCategory.telegram, hide_in_virtual_child=True)
 
     # Generic outgoing webhook - POSTs a JSON payload to your own endpoint on
@@ -414,6 +440,15 @@ class ConfigEnum(metaclass=FastEnum):
     # The IPsec pre-shared key. hide_in_virtual_child: L2TP terminates on the
     # host that runs the daemon, not a virtual child.
     l2tp_psk = _StrConfigDscr(ConfigCategory.l2tp, ApplyMode.apply_config, hide_in_virtual_child=True)
+    # Tag of a CustomOutbound (Protocol=l2tp or amneziawg) to route
+    # L2TP-inbound clients' traffic through, instead of straight out the
+    # server's public NIC. Empty = today's direct behavior. See
+    # models/routing.py's get_l2tp_route_interface() and
+    # other/l2tp/run.sh.j2 - both l2tp and amneziawg outbounds are real
+    # kernel network interfaces (unlike xray-protocol outbounds, which only
+    # exist inside xray's own process), so this is plain source-based
+    # policy routing, not a transparent-proxy redirect.
+    l2tp_outbound_tag = _StrConfigDscr(ConfigCategory.l2tp, ApplyMode.apply_config, hide_in_virtual_child=True)
 
     # the hysteria is refereing to hysteria2
 

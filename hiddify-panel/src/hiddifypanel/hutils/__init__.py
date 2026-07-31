@@ -30,6 +30,7 @@ if TYPE_CHECKING:
     from . import network
     from . import webhook
     from . import apply_scope
+    from . import tls_fingerprint_rotation
 else:
     # Define modules for lazy loading
     network = LazyLoader(".network",__name__)
@@ -48,3 +49,4 @@ else:
     node = LazyLoader(".node",__name__)
     webhook = LazyLoader(".webhook",__name__)
     apply_scope = LazyLoader(".apply_scope",__name__)
+    tls_fingerprint_rotation = LazyLoader(".tls_fingerprint_rotation",__name__)

@@ -27,25 +27,12 @@ activate_python_venv
 # curl -s -x socks://127.0.0.1:3000 http://ip-api.com?fields=message,country,countryCode,city,isp,org,as,query
 
 if [ "$MODE" != "apply_users" ]; then
-    
-    # xray run -test -confdir configs
-    echo "Ignoring xray test"
+    xray run -test -confdir configs
     if [[ $? == 0 ]]; then
         systemctl restart hiddify-xray.service
         systemctl start hiddify-xray.service
-        #systemctl status hiddify-xray.service --no-pager
     else
         echo "Error in Xray Config!!!! do not reload xray service"
-        sleep 60
-        xray run -test -confdir configs
-        if [[ $? == 0 ]]; then
-            systemctl restart hiddify-xray.service
-            systemctl start hiddify-xray.service
-            #systemctl status hiddify-xray.service --no-pager
-        else
-            echo "Error in Xray Config!!!! do not reload xray service"
-            sleep 60
-        fi
+        exit 1
     fi
-    
 fi

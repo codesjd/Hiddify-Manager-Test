@@ -95,6 +95,12 @@ def is_proxy_valid(proxy: Proxy, domain_db: Domain, port: int) -> dict | None:
     return 
 
 
+def _domain_port_from_hconfigs(domain_db: Domain, hconfigs: dict, override_value, config_key: ConfigEnum) -> int:
+    if override_value:
+        return override_value
+    return Domain._safe_port_offset(int(hconfigs[config_key]), domain_db.port_index)
+
+
 def get_port(proxy: Proxy, hconfigs: dict, domain_db: Domain, ptls: int, phttp: int, pport: int | None) -> int:
     l3 = proxy.l3
     port = 443
@@ -109,11 +115,11 @@ def get_port(proxy: Proxy, hconfigs: dict, domain_db: Domain, ptls: int, phttp: 
     elif proxy.proto == ProxyProto.amneziawg:
         port = hconfigs[ConfigEnum.amneziawg_port]
     elif proxy.proto == "tuic":
-        port = domain_db.internal_port_tuic
+        port = _domain_port_from_hconfigs(domain_db, hconfigs, domain_db.tuic_port, ConfigEnum.tuic_port)
     elif proxy.proto == "hysteria2":
-        port = domain_db.internal_port_hysteria2
+        port = _domain_port_from_hconfigs(domain_db, hconfigs, domain_db.hysteria_port, ConfigEnum.hysteria_port)
     elif proxy.proto == "anytls":
-        port = domain_db.internal_port_anytls
+        port = _domain_port_from_hconfigs(domain_db, hconfigs, domain_db.anytls_port, ConfigEnum.anytls_port)
     elif proxy.proto == ProxyProto.xdns:
         port = domain_db.internal_port_xdns
     elif proxy.proto == ProxyProto.xicmp:
@@ -131,16 +137,16 @@ def get_port(proxy: Proxy, hconfigs: dict, domain_db: Domain, ptls: int, phttp: 
         # (ptls set on the tls pass, None on the http pass) so that exactly
         # one of them resolves to a real port and the other gets filtered
         # out as "port not defined" below. Without the guard this branch
-        # returned internal_port_special unconditionally on *both* passes,
+        # returned the special/reality port unconditionally on *both* passes,
         # so both "succeeded" and every reality-tcp proxy was emitted
         # twice in the subscription. On the http pass (ptls=None) this now
         # falls through to the is_tls(l3) branch below, which correctly
         # resolves to None and gets filtered.
-        port = domain_db.internal_port_special
+        port = _domain_port_from_hconfigs(domain_db, hconfigs, domain_db.reality_port, ConfigEnum.special_port)
     elif l3 == 'ssh':
         port = hconfigs[ConfigEnum.ssh_server_port]
     elif proxy.proto==ProxyProto.naive and proxy.l3==ProxyL3.h3_quic:
-        port = domain_db.internal_port_naive
+        port = _domain_port_from_hconfigs(domain_db, hconfigs, domain_db.naive_port, ConfigEnum.naive_port)
     elif is_tls(l3) or proxy.proto==ProxyProto.naive:
         port = ptls
     elif l3 == "http":
@@ -284,6 +290,14 @@ def get_domain_proxy_overrides(domain_id: int) -> dict[int, 'DomainProxyOverride
 
 
 def get_valid_proxies(domains: list[Domain]) -> list[dict]:
+    key = tuple(sorted(d.id for d in domains))
+    memo = g.setdefault('_valid_proxies_memo', {})
+    if key not in memo:
+        memo[key] = _get_valid_proxies_uncached(domains)
+    return memo[key]
+
+
+def _get_valid_proxies_uncached(domains: list[Domain]) -> list[dict]:
     allp = []
     allphttp = [p for p in request.args.get("phttp", "").split(',') if p]
     allptls = [p for p in request.args.get("ptls", "").split(',') if p]
@@ -305,6 +319,17 @@ def get_valid_proxies(domains: list[Domain]) -> list[dict]:
             future_to_domain = {executor.submit(hutils.network.get_domain_ips_cached, d): d for d in domains_needing_dns}
             for future, d in future_to_domain.items():
                 resolved_ips[d] = future.result()
+
+    ech_snis_to_prefetch: set[str] = set()
+    if any(d.servernames for d in domains):
+        ech_enabled_children = {cid for cid in {d.child_id for d in domains} if get_hconfigs(cid).get(ConfigEnum.tls_ech_enable)}
+        for d in domains:
+            if d.child_id in ech_enabled_children and d.servernames:
+                ech_snis_to_prefetch.update(split_pattern.split(d.servernames.strip()))
+    if ech_snis_to_prefetch:
+        with ThreadPoolExecutor(max_workers=min(len(ech_snis_to_prefetch), 20)) as executor:
+            for sni in ech_snis_to_prefetch:
+                executor.submit(hutils.network.get_ech_info, sni)
 
     for domain in domains:
         if domain.child_id not in configsmap:
@@ -460,16 +485,17 @@ def sni_host_server_extractor(domain_db: Domain, hconfigs):
         'cdn': is_cdn,
     }
     if 'reality' in domain_db.mode:
-        base['reality_short_id'] = random.sample(domain_db.effective_reality_short_id.split(','), 1)[0]
+        reality_short_id = domain_db.reality_short_id or hconfigs.get(ConfigEnum.reality_short_ids)
+        base['reality_short_id'] = random.sample(reality_short_id.split(','), 1)[0]
         # base['flow']="xtls-rprx-vision"
-        base['reality_pbk'] = domain_db.effective_reality_public_key
+        base['reality_pbk'] = domain_db.reality_public_key or hconfigs.get(ConfigEnum.reality_public_key)
         # ML-DSA-65 PQ signature verify value (global-only, no per-domain
         # override - see config_enum.py's reality_mldsa65_verify docstring).
         # None on installs where it hasn't been generated yet - Xray-core
         # clients treat an absent mldsa65Verify as "no PQ check", same as
         # the server omitting mldsa65Seed entirely (05_inbounds_02_reality_
         # main.json.j2), so this is safe to leave unset.
-        base['reality_mldsa65_verify'] = hconfig(ConfigEnum.reality_mldsa65_verify, domain_db.child_id) or None
+        base['reality_mldsa65_verify'] = hconfigs.get(ConfigEnum.reality_mldsa65_verify) or None
         # del base['host']
 
         # if not domain_db.cdn_ip:
@@ -477,12 +503,12 @@ def sni_host_server_extractor(domain_db: Domain, hconfigs):
 
     return base
 
-def put_default_header(params:dict):
+def put_default_header(params: dict, hconfigs: dict):
     if not isinstance(params.get('headers'),dict):
         params['headers']={}
         
     if not params['headers'].get('User-Agent'):
-        params['headers']['User-Agent']=hconfig(ConfigEnum.default_useragent_string)
+        params['headers']['User-Agent']=hconfigs[ConfigEnum.default_useragent_string]
     if not params['headers'].get('Pragma'):
         params['headers']['Pragma']="no-cache"
     
@@ -628,7 +654,7 @@ def make_proxy(hconfigs: dict, proxy: Proxy, domain_db: Domain, phttp=80, ptls=4
         # 'allow_insecure': domain_db.mode == DomainType.fake or "Fake" in proxy.cdn,
         'dbe': proxy,
         'dbdomain': domain_db,
-        'params': proxy.params or {},
+        'params': dict(proxy.params) if proxy.params else {},
     }
     extra_params_json=domain_db.extra_params_json()
 
@@ -687,7 +713,7 @@ def make_proxy(hconfigs: dict, proxy: Proxy, domain_db: Domain, phttp=80, ptls=4
         base['handshake']=hconfigs[ConfigEnum.mieru_handshake]
         return base
     if base['cdn'] or l3 == "http":
-        put_default_header(base['params'])
+        put_default_header(base['params'], hconfigs)
     if domain_db.download_domain:
         base['download'] = sni_host_server_extractor(domain_db.download_domain,hconfigs)
     else:
@@ -697,7 +723,7 @@ def make_proxy(hconfigs: dict, proxy: Proxy, domain_db: Domain, phttp=80, ptls=4
         base['params']['download']={}
     base['download']['params']=base['params']['download']
     if base['download']['cdn'] or l3 == "http":
-        put_default_header(base['download']['params'])
+        put_default_header(base['download']['params'], hconfigs)
     if hconfigs.get(ConfigEnum.tls_ech_enable) and not proxy.l3 in {ProxyL3.reality}:
         if ech:=hutils.network.get_ech_info(base['download'].get('sni')):
             base['download']['ech'] = ech

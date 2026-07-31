@@ -45,7 +45,7 @@ class InfoAPI(MethodView):
 
     @app.output(ProfileSchema)
     def get(self):
-        c = get_common_data(g.account.uuid, 'new')
+        c = get_common_data(g.account.uuid, 'new', skip_ip_debug=True)
 
         dto = ProfileSchema()
         # user is exist for sure

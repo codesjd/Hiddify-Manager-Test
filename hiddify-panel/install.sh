@@ -24,7 +24,7 @@ ln -sf $(pwd)/hiddify-panel.service /etc/systemd/system/hiddify-panel.service
 systemctl enable hiddify-panel.service
 
 ln -sf $(pwd)/hiddify-panel-background-tasks.service /etc/systemd/system/hiddify-panel-background-tasks.service
-systemctl enable hiddify-panel-background-tasks.service
+# systemctl enable hiddify-panel-background-tasks.service
 
 if [ -z "$HIDDIFY_PANLE_SOURCE_DIR" ] && [ -f "$(pwd)/src/pyproject.toml" ]; then
     # A local hiddify-panel/src/ with its own pyproject.toml means this is a

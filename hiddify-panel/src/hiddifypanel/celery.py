@@ -45,7 +45,20 @@ def init_app(app):
         backup_task.s(),
         name="backup_task "
     )
-    
+
+    # Plan 031: bounds parent-sync staleness on a partition to this
+    # interval instead of "whenever some unrelated config change happens to
+    # trigger a sync next" - see periodic_full_resync_with_parent()'s
+    # docstring. No-ops immediately on a non-child node.
+    from hiddifypanel.hutils.node.child import periodic_full_resync_with_parent
+    celery_app.add_periodic_task(900.0, periodic_full_resync_with_parent.s(), name='periodic full resync with parent')
+
+    # Opt-in uTLS fingerprint rotation - checked hourly, no-ops instantly
+    # unless utls_auto_rotate is on and the configured interval has
+    # actually elapsed (see hutils/tls_fingerprint_rotation.py).
+    from hiddifypanel.hutils.tls_fingerprint_rotation import rotate_utls_fingerprint_if_due
+    celery_app.add_periodic_task(3600.0, rotate_utls_fingerprint_if_due.s(), name='rotate utls fingerprint if due')
+
     celery_app.set_default()
     return celery_app
 
@@ -104,9 +117,15 @@ def init_app_no_flask():
         backup_task.s(),
         name="backup_task "
     )
-    
+
+    from hiddifypanel.hutils.node.child import periodic_full_resync_with_parent
+    celery_app.add_periodic_task(900.0, periodic_full_resync_with_parent.s(), name='periodic full resync with parent')
+
+    from hiddifypanel.hutils.tls_fingerprint_rotation import rotate_utls_fingerprint_if_due
+    celery_app.add_periodic_task(3600.0, rotate_utls_fingerprint_if_due.s(), name='rotate utls fingerprint if due')
+
     celery_app.set_default()
-    
+
     return celery_app
 
 

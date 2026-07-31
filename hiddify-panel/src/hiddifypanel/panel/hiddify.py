@@ -512,6 +512,17 @@ def all_configs_for_cli():
         logger.exception("Failed to collect L2TP outbounds (non-fatal, other/l2tp/ will just see an empty list)")
         configs['l2tp_outbounds'] = []
         configs['chconfigs'][0]['has_l2tp_outbound'] = bool(hconfig(ConfigEnum.l2tp_enable))
+
+    # L2TP-inbound-through-an-outbound routing (Settings -> L2TP/IPsec ->
+    # Route through Outbound) - see routing.get_l2tp_route_interface().
+    # None (the safe default) if unset or the chosen outbound no longer
+    # resolves to a live row.
+    try:
+        from hiddifypanel.models.routing import get_l2tp_route_interface
+        configs['l2tp_route_interface'] = get_l2tp_route_interface()
+    except Exception:
+        logger.exception("Failed to resolve l2tp_outbound_tag (non-fatal, other/l2tp/ will route direct)")
+        configs['l2tp_route_interface'] = None
     server_ip = hutils.network.get_ip_str(4)
     owner = AdminUser.get_super_admin()
     configs['api_key'] = owner.uuid

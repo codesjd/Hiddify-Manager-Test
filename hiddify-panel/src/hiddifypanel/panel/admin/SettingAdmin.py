@@ -115,7 +115,37 @@ class SettingAdmin(FlaskView):
                 # html inputs santitizing
                 if k in {ConfigEnum.branding_title, ConfigEnum.branding_site, ConfigEnum.branding_freetext}:
                     v = bleach_clean(v, tags=ALLOWED_TAGS)
+                if k == ConfigEnum.core_type and v == "auto":
+                    # "Auto" is a form-only sentinel (see the SelectField
+                    # above) - core_type itself only ever stores "xray" or
+                    # "singbox" (everything downstream, install.sh included,
+                    # compares it against those two literal strings), so
+                    # writing "auto" into it would break every one of those
+                    # checks. Hand off to core_type_auto instead and leave
+                    # core_type as whatever it already is - install.sh's own
+                    # xhttp-usage resolution overwrites it with a real value
+                    # on the very next apply/install.
+                    set_hconfig(ConfigEnum.core_type_auto, True, commit=False)
+                    continue
                 set_hconfig(k, v, commit=False)
+                if k == ConfigEnum.core_type:
+                    # Admin explicitly picked a core here - stop auto-managing
+                    # it (see install.sh's core_type_auto resolution) so this
+                    # choice never gets silently overwritten by the
+                    # xhttp-usage-based auto selection on a later Apply Configs.
+                    set_hconfig(ConfigEnum.core_type_auto, False, commit=False)
+                if k == ConfigEnum.utls:
+                    # Same rule as core_type/core_type_auto above: an admin
+                    # who directly edits the uTLS fingerprint here has made an
+                    # explicit choice that must never get silently overwritten
+                    # by the next scheduled rotation (see
+                    # hutils/tls_fingerprint_rotation.py). If they also
+                    # flipped utls_auto_rotate on in this same submission,
+                    # that later loop iteration (utls_auto_rotate sorts after
+                    # utls in ConfigEnum's declaration order) overwrites this
+                    # back to True, which is correct - their most recent,
+                    # explicit intent wins either way.
+                    set_hconfig(ConfigEnum.utls_auto_rotate, False, commit=False)
 
             db.session.commit()
             flask_babel.refresh()
@@ -237,9 +267,9 @@ def get_config_form():
                 field = SwitchField(_(f'config.{c.key}.label'), default=c.value, description=_(f'config.{c.key}.description'))
             elif c.key == ConfigEnum.core_type:
                 field = wtf.SelectField(_(f"config.{c.key}.label"),
-                                        choices=[("xray", _("Xray")), ("singbox", _("SingBox"))],
+                                        choices=[("auto", _("Auto")), ("xray", _("Xray")), ("singbox", _("SingBox"))],
                                         description=_(f"config.{c.key}.description"),
-                                        default=hconfig(c.key))
+                                        default=("auto" if hconfig(ConfigEnum.core_type_auto) else hconfig(c.key)))
             elif c.key == ConfigEnum.lang or c.key == ConfigEnum.admin_lang:
                 field = wtf.SelectField(
                     _(f"config.{c.key}.label"),
@@ -293,6 +323,26 @@ def get_config_form():
                 ]
                 field = wtf.SelectField(_("config.telegram_lib.label"), choices=libs, description=_(
                     "config.telegram_lib.description"), default=hconfig(ConfigEnum.telegram_lib))
+            elif c.key == ConfigEnum.l2tp_outbound_tag:
+                # Only l2tp/amneziawg outbounds are valid targets here - both
+                # are real kernel interfaces get_l2tp_route_interface() can
+                # route into directly. xray-protocol outbounds (and the
+                # WireGuard outbound, an in-process tunnel) aren't offered
+                # since routing L2TP's kernel traffic through those would need
+                # a transparent-proxy redirect, not plain policy routing.
+                l2tp_route_choices = [("", _("config.l2tp_outbound_tag.direct_choice"))]
+                for ob in CustomOutbound.query.filter(
+                    CustomOutbound.child_id == Child.current().id,
+                    CustomOutbound.enable == True,
+                    CustomOutbound.protocol.in_([OutboundProtocol.l2tp, OutboundProtocol.amneziawg]),
+                ).all():
+                    l2tp_route_choices.append((ob.tag, ob.tag))
+                field = wtf.SelectField(
+                    _(f"config.{c.key}.label"),
+                    choices=l2tp_route_choices,
+                    description=_(f"config.{c.key}.description"),
+                    default=hconfig(c.key) or ""
+                )
             elif c.key == ConfigEnum.tuic_congestion_control:
                 field = wtf.SelectField(
                     _(f"config.{c.key}.label"),
@@ -382,6 +432,12 @@ def get_config_form():
                 if c.key in [ConfigEnum.hysteria_up_mbps, ConfigEnum.hysteria_down_mbps, ConfigEnum.mux_max_connections, ConfigEnum.mux_min_streams, ConfigEnum.mux_max_streams,
                              ConfigEnum.mux_brutal_down_mbps, ConfigEnum.mux_brutal_up_mbps]:
                     validators.append(wtf.validators.Regexp("^\\d+$", re.IGNORECASE, _("config.Invalid_it_should_be_a_number_only") + f' {c.key}'))
+                # At least 1 day - "0" would mean "rotate on every check",
+                # which is both pointless (see tls_fingerprint_rotation.py's
+                # own runtime floor) and would itself become a distinguishing
+                # pattern rather than a way to avoid one.
+                if c.key == ConfigEnum.utls_rotate_days:
+                    validators.append(wtf.validators.Regexp("^[1-9]\\d*$", re.IGNORECASE, _("config.Invalid_it_should_be_a_number_only") + f' {c.key}'))
 
                 for val in validators:
                     if hasattr(val, "regex"):

@@ -10,7 +10,18 @@ from loguru import logger
 
 
 class SingboxApi(DriverABS):
-    def is_enabled(self) -> bool: return True
+    def is_enabled(self) -> bool:
+        from hiddifypanel.models.config_enum import ConfigEnum
+        from hiddifypanel.models import hconfig
+        if hconfig(ConfigEnum.core_type) == 'singbox':
+            return True
+        for f in ['hysteria_enable', 'tuic_enable', 'anytls_enable', 'shadowsocks2022_enable', 'naive_enable', 'mieru_enable']:
+            try:
+                if hconfig(ConfigEnum(f)):
+                    return True
+            except:
+                pass
+        return False
 
     def get_singbox_client(self):
         return xtlsapi.SingboxClient('127.0.0.1', 10086)
