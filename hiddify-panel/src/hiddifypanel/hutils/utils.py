@@ -19,7 +19,7 @@ def error(str):
 
 @cache.cache(ttl=60000)
 def get_latest_release_url(repo):
-    latest_url = requests.get(f'{repo}/releases/latest').url.strip()
+    latest_url = requests.get(f'{repo}/releases/latest', timeout=5).url.strip()
     version = latest_url.split('tag/')[1].strip()
     return (latest_url, version)
 
@@ -28,7 +28,7 @@ def get_latest_release_url(repo):
 def get_latest_release_version(repo_name):
     try:
         url = f"https://github.com/hiddify/{repo_name}/releases/latest"
-        response = requests.head(url, allow_redirects=False)
+        response = requests.head(url, allow_redirects=False, timeout=5)
 
         location_header = response.headers.get("Location")
         if location_header:

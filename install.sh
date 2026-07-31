@@ -51,6 +51,8 @@ function main() {
             export DB_BACKEND="${DB_BACKEND:-mysql}"
             if [ "$DB_BACKEND" == "postgres" ] || [ "$DB_BACKEND" == "timescaledb" ]; then
                 install_run other/postgres &
+            elif [ "$DB_BACKEND" == "sqlite" ]; then
+                echo "Using SQLite backend (no daemon started)"
             else
                 install_run other/mysql &
             fi
@@ -89,13 +91,14 @@ function main() {
         )&
         
         update_progress "${PROGRESS_ACTION}" "dnstt Proxy" 40
-        install_run other/dnstt $(hconfig "dnstt_enable") &
+        is_lite() { [[ "$HIDDIFY_PROFILE" == "lite" ]] && echo "0" || echo "$1"; }
+        install_run other/dnstt $(is_lite $(hconfig "dnstt_enable")) &
 
         update_progress "${PROGRESS_ACTION}" "Telegram Proxy" 40
-        install_run other/telegram $(hconfig "telegram_enable") &
+        install_run other/telegram $(is_lite $(hconfig "telegram_enable")) &
         
         update_progress "${PROGRESS_ACTION}" "FakeTlS Proxy" 45
-        install_run other/ssfaketls $(hconfig "ssfaketls_enable") &
+        install_run other/ssfaketls $(is_lite $(hconfig "ssfaketls_enable")) &
         
         # update_progress "${PROGRESS_ACTION}" "V2ray WS Proxy" 50
         # install_run other/v2ray $ENABLE_V2RAY
@@ -105,7 +108,7 @@ function main() {
         
         #update_progress "${PROGRESS_ACTION}" "ShadowTLS" 60
         #install_run other/shadowtls $(hconfig "shadowtls_enable")
-        
+
         # core_type only decides the PRIMARY core - both cores always run,
         # symmetrically, regardless of which is primary. Every overlapping
         # inbound (vless/vmess/trojan/reality over ws/grpc/tcp/httpupgrade)
@@ -115,19 +118,57 @@ function main() {
         # is what only one core can serve at all: hysteria2/tuic/
         # shadowsocks2022/anytls/mieru/naive exist ONLY as singbox inbounds
         # (there is no xray/configs/ template for them), while xhttp/xdns/
-        # xicmp/hysteria(-native) exist ONLY as xray inbounds (no sing-box
-        # equivalent) - each of those needs its one and only core running no
-        # matter which core is primary, or it points at a dead port. This
-        # used to special-case XRAY_ENABLE=0 under core_type=="singbox" on
-        # the theory that "xhttp is already filtered from singbox subs, so
-        # it's safe to drop xray" - true but beside the point: a client
-        # using the *dedicated Xray-JSON subscription* still needs xhttp
-        # (and xdns/xicmp/hysteria) actually served, singbox-primary or not.
-        # The un-gated xray templates were already written assuming "Xray
-        # always runs regardless of core_type" (see their own comments) -
-        # this was the one place that assumption wasn't actually true.
+        # xicmp exist ONLY as xray inbounds (no sing-box equivalent) - each
+        # of those needs its one and only core running no matter which core
+        # is primary, or it points at a dead port. This used to
+        # special-case XRAY_ENABLE=0 under core_type=="singbox" on the
+        # theory that "xhttp is already filtered from singbox subs, so it's
+        # safe to drop xray" - true but beside the point: a client using the
+        # *dedicated Xray-JSON subscription* still needs xhttp (and xdns/
+        # xicmp) actually served, singbox-primary or not. The un-gated xray
+        # templates were already written assuming "Xray always runs
+        # regardless of core_type" (see their own comments) - this was the
+        # one place that assumption wasn't actually true. So: both cores
+        # simply always run; there is no lean single-core path to keep
+        # correct.
         XRAY_ENABLE=1
         SINGBOX_ENABLE=1
+
+        # core_type_auto (fresh installs only - see init_db.py) re-resolves
+        # which core is PRIMARY (not whether it runs - both always run, see
+        # above) from actual xhttp usage on every apply: no xhttp -> singbox
+        # primary, xhttp in use -> xray primary. Persisted back to the DB
+        # (not just a local variable) because Jinja config generation later
+        # in this same run reads core_type straight from the DB too.
+        # Admins who ever explicitly pick a value via Settings flip
+        # core_type_auto off (SettingAdmin.py), so this never overwrites a
+        # deliberate choice - only ever touches an install that has never
+        # had one made.
+        CORE_TYPE=$(hconfig "core_type")
+        if [[ "$(hconfig "core_type_auto")" == "True" ]]; then
+            # ponytail: gate xray strictly on xhttp usage (config or domain). fallback to True on error so broken check doesn't kill live domain.
+            # NOTE: create_app_wsgi() (not create_app) reads sys.argv[1]
+            # unconditionally to decide cli-vs-web mode - it IndexErrors under
+            # `python3 -c "..."` (argv is just ['-c'], no [1]), which was
+            # silently swallowed by 2>/dev/null here, meaning this check has
+            # been falling through to the "True" fallback on every single run
+            # since it shipped, never actually querying the DB. Fixed by using
+            # create_app(app_mode="cli") directly instead of the wsgi-argv-
+            # sniffing wrapper.
+            HAS_XHTTP_DOMAIN=$(python3 -c "from hiddifypanel.base import create_app; app=create_app(app_mode='cli'); app.app_context().push(); from hiddifypanel.models import Domain, DomainType; print('True' if Domain.query.filter(Domain.mode==DomainType.special_reality_xhttp).first() else 'False')" 2>/dev/null || echo "True")
+            if [[ "$(hconfig "xhttp_enable")" == "True" ]] || [[ "$HAS_XHTTP_DOMAIN" == "True" ]]; then
+                RESOLVED_CORE_TYPE="xray"
+            else
+                RESOLVED_CORE_TYPE="singbox"
+            fi
+            if [[ "$RESOLVED_CORE_TYPE" != "$CORE_TYPE" ]]; then
+                if python3 -c "from hiddifypanel.base import create_app; from hiddifypanel.models import ConfigEnum, set_hconfig; app=create_app(app_mode='cli'); app.app_context().push(); set_hconfig(ConfigEnum.core_type, '$RESOLVED_CORE_TYPE')" 2>/dev/null; then
+                    CORE_TYPE="$RESOLVED_CORE_TYPE"
+                else
+                    warning "core_type auto-resolution failed to persist - keeping previous value ($CORE_TYPE) for this run."
+                fi
+            fi
+        fi
 
         update_progress "${PROGRESS_ACTION}" "Xray" 75
         
@@ -239,9 +280,19 @@ function install_run() {
     fi
     echo "======================$1====================================={"
    if [ "$DO_NOT_INSTALL" != "true" ];then
+        # ponytail: gate install.sh on subsystem enable flag (last arg)
+        # when the flag is 0/false/False, skip package installation entirely
+        # but still run run.sh so the subsystem is stopped/cleaned up
+        _ENABLED=true
+        _LAST_ARG="${@: -1}"
+        case "$_LAST_ARG" in
+            0|false|False|"") _ENABLED=false ;;
+        esac
+        if [ "$_ENABLED" == "true" ]; then
             runsh install.sh $@
-        if [ "$MODE" != "apply_users" ] && [ "$MODE" != "docker"  ]; then
-            systemctl daemon-reload
+            if [ "$MODE" != "apply_users" ] && [ "$MODE" != "docker"  ]; then
+                systemctl daemon-reload
+            fi
         fi
     fi
     if [ "$DO_NOT_RUN" != "true" ];then
@@ -276,8 +327,8 @@ if [[ " $@ " == *" --no-gui "* ]]; then
         main
     else
         main |& tee $LOG_FILE
+        error_code=${PIPESTATUS[0]}
     fi
-    error_code=$?
     remove_lock $NAME
 else
     show_progress_window --subtitle $(get_installed_config_version) --log $LOG_FILE ./install.sh $@ --no-gui --no-log

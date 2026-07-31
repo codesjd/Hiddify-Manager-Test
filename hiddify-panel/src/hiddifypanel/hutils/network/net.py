@@ -6,7 +6,7 @@ from dns.rdtypes.svcbbase import ECHParam
 
 import urllib.request
 import ipaddress
-from hiddifypanel.hutils.network.auto_ip_selector import IPASN
+from hiddifypanel.hutils.network.auto_ip_selector import get_ipasn
 import requests
 import random
 import socket
@@ -66,6 +66,7 @@ def get_domain_ip(domain: str, retry: int = 3, version: Literal[4, 6] | None = N
 
 _pinned_cert_cache: dict = {}
 _pinned_cert_inflight: set = set()
+_pinned_cert_inflight_lock = threading.Lock()
 
 
 def _fetch_cert_sha256_blocking(host: str, port: int, timeout: float) -> Union[str, None]:
@@ -129,8 +130,11 @@ def get_pinned_cert_sha256(host: str, port: int = 443) -> Union[str, None]:
     # minutes instead of up to an hour.
     if cached and (time.time() - cached[1]) < 300:
         return cached[0]
-    if key not in _pinned_cert_inflight:
-        _pinned_cert_inflight.add(key)
+    with _pinned_cert_inflight_lock:
+        already_inflight = key in _pinned_cert_inflight
+        if not already_inflight:
+            _pinned_cert_inflight.add(key)
+    if not already_inflight:
         threading.Thread(target=_background_fetch_cert, args=(host, port, key), daemon=True).start()
     return None
 
@@ -147,7 +151,7 @@ def invalidate_pinned_cert_cache(host: str, port: int = 443):
 @cache.cache(300)
 def _get_domain_ips_cached_raw(domain: str, retry: int = 0) -> Set[Union[ipaddress.IPv4Address, ipaddress.IPv6Address]]:
     try:
-        return set(ipaddress.ip_address(domain))
+        return {ipaddress.ip_address(domain)}
     except:
         return get_domain_ips(domain,retry)
 
@@ -327,7 +331,7 @@ def get_ip(version: Literal[4, 6], retry: int = 5) -> ipaddress.IPv4Address | ip
 
 def get_random_user_agent():
     
-    uas = requests.get('https://cdn.jsdelivr.net/gh/microlinkhq/top-user-agents@master/src/index.json').json()
+    uas = requests.get('https://cdn.jsdelivr.net/gh/microlinkhq/top-user-agents@master/src/index.json', timeout=5).json()
     if uas:
         return random.sample(uas,1)[0]
     return 
@@ -336,7 +340,7 @@ def get_random_domains(count: int = 1, retry: int = 6) -> List[str]:
         region="CN" if retry<3 else "IR"
         irurl = f"https://api.ooni.io/api/v1/measurements?probe_cc={region}&test_name=web_connectivity&anomaly=false&confirmed=false&failure=false&limit=100&offset={(3-retry%3)*100}"
         # cnurl="https://api.ooni.io/api/v1/measurements?probe_cc=CN&test_name=web_connectivity&anomaly=false&confirmed=false&failure=false&order_by=test_start_time&limit=1000"
-        data_ir = requests.get(irurl).json()
+        data_ir = requests.get(irurl, timeout=5).json()
         # data_cn=requests.get(url).json()
 
         domains = [urlparse(d['input']).netloc.lower() for d in data_ir.get('results',{}) if d.get('scores',{}).get('blocking_country') == 0.0]
@@ -499,6 +503,7 @@ def is_in_same_asn(domain_or_ip: str, domain_or_ip_target: str) -> bool:
 
 @ cache.cache(600)
 def get_ip_asn(ip: ipaddress.IPv4Address | ipaddress.IPv6Address | str) -> str:
+    IPASN = get_ipasn()
     if not IPASN:
         return __get_ip_asn_api(ip)
     try:
@@ -514,7 +519,7 @@ def __get_ip_asn_api(ip: ipaddress.IPv4Address | ipaddress.IPv6Address | str) ->
     if not is_ip(ip):
         return ''
     endpoint = f'https://ipapi.co/{ip}/asn/'
-    return str(requests.get(endpoint).content)
+    return str(requests.get(endpoint, timeout=5).content)
 
 
 @ cache.cache(3600)
@@ -530,7 +535,7 @@ def resolve_domain_with_api(domain: str) -> str:
     if not domain:
         return ''
     endpoint = f'http://ip-api.com/json/{domain}?fields=query'
-    return str(requests.get(endpoint).json().get('query'))
+    return str(requests.get(endpoint, timeout=5).json().get('query'))
 
 
 

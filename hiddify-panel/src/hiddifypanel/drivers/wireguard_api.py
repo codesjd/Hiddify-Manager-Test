@@ -1,5 +1,6 @@
 import json
 import os
+import threading
 
 from .abstract_driver import DriverABS
 from hiddifypanel.models import User, hconfig, ConfigEnum
@@ -13,7 +14,9 @@ USERS_USAGE = "wg:users-usage"
 class WireguardApi(DriverABS):
     def get_redis_client(self):
         if not hasattr(self, 'redis_client'):
-            self.redis_client = redis.from_url(os.environ.get("REDIS_URI_SSH",""))
+            with self._init_lock:
+                if not hasattr(self, 'redis_client'):
+                    self.redis_client = redis.from_url(os.environ.get("REDIS_URI_SSH",""))
 
         return self.redis_client
 
@@ -23,6 +26,9 @@ class WireguardApi(DriverABS):
     def __init__(self) -> None:
         super().__init__()
         self.pub_uuid_map={}
+        self._init_lock = threading.Lock()
+        self._map_lock = threading.Lock()
+
     def __load_pubkey_uuid_map(self):
         from hiddifypanel.database import db
         users = db.session.query(User).all()
@@ -35,7 +41,8 @@ class WireguardApi(DriverABS):
             if uuid:=self.pub_uuid_map.get(key):
                 res[key]=uuid
             elif can_reload_map:
-                self.__load_pubkey_uuid_map()
+                with self._map_lock:
+                    self.__load_pubkey_uuid_map()
                 can_reload_map=False
                 if uuid:=self.pub_uuid_map.get(key):
                     res[key]=uuid

@@ -12,7 +12,9 @@ chmod 600 app.cfg
 sed -i '/^SQLALCHEMY_DATABASE_URI/d' app.cfg
 if [ -z "${SQLALCHEMY_DATABASE_URI}" ]; then
     DB_BACKEND="${DB_BACKEND:-mysql}"
-    if [ "$DB_BACKEND" == "postgres" ] || [ "$DB_BACKEND" == "timescaledb" ]; then
+    if [ "$DB_BACKEND" == "sqlite" ]; then
+        SQLALCHEMY_DATABASE_URI="sqlite:////opt/hiddify-manager/hiddify-panel/hiddifypanel.db"
+    elif [ "$DB_BACKEND" == "postgres" ] || [ "$DB_BACKEND" == "timescaledb" ]; then
         if [ -z "${POSTGRES_PASS}" ]; then
             POSTGRES_PASS=$(cat ../other/postgres/postgres_pass)
         fi
@@ -57,5 +59,5 @@ fi
 hiddify-panel-cli init-db
 
 systemctl start hiddify-panel.service
-systemctl restart hiddify-panel-background-tasks.service
+# systemctl restart hiddify-panel-background-tasks.service
 

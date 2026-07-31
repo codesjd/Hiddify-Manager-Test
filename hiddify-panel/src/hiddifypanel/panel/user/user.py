@@ -81,7 +81,7 @@ class UserView(FlaskView):
         for item in [hconfig(ConfigEnum.additional_configs_xrayjson),*link_res]:
                 if jsitem:=parse_json(item):
                     if isinstance(jsitem,list):
-                        all_configs.extends(jsitem)
+                        all_configs.extend(jsitem)
                     else:    
                         all_configs.append(jsitem)
         if len(all_configs)==1:
@@ -418,7 +418,7 @@ def get_domain_information(no_domain=False, filter_domain=None, alternative=None
     return domains, db_domain, has_auto_cdn
 
 
-def get_common_data(user_uuid, mode, no_domain=False, filter_domain=None):
+def get_common_data(user_uuid, mode, no_domain=False, filter_domain=None, skip_ip_debug=False):
     '''Usable for user account'''
     # uuid_secret=str(uuid.UUID(user_secret))
     domains, db_domain, has_auto_cdn = get_domain_information(no_domain, filter_domain, request.host)
@@ -464,7 +464,6 @@ def get_common_data(user_uuid, mode, no_domain=False, filter_domain=None):
         'expire_rel': hutils.convert.format_timedelta(datetime.timedelta(days=expire_days)),
         'reset_day': reset_days,
         'hconfigs': get_hconfigs(),
-        'hdomains': Domain.modes_and_domains(),
         'ConfigEnum': ConfigEnum,
         'link_maker': hutils.proxy,
         'domains': domains,
@@ -472,9 +471,8 @@ def get_common_data(user_uuid, mode, no_domain=False, filter_domain=None):
         "db_domain": db_domain,
         "telegram_enable": hiddify.is_telegram_proxy_enable(domains),
         "ip": user_ip,
-        "ip_debug": hutils.network.auto_ip_selector.get_real_user_ip_debug(user_ip),
+        "ip_debug": None if skip_ip_debug else hutils.network.auto_ip_selector.get_real_user_ip_debug(user_ip),
         "asn": asn,
-        "country": hutils.network.auto_ip_selector.get_country(user_ip),
         'has_auto_cdn': has_auto_cdn,
         'profile_url': profile_url
     }

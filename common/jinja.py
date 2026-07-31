@@ -7,7 +7,7 @@ from jinja2 import Environment, FileSystemLoader
 import json5
 import json
 import subprocess
-from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor
 import traceback
 from urllib.parse import quote
 
@@ -54,16 +54,16 @@ def from_json(s):
 
 env_paths = ["/", "/opt/hiddify-manager/singbox/configs/"]
 env = Environment(loader=FileSystemLoader(env_paths))
+env.globals['enumerate'] = enumerate
+
+env.filters["b64encode"] = b64encode
+env.filters['quote'] = lambda s: quote(s,safe='')
+env.filters["hexencode"] = lambda s: "".join(hex(ord(c))[2:].zfill(2) for c in s)
+env.filters["from_json"] = from_json
+env.filters["tojson"] = lambda obj: json.dumps(obj)
+
 def render(template_path):
     try:
-        env.globals['enumerate'] = enumerate 
-        env.filters["b64encode"] = b64encode
-        env.filters['quote'] = lambda s: quote(s,safe='')
-        env.filters["hexencode"] = lambda s: "".join(
-            hex(ord(c))[2:].zfill(2) for c in s
-        )
-        env.filters["from_json"] = from_json
-        env.filters["tojson"] = lambda obj: json.dumps(obj)
         print("Rendering: " + template_path)
 
         # Create a template object by reading the file
@@ -78,24 +78,16 @@ def render(template_path):
         # Write the rendered content to a new file without the .j2 extension
         output_file_path = os.path.splitext(template_path)[0]
         if rendered_content and output_file_path.endswith(".json"):
-            # Remove trailing comma and comments from json
             try:
-                json5object = json5.loads(rendered_content)
-                rendered_content = json5.dumps(
-                    json5object,
-                    trailing_commas=False,
-                    indent=2,
-                    quote_keys=True,
-                )
+                obj = json5.loads(rendered_content)
+                rendered_content = json5.dumps(obj, trailing_commas=False, indent=2, quote_keys=True)
             except Exception as e:
-                print(f"Error parsing json {template_path}: {e}", file=sys.stderr)
-
+                print(f"Error parsing json {template_path}: {e}; keeping previous {output_file_path}", file=sys.stderr)
+                return
         with open(output_file_path, "w", encoding="utf-8") as output_file:
             output_file.write(str(rendered_content))
-
         input_stat = os.stat(template_path)
         os.chmod(output_file_path, input_stat.st_mode)
-        # os.chmod(output_file_path, 0o600)
         os.chown(output_file_path, input_stat.st_uid, input_stat.st_gid)
     except Exception as e:
         print(f"Error rendering {template_path}: {e}", file=sys.stderr)
@@ -123,7 +115,7 @@ def render_j2_templates(*start_paths):
                 templates_to_render.append(os.path.join(root, file))
 
     # Render templates in parallel using ThreadPoolExecutor
-    with ProcessPoolExecutor(4) as executor:
+    with ThreadPoolExecutor(4) as executor:
         executor.map(render, templates_to_render)
     # for t in templates_to_render:
     #     render(t)

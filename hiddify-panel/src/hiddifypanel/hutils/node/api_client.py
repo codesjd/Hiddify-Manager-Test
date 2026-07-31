@@ -30,9 +30,9 @@ class NodeApiClient():
 
                 # send request
                 if payload:
-                    response = requests.request(method, full_url, json=payload.dump(payload), headers=self.headers)
+                    response = requests.request(method, full_url, json=payload.dump(payload), headers=self.headers, timeout=5)
                 else:
-                    response = requests.request(method, full_url, headers=self.headers)
+                    response = requests.request(method, full_url, headers=self.headers, timeout=5)
 
                 # parse response
                 response.raise_for_status()
@@ -48,9 +48,9 @@ class NodeApiClient():
                     return err
 
                 logger.trace(f"Successfully received response from {full_url}")
-                return resp if isinstance(output_schema, type(dict)) else output_schema().load(resp)  # type: ignore
+                return resp if output_schema is dict else output_schema().load(resp)  # type: ignore
 
-            except requests.HTTPError as e:
+            except requests.RequestException as e:
                 if retry_count >= self.max_retry:
                     stack_trace = traceback.format_exc()
                     err = NodeApiErrorSchema()
@@ -65,6 +65,8 @@ class NodeApiClient():
 
                 logger.warning(f"Error occurred: {e} from {full_url} with method {method}, retrying... ({retry_count}/{self.max_retry})")
                 retry_count += 1
+                import time
+                time.sleep(1)
 
     def get(self, path: str, output: Type[Union[Schema, dict]]) -> Union[dict, NodeApiErrorSchema]:
         return self.__call("GET", path, None, output)

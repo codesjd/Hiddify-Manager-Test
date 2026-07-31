@@ -1,0 +1,81 @@
+name: CI checks
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    services:
+      redis:
+        image: redis:7-alpine
+        ports: ['6379:6379']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install check tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libev-dev libmysqlclient-dev libpq-dev
+          python -m pip install --upgrade pip
+          python -m pip install black flake8 jinja2 pytest
+      - name: Python lint and format
+        continue-on-error: true
+        working-directory: hiddify-panel/src
+        run: |
+          flake8 .
+          black --check .
+      - name: Bash lint
+        continue-on-error: true
+        run: |
+          sudo apt-get install -y shellcheck
+          shellcheck install.sh common/*.sh other/*/*.sh
+      - name: Import and compile check
+        working-directory: hiddify-panel/src
+        run: |
+          python -m pip install -e .[dev] || python -m pip install -e .
+          python -m py_compile $(find hiddifypanel -name '*.py')
+          python -c "import hiddifypanel"
+      - name: Template syntax
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          from jinja2 import Environment
+          env = Environment()
+          for path in sorted([*Path('.').rglob('*.j2'), *Path('.').rglob('*.pj2')]):
+              env.parse(path.read_text(encoding='utf-8'))
+          PY
+      - name: Test suite (plan 026 migration smoke)
+        working-directory: hiddify-panel/src
+        run: python -m pytest tests/ -v
+
+  security:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install dependencies and tools
+        working-directory: hiddify-panel/src
+        run: |
+          sudo apt-get update && sudo apt-get install -y libev-dev libmysqlclient-dev libpq-dev
+          python -m pip install --upgrade pip
+          python -m pip install -e .
+          python -m pip install pip-audit bandit
+      - name: Run pip-audit
+        working-directory: hiddify-panel/src
+        continue-on-error: true
+        run: pip-audit
+      - name: Run bandit SAST
+        working-directory: hiddify-panel/src
+        continue-on-error: true
+        run: bandit -c .bandit -r hiddifypanel -ll
+      - name: Secret scanning (gitleaks)
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        continue-on-error: true

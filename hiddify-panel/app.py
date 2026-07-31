@@ -3,4 +3,7 @@
 if __name__ == "__main__":
     import bjoern
     import hiddifypanel
-    bjoern.run(wsgi_app=hiddifypanel.create_app(), host="127.0.0.1", port=9000)
+    app = hiddifypanel.create_app()
+    from hiddifypanel.apps.scheduler import start as start_scheduler
+    start_scheduler(app)
+    bjoern.run(wsgi_app=app, host="127.0.0.1", port=9000)

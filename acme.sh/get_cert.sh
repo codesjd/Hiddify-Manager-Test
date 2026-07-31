@@ -3,6 +3,7 @@ cd $(dirname -- "$0")
 source cert_utils.sh
 #./lib/acme.sh --register-account -m my@example.com
 
+start_nginx_acme
 get_cert $1
 
 echo "cert installation is done."

@@ -75,7 +75,7 @@ class AppAPI(MethodView):
 
         self.user_panel_url = f"https://{urlparse(request.base_url).hostname}/{g.proxy_path}/{g.account.uuid}/"
         self.user_panel_encoded_url = hutils.encode.url_encode(self.user_panel_url)
-        c = get_common_data(g.account.uuid, 'new')
+        c = get_common_data(g.account.uuid, 'new', skip_ip_debug=True)
         self.subscription_link_url = f"{self.user_panel_url}all.txt?name={c['db_domain'].alias or c['db_domain'].domain}-{c['asn']}&asn={c['asn']}&mode={c['mode']}"
         self.subscription_link_encoded_url = hutils.encode.do_base_64(self.subscription_link_url)
         domain = c['db_domain'].alias or c['db_domain'].domain

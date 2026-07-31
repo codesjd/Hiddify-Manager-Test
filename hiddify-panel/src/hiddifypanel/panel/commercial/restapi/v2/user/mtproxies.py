@@ -23,7 +23,7 @@ class MTProxiesAPI(MethodView):
 
     @app.output(list[MtproxySchema])
     def get(self):
-        c = get_common_data(g.account.uuid, 'new')
+        c = get_common_data(g.account.uuid, 'new', skip_ip_debug=True)
 
         if not c['telegram_enable']:
             abort(status_code=404, message="Telegram mtproxy is not enable")

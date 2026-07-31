@@ -115,22 +115,31 @@ class Domain(db.Model):
     xicmp_port = db.Column(db.Integer, nullable=True, default=None)
 
     def extra_params_json(self):
+        cached = getattr(self, '_extra_params_json_cache', None)
+        if cached is not None:
+            return cached
         import json
         try:
-            return json.loads(self.extra_params)
-        except:
-            return {}
+            result = json.loads(self.extra_params)
+        except Exception:
+            result = {}
+        self._extra_params_json_cache = result
+        return result
     def __repr__(self):
         return f'{self.domain}'
 
     def get_cdn_ips_parsed(self):
+        cached = getattr(self, '_cdn_ips_parsed_cache', None)
+        if cached is not None:
+            return cached
         ips = re.split('[ \t\r\n;,]+', self.cdn_ip.strip())
         res = set()
         for ip in ips:
             try:
                 res.add(ipaddress.ip_address(ip))
-            except:
+            except Exception:
                 pass
+        self._cdn_ips_parsed_cache = res
         return res
 
     def to_dict(self, dump_ports=False, dump_child_id=False):

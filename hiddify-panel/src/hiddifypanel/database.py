@@ -111,3 +111,121 @@ def db_execute(query: str, return_val: bool = False, commit: bool = False, **par
     #     connection.commit()s
     # return res
 
+
+def backup_db() -> bool:
+    import subprocess
+    from loguru import logger
+    dialect = db.engine.dialect.name
+    url = str(db.engine.url)
+
+    if dialect == 'sqlite':
+        db_path_from_url = url.replace('sqlite:///', '')
+        if db_path_from_url == ':memory:':
+            return True
+        backup_path = f"{db_path_from_url}.bak"
+        logger.info(f"Backing up SQLite database to {backup_path}")
+        res = subprocess.run(["sqlite3", db_path_from_url, f".backup '{backup_path}'"], capture_output=True)
+        if res.returncode != 0:
+            logger.error(f"SQLite backup failed: {res.stderr.decode()}")
+            return False
+        return True
+    elif dialect == 'mysql':
+        backup_path = "/opt/hiddify-manager/hiddify-panel/hiddifypanel.sql.bak"
+        logger.info(f"Backing up MySQL database to {backup_path}")
+        user = db.engine.url.username
+        password = db.engine.url.password or ''
+        database_name = db.engine.url.database
+        host = db.engine.url.host
+        cmd = f"mysqldump -h {host} -u {user} -p{password} {database_name} > {backup_path}"
+        res = subprocess.run(cmd, shell=True, capture_output=True)
+        if res.returncode != 0:
+            logger.error(f"MySQL backup failed: {res.stderr.decode()}")
+            return False
+        return True
+
+    logger.error(f"Unsupported dialect for backup: {dialect}")
+    return False
+
+
+def reconcile_schema() -> bool:
+    """Additive-only runtime schema healer using Alembic's compare_metadata.
+
+    Safety invariants:
+    1. ADDITIVE-ONLY: creates missing tables/columns/indexes. Never drops or renames.
+    2. FLAG AMBIGUOUS: any non-additive diff (type mismatch, extra column, rename) is logged as ERROR and aborts without stamping.
+    3. PRE-DDL BACKUP: backup_db() must succeed before any DDL executes.
+
+    Returns True if schema is clean (or healed), False if ambiguous diffs found or backup failed.
+    """
+    from loguru import logger
+    from alembic.migration import MigrationContext
+    from alembic.autogenerate import compare_metadata
+    from sqlalchemy.schema import CreateTable, CreateIndex
+    from sqlalchemy import text as sa_text
+
+    # Explicitly closed once the diff is computed - MigrationContext holds
+    # a reference cycle (dialect <-> connection <-> context) that defers
+    # cleanup to the cyclic GC if left to a bare .connect(), so an
+    # unclosed connection can sit checked out of the (Query)Pool - on a
+    # file-backed SQLite engine that means a still-open transaction/
+    # snapshot can later get handed back out for unrelated work.
+    reflect_conn = db.engine.connect()
+    try:
+        context = MigrationContext.configure(reflect_conn)
+        diff = compare_metadata(context, db.metadata)
+    finally:
+        reflect_conn.close()
+
+    if not diff:
+        # DEBUG, not INFO: this runs on every app startup (uwsgi worker
+        # boot, `hiddify-panel-cli init-db` on every install.sh apply/
+        # reinstall) and is the overwhelmingly common case - "nothing to
+        # do" doesn't need to interrupt a normal install/apply's console
+        # output. A real heal or an ambiguous diff (below) still logs at
+        # INFO/ERROR since those are genuinely actionable.
+        logger.debug("Schema perfectly matches models. No reconciliation needed.")
+        return True
+
+    ambiguous = False
+    additive_ddl = []
+
+    for op in diff:
+        op_type = op[0]
+        if op_type == 'add_table':
+            table = op[1]
+            additive_ddl.append(str(CreateTable(table).compile(db.engine)))
+        elif op_type == 'add_column':
+            # op: ('add_column', schema, table_name, column)
+            table_name = op[2]
+            column = op[3]
+            # AddColumn lives in alembic.ddl.base, not sqlalchemy.schema -
+            # SQLAlchemy core has no portable "ALTER TABLE ADD COLUMN" DDL
+            # element of its own; alembic provides one (with per-dialect
+            # @compiles handlers already registered on import).
+            from alembic.ddl.base import AddColumn
+            additive_ddl.append(str(AddColumn(table_name, column).compile(db.engine)))
+        elif op_type == 'add_index':
+            index = op[1]
+            additive_ddl.append(str(CreateIndex(index).compile(db.engine)))
+        else:
+            ambiguous = True
+            logger.error(f"Ambiguous schema diff detected (manual review required): {op}")
+
+    if ambiguous:
+        logger.error("Ambiguous schema differences found. Aborting reconciliation — no stamp applied.")
+        return False
+
+    if additive_ddl:
+        logger.info(f"Reconciling {len(additive_ddl)} missing additive objects...")
+        if not backup_db():
+            logger.error("Pre-DDL backup failed. Aborting reconciliation.")
+            return False
+
+        with db.engine.connect() as conn:
+            for ddl in additive_ddl:
+                logger.info(f"Executing: {ddl}")
+                conn.execute(sa_text(ddl))
+            conn.commit()
+
+    return True
+

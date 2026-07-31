@@ -1,4 +1,4 @@
-﻿import datetime
+import datetime
 import json
 import os
 import random
@@ -14,7 +14,30 @@ from hiddifypanel.database import db, db_execute
 
 
 from loguru import logger
-MAX_DB_VERSION = 150
+MAX_DB_VERSION = 152
+
+
+def _v152(child_id):
+    """L2TP-inbound-through-an-outbound routing (see
+    models/routing.py's get_l2tp_route_interface() and
+    other/l2tp/run.sh.j2) - seeds the admin-facing setting so it shows up
+    on the Settings page for every install. Empty string = today's direct
+    behavior, unchanged."""
+    add_config_if_not_exist(ConfigEnum.l2tp_outbound_tag, "")
+
+
+def _v151(child_id):
+    """Opt-in periodic uTLS fingerprint rotation (see
+    hutils/tls_fingerprint_rotation.py) - seeds the two admin-facing
+    settings so the feature actually shows up on the Settings page for
+    every install, not just brand new ones (utls_auto_rotate defaults to
+    disabled; the rotation task also treats it as a no-op when unset, but
+    an unseeded StrConfig/BoolConfig row is invisible to SettingAdmin's
+    form loop entirely, not just "off"). utls_last_rotated_at is
+    deliberately not seeded here - its absence means "never rotated yet",
+    which is exactly the correct starting state."""
+    add_config_if_not_exist(ConfigEnum.utls_auto_rotate, False)
+    add_config_if_not_exist(ConfigEnum.utls_rotate_days, 3)
 
 
 def _v150(child_id):
@@ -554,7 +577,8 @@ def _v108(child_id):
     
 def _v107(child_id):
     # set_hconfig(ConfigEnum.core_type,'xray') # disable singbox core temporary
-    execute("UPDATE proxy SET params = '{}' WHERE params is NULL;")
+    if db.engine.dialect.name == 'mysql':
+        execute("UPDATE proxy SET params = '{}' WHERE params is NULL;")
 
 def _v106(child_id):
     set_hconfig(ConfigEnum.use_ip_in_config,True)
@@ -611,7 +635,8 @@ END
 
     """
 
-    db_execute(add_usage_proc,commit=True)
+    if db.engine.dialect.name == 'mysql':
+        db_execute(add_usage_proc,commit=True)
     
 
 def _v101(child_id):
@@ -714,7 +739,8 @@ def _v81(child_id):
     # password was hashed (including a fresh install's first password set
     # through Quick Setup).
     execute("ALTER TABLE user MODIFY COLUMN password VARCHAR(255);")
-    execute("ALTER TABLE admin_user MODIFY COLUMN password VARCHAR(255);")
+    if db.engine.dialect.name == 'mysql':
+        execute("ALTER TABLE admin_user MODIFY COLUMN password VARCHAR(255);")
 
 
 def _v80(child_id):
@@ -824,8 +850,10 @@ def _v62():
 
 
 def _v61():
-    execute("ALTER TABLE user MODIFY COLUMN username VARCHAR(100);")
-    execute("ALTER TABLE user MODIFY COLUMN password VARCHAR(100);")
+    if db.engine.dialect.name == 'mysql':
+        execute("ALTER TABLE user MODIFY COLUMN username VARCHAR(100);")
+    if db.engine.dialect.name == 'mysql':
+        execute("ALTER TABLE user MODIFY COLUMN password VARCHAR(100);")
 
 
 def _v60():
@@ -973,7 +1001,8 @@ def _v31():
         # password flow with no working admin/admin login at all.
         owner.update_password("admin")
         db.session.add(owner)
-        execute("update admin_user set id=1 where name='owner'")
+        if db.engine.dialect.name == 'mysql':
+            execute("update admin_user set id=1 where name='owner'")
     for i in range(1, 10):
         for d in hutils.network.get_random_domains(50):
             if hutils.network.is_domain_reality_friendly(d):
@@ -1051,16 +1080,42 @@ def _v1():
     external_ip = str(hutils.network.get_ip_str(4))
     rnd_domains = hutils.network.get_random_domains(5)
 
+    # The default User row below is inserted with added_by left unset,
+    # which falls back to its column default of 1 - a FK to
+    # admin_user.id. That row has to actually exist first. Inserted here
+    # via flush() (same transaction, not a separate commit - if anything
+    # later in this function fails, the whole thing should still roll
+    # back atomically) rather than folded into the bulk_save_objects()
+    # batch below: bulk_save_objects groups inserts by mapper for
+    # efficiency and doesn't guarantee cross-class insert order the way
+    # listing AdminUser before User might suggest. This dependency was
+    # invisible on SQLite (no FK enforcement by default - every fresh
+    # install this whole feature was verified against), but MySQL
+    # enforces it strictly and rejects a fresh install's very first
+    # migration step outright without this.
+    admin_secret = str(uuid.uuid4())
+    # _v1() is the actual fresh-install bootstrap (runs first, before
+    # _v31 ever gets a chance to see AdminUser.id==1 missing) - a prior
+    # fix here targeted _v31()'s own admin-creation block instead of
+    # this one, which is why it never actually took effect on a real
+    # fresh install. Same fix, correct place this time: real
+    # username="admin"/password="admin" from the first login instead of
+    # leaving both blank.
+    owner = AdminUser(id=1, uuid=admin_secret, name="Owner", username="admin", mode=AdminMode.super_admin, comment="")
+    owner.update_password("admin")
+    db.session.add(owner)
+    db.session.flush()
+
     data = [
-        
+
         StrConfig(key=ConfigEnum.db_version, value=1), User(name="default", usage_limit_GB=3000, package_days=3650, mode=UserMode.weekly),
-        Domain(domain=external_ip, mode=DomainType.direct), 
-        Domain(domain=external_ip + ".sslip.io", mode=DomainType.direct), 
-        StrConfig(key=ConfigEnum.admin_secret, value=uuid.uuid4()), StrConfig(key=ConfigEnum.http_ports, value="80"), StrConfig(key=ConfigEnum.tls_ports, value="443"), BoolConfig(key=ConfigEnum.first_setup, value=True), StrConfig(key=ConfigEnum.decoy_domain, value=hutils.network.get_random_decoy_domain()), StrConfig(key=ConfigEnum.proxy_path, value=hutils.random.get_random_string()), BoolConfig(key=ConfigEnum.firewall, value=False), BoolConfig(key=ConfigEnum.netdata, value=True), StrConfig(key=ConfigEnum.lang, value='en'), BoolConfig(key=ConfigEnum.block_iran_sites, value=True), BoolConfig(key=ConfigEnum.allow_invalid_sni, value=True), BoolConfig(key=ConfigEnum.kcp_enable, value=False), StrConfig(key=ConfigEnum.kcp_ports, value="88"), BoolConfig(key=ConfigEnum.auto_update, value=os.environ.get('HIDDIFY_DISABLE_UPDATE',"").lower() not in {'1','true'}), BoolConfig(key=ConfigEnum.only_ipv4, value=False), BoolConfig(key=ConfigEnum.vmess_enable, value=True), BoolConfig(key=ConfigEnum.http_proxy_enable, value=True), StrConfig(key=ConfigEnum.shared_secret, value=str(uuid.uuid4())), BoolConfig(key=ConfigEnum.telegram_enable, value=False), # StrConfig(key=ConfigEnum.telegram_secret,value=uuid.uuid4().hex), StrConfig(key=ConfigEnum.telegram_adtag, value=""), StrConfig(key=ConfigEnum.telegram_fakedomain, value=rnd_domains[1]), BoolConfig(key=ConfigEnum.ssfaketls_enable, value=False), # StrConfig(key=ConfigEnum.ssfaketls_secret,value=str(uuid.uuid4())), StrConfig(key=ConfigEnum.ssfaketls_fakedomain, value=rnd_domains[2]), BoolConfig(key=ConfigEnum.shadowtls_enable, value=False), # StrConfig(key=ConfigEnum.shadowtls_secret,value=str(uuid.uuid4())), StrConfig(key=ConfigEnum.shadowtls_fakedomain, value=rnd_domains[3]), 
-        BoolConfig(key=ConfigEnum.ssr_enable, value=False), # StrConfig(key=ConfigEnum.ssr_secret,value=str(uuid.uuid4())), StrConfig(key=ConfigEnum.ssr_fakedomain, value=rnd_domains[4]), 
-        # BoolConfig(key=ConfigEnum.tuic_enable, value=False), # StrConfig(key=ConfigEnum.tuic_port, value=3048), 
-        BoolConfig(key=ConfigEnum.domain_fronting_tls_enable, value=False), BoolConfig(key=ConfigEnum.domain_fronting_http_enable, value=False), StrConfig(key=ConfigEnum.domain_fronting_domain, value=""), 
-        # BoolConfig(key=ConfigEnum.torrent_block,value=False), 
+        Domain(domain=external_ip, mode=DomainType.direct),
+        Domain(domain=external_ip + ".sslip.io", mode=DomainType.direct),
+        StrConfig(key=ConfigEnum.admin_secret, value=admin_secret), StrConfig(key=ConfigEnum.http_ports, value="80"), StrConfig(key=ConfigEnum.tls_ports, value="443"), BoolConfig(key=ConfigEnum.first_setup, value=True), StrConfig(key=ConfigEnum.decoy_domain, value=hutils.network.get_random_decoy_domain()), StrConfig(key=ConfigEnum.proxy_path, value=hutils.random.get_random_string()), BoolConfig(key=ConfigEnum.firewall, value=False), BoolConfig(key=ConfigEnum.netdata, value=True), StrConfig(key=ConfigEnum.lang, value='en'), BoolConfig(key=ConfigEnum.block_iran_sites, value=True), BoolConfig(key=ConfigEnum.allow_invalid_sni, value=True), BoolConfig(key=ConfigEnum.kcp_enable, value=False), StrConfig(key=ConfigEnum.kcp_ports, value="88"), BoolConfig(key=ConfigEnum.auto_update, value=os.environ.get('HIDDIFY_DISABLE_UPDATE',"").lower() not in {'1','true'}), BoolConfig(key=ConfigEnum.only_ipv4, value=False), BoolConfig(key=ConfigEnum.vmess_enable, value=True), BoolConfig(key=ConfigEnum.http_proxy_enable, value=True), StrConfig(key=ConfigEnum.shared_secret, value=str(uuid.uuid4())), BoolConfig(key=ConfigEnum.telegram_enable, value=False), # StrConfig(key=ConfigEnum.telegram_secret,value=uuid.uuid4().hex), StrConfig(key=ConfigEnum.telegram_adtag, value=""), StrConfig(key=ConfigEnum.telegram_fakedomain, value=rnd_domains[1]), BoolConfig(key=ConfigEnum.ssfaketls_enable, value=False), # StrConfig(key=ConfigEnum.ssfaketls_secret,value=str(uuid.uuid4())), StrConfig(key=ConfigEnum.ssfaketls_fakedomain, value=rnd_domains[2]), BoolConfig(key=ConfigEnum.shadowtls_enable, value=False), # StrConfig(key=ConfigEnum.shadowtls_secret,value=str(uuid.uuid4())), StrConfig(key=ConfigEnum.shadowtls_fakedomain, value=rnd_domains[3]),
+        BoolConfig(key=ConfigEnum.ssr_enable, value=False), # StrConfig(key=ConfigEnum.ssr_secret,value=str(uuid.uuid4())), StrConfig(key=ConfigEnum.ssr_fakedomain, value=rnd_domains[4]),
+        # BoolConfig(key=ConfigEnum.tuic_enable, value=False), # StrConfig(key=ConfigEnum.tuic_port, value=3048),
+        BoolConfig(key=ConfigEnum.domain_fronting_tls_enable, value=False), BoolConfig(key=ConfigEnum.domain_fronting_http_enable, value=False), StrConfig(key=ConfigEnum.domain_fronting_domain, value=""),
+        # BoolConfig(key=ConfigEnum.torrent_block,value=False),
         *get_proxy_rows_v1()
     ]
     # fake_domains=['speedtest.net']
@@ -1100,7 +1155,8 @@ def _v9():
 def _v10():
     all_configs = get_hconfigs()
     execute("ALTER TABLE `str_config` RENAME TO `str_config_old`")
-    execute("ALTER TABLE `bool_config` RENAME TO `bool_config_old`")
+    if db.engine.dialect.name == 'mysql':
+        execute("ALTER TABLE `bool_config` RENAME TO `bool_config_old`")
     # db.create_all()
     rows = []
     for c, v in all_configs.items():
@@ -1257,7 +1313,9 @@ def add_column(column):
     try:
         column_type = column.type.compile(db.engine.dialect)
 
-        db_execute(f'ALTER TABLE {column.table.name} ADD COLUMN {column.name} {column_type}', commit=True)
+        if db.engine.dialect.name == 'mysql':
+            if db.engine.dialect.name == 'mysql':
+                db_execute(f'ALTER TABLE {column.table.name} ADD COLUMN {column.name} {column_type}', commit=True)
     except BaseException:
         pass
 
@@ -1266,7 +1324,9 @@ def alter_column(column):
     try:
         column_type = column.type.compile(db.engine.dialect)
 
-        db_execute(f'ALTER TABLE {column.table.name} MODIFY COLUMN {column.name} {column_type}', commit=True)
+        if db.engine.dialect.name == 'mysql':
+            if db.engine.dialect.name == 'mysql':
+                db_execute(f'ALTER TABLE {column.table.name} MODIFY COLUMN {column.name} {column_type}', commit=True)
     except BaseException:
         pass
 
@@ -1280,6 +1340,8 @@ def execute(query: str):
 
 
 def add_new_enum_values():
+    if db.engine.dialect.name != 'mysql':
+        return
     columns = [
         Proxy.l3, Proxy.proto, Proxy.cdn, Proxy.transport, User.mode, Domain.mode, BoolConfig.key, StrConfig.key
     ]
@@ -1317,8 +1379,10 @@ def add_new_enum_values():
         enumstr = ','.join([f"'{a}'" for a in [*existing_values]])
         expired_enumstr = ','.join([f"'{a}'" for a in [*old_values]])
         if expired_enumstr:
-            db_execute(f"delete from {table_name} where `{column_name}` in ({expired_enumstr});", commit=True)
-        db_execute(f"ALTER TABLE {table_name} MODIFY COLUMN `{column_name}` ENUM({enumstr});", commit=True)
+            if db.engine.dialect.name == 'mysql':
+                db_execute(f"delete from {table_name} where `{column_name}` in ({expired_enumstr});", commit=True)
+        if db.engine.dialect.name == 'mysql':
+            db_execute(f"ALTER TABLE {table_name} MODIFY COLUMN `{column_name}` ENUM({enumstr});", commit=True)
 
 
 def current_db_version()->int:
@@ -1554,20 +1618,36 @@ def _ensure_default_proxy_rows():
         db.session.rollback()
 
 
+import sys
+from loguru import logger
 def init_db():
-    # set_hconfig(ConfigEnum.db_version,113) 
-    # set_hconfig(ConfigEnum.db_version,110)
+    db.create_all()
+    
+    from hiddifypanel.database import reconcile_schema
+    try:
+        if not reconcile_schema():
+            logger.error("Schema reconciliation failed. Halting startup.")
+            sys.exit(1)
+    except ImportError:
+        logger.warning("Alembic not installed — skipping schema reconciliation.")
+        
+    try:
+        from alembic.config import Config
+        from alembic import command
+        # Find the root of the project to locate alembic.ini
+        import os
+        from flask import current_app
+        root_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(current_app.root_path))))
+        ini_path = os.path.join(root_dir, "alembic.ini")
+        if os.path.exists(ini_path):
+            alembic_cfg = Config(ini_path)
+            command.stamp(alembic_cfg, "head")
+    except Exception as e:
+        logger.error(f"Failed to stamp Alembic head: {e}")
+
+    # Legacy db_version / fast-path initialization
     db_version = current_db_version()
     if db_version == latest_db_version():
-        # Backfill new settings for already-upgraded installations.
-        db.create_all()
-        db.session.commit()
-        # Renamed/removed ConfigEnum members (e.g. a field renamed after an
-        # earlier install already wrote the old name into str_config/bool_config)
-        # normally only get cleaned up inside migrate(), which this fast path
-        # skips entirely. Without this, a stale key left over from a previous
-        # install attempt makes every future config read raise LookupError
-        # forever, since db_version never drops below latest to re-trigger it.
         add_new_enum_values()
         _ensure_mieru_naive_relay_variants()
         _ensure_default_proxy_rows()
@@ -1575,31 +1655,30 @@ def init_db():
         _ensure_v138_hconfigs_backfilled()
         _ensure_domain_port_columns_backfilled()
         return
-    
-    db.create_all()
-    
-    # temporary fix
-    add_column(Child.mode)
-    add_column(Child.name)
 
-    from flask import g
-    cache.invalidate_all_cached_functions()
-    migrate(db_version)
+    # migrate(db_version)  # Deprecated in favor of Alembic
 
     child = Child.by_id(0)
     if child is None:
         tmp_uuid = str(uuid.uuid4())
         db.session.add(Child(id=0, unique_id=tmp_uuid, name="Root"))
         db.session.commit()
-        db_execute("update child set id=0 where unique_id=:u", u=tmp_uuid, commit=True)
-        child = Child.by_id(0)  
+        if db.engine.dialect.name == 'mysql':
+            db_execute("update child set id=0 where unique_id=:u", u=tmp_uuid, commit=True)
+        child = Child.by_id(0)
+        # Fresh install only (this branch never runs again once the Child
+        # row exists) - let core_type auto-track actual xhttp usage instead
+        # of hardcoding xray. _v41 below only seeds "xray" if core_type has
+        # no value yet, so setting a concrete starting value here first
+        # makes that a no-op for fresh installs while leaving any
+        # mid-upgrade legacy install's historical seed untouched.
+        add_config_if_not_exist(ConfigEnum.core_type, "singbox")
+        add_config_if_not_exist(ConfigEnum.core_type_auto, True)
 
     child.mode = ChildMode.virtual
-    # if db_version < 69:
-    #     _v70(0)
-
     db.session.commit()
 
+    from flask import g
     for child in Child.query.filter(Child.mode == ChildMode.virtual).all():
         g.child = child
         db_version = int(hconfig(ConfigEnum.db_version, child.id) or 0)
@@ -1653,24 +1732,30 @@ def migrate(db_version):
         execute('update str_config set `key`="path_xhttp" where `key`="path_splithttp";')
         execute("UPDATE proxy SET transport = 'xhttp' WHERE transport = 'splithttp';")
     if db_version < 97:
-        execute('ALTER TABLE str_config MODIFY value VARCHAR(3072);')
+        if db.engine.dialect.name == 'mysql':
+            execute('ALTER TABLE str_config MODIFY value VARCHAR(3072);')
     if db_version < 82:
-        execute('ALTER TABLE child DROP INDEX `name`;')
+        if db.engine.dialect.name == 'mysql':
+            execute('ALTER TABLE child DROP INDEX `name`;')
     if db_version < 77:
-        execute('ALTER TABLE user_detail DROP COLUMN connected_ips;')
-        execute('update user_detail set connected_devices="" where connected_devices IS NULL')
+        if db.engine.dialect.name == 'mysql':
+            execute('ALTER TABLE user_detail DROP COLUMN connected_ips;')
+        if db.engine.dialect.name == 'mysql':
+            execute('update user_detail set connected_devices="" where connected_devices IS NULL')
 
     if db_version < 70:
-        execute('CREATE INDEX date ON daily_usage (date);')
-        execute('CREATE INDEX username ON user (username);')
-        execute('CREATE INDEX username ON admin_user (username);')
-        execute('CREATE INDEX telegram_id ON user (telegram_id);')
-        execute('CREATE INDEX telegram_id ON admin_user (telegram_id);')
+        if db.engine.dialect.name == 'mysql':
+            execute('CREATE INDEX date ON daily_usage (date);')
+            execute('CREATE INDEX username ON user (username);')
+            execute('CREATE INDEX username ON admin_user (username);')
+            execute('CREATE INDEX telegram_id ON user (telegram_id);')
+            execute('CREATE INDEX telegram_id ON admin_user (telegram_id);')
+            execute('ALTER TABLE proxy DROP INDEX `name`;')
 
-        execute('ALTER TABLE proxy DROP INDEX `name`;')
-
-        execute("ALTER TABLE user MODIFY COLUMN telegram_id BIGINT;")
-        execute("ALTER TABLE admin_user MODIFY COLUMN telegram_id BIGINT;")
+        if db.engine.dialect.name == 'mysql':
+            execute("ALTER TABLE user MODIFY COLUMN telegram_id BIGINT;")
+        if db.engine.dialect.name == 'mysql':
+            execute("ALTER TABLE admin_user MODIFY COLUMN telegram_id BIGINT;")
 
         # aaa
         # # add_column(UserDetail.connected_devices)
@@ -1689,7 +1774,8 @@ def migrate(db_version):
         # add_column(Domain.extra_params)
 
     if db_version < 52:
-        execute(f'update domain set mode="sub_link_only", sub_link_only=false where sub_link_only = true or mode=1  or mode="1"')
+        if db.engine.dialect.name == 'mysql':
+            execute(f'update domain set mode="sub_link_only", sub_link_only=false where sub_link_only = true or mode=1  or mode="1"')
         execute(f'update domain set mode="direct", sub_link_only=false where mode=0  or mode="0"')
         execute(f'update proxy set transport="WS" where transport = "ws"')
         execute(f'update admin_user set mode="agent" where mode = "slave"')
@@ -1727,10 +1813,12 @@ def migrate(db_version):
             execute(f'DROP TABLE bool_config')
             execute(f'ALTER TABLE bool_config_old RENAME TO bool_config')
         if len(Domain.query.all()) != 0 and StrConfig.query.count() == 0:
-            execute(f'DROP TABLE str_config')
+            if db.engine.dialect.name == 'mysql':
+                execute(f'DROP TABLE str_config')
             execute(f'ALTER TABLE str_config_old RENAME TO str_config')
 
-        execute('ALTER TABLE user RENAME COLUMN monthly_usage_limit_GB TO usage_limit_GB')
+        if db.engine.dialect.name == 'mysql':
+            execute('ALTER TABLE user RENAME COLUMN monthly_usage_limit_GB TO usage_limit_GB')
         execute(f'update admin_user set parent_admin_id=1 where parent_admin_id is NULL and 1!=id')
         execute(f'update admin_user set max_users=100,max_active_users=100 where max_users is NULL')
         execute(f'update dailyusage set child_id=0 where child_id is NULL')

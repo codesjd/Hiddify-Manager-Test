@@ -44,12 +44,10 @@ def update_local_usage_not_lock():
         raise
 
 
-def add_users_usage_uuid(uuids_bytes: Dict[str, Dict], child_id, sync=False):
+def add_users_usage_uuid(uuids_bytes: dict, child_id, sync=False):
     uuids_bytes = {u: v for u, v in uuids_bytes.items() if v and v.get('usage', 0) > 0}
-    uuids = uuids_bytes.keys()
-    users = db.session.query(User).filter(User.uuid.in_(uuids))
-    dbusers_bytes = {u: uuids_bytes.get(u.uuid, {"usage": 0}) for u in users}
-    _add_users_usage(dbusers_bytes, child_id, sync)  # type: ignore
+    data = [{'uuid': uuid, 'usage': v['usage']} for uuid, v in uuids_bytes.items()]
+    return add_users_usage_new(data, child_id=child_id, sync=sync)
 
 
 def _reset_priodic_usage() -> bool:
@@ -119,7 +117,19 @@ def add_users_usage_new(usages: list[dict], child_id, sync=False):
 
     apply_changes = _reset_priodic_usage()
     
-    db_execute("CALL add_usage_json(:usage_data,:cur_time)", usage_data=json.dumps(usages),cur_time=cur_time.strftime('%Y-%m-%d %H:%M:%S'), commit=True)
+
+    if db.engine.dialect.name == 'mysql':
+        db_execute("CALL add_usage_json(:usage_data,:cur_time)", usage_data=json.dumps(usages),cur_time=cur_time.strftime('%Y-%m-%d %H:%M:%S'), commit=True)
+    else:
+        usage_map = {u['uuid']: u['usage'] for u in usages}
+        users_to_update = db.session.query(User).filter(User.uuid.in_(usage_map.keys())).all()
+        for user in users_to_update:
+            user.current_usage = (user.current_usage or 0) + usage_map[user.uuid]
+            user.last_online = cur_time
+            if user.start_date is None:
+                user.start_date = today
+        db.session.commit()
+
 
     usage_map = {u['uuid']: u for u in usages}
     

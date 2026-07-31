@@ -87,7 +87,6 @@ def login_user(user: AdminUser | User, remember=False, duration=None, force=Fals
         current_app.session_interface.regenerate(session)  # type: ignore[attr-defined]
 
     account_id = user.get_id()  # type: ignore
-    # print('account_id', account_id)
     if user.role in {Role.super_admin, Role.admin, Role.agent}:
         session["_admin_id"] = account_id
     else:
@@ -135,7 +134,6 @@ def login_required2(roles: set[Role] | None = None, node_auth: bool = False, per
 
         @wraps(fn)
         def decorated_view(*args, **kwargs):
-            # print('xxxx', current_account)
             if node_auth and not Child.node and not roles:
                 json_abort(403, 'Unauthorized node')
             if not current_account and not node_auth:
@@ -196,16 +194,13 @@ def auth_before_request():
     if ".webmanifest" in request.path:
         return
 
-    # print("before_request")
     account = None
 
     is_admin_path = hutils.flask.is_admin_proxy_path()
     next_url = None
 
     if g.uuid and not is_admin_path:
-        # print("uuid", g.uuid, is_admin_path)
         account = get_account_by_uuid(g.uuid, is_admin_path)
-        # print(account)
         if not account or account.password!="":
             return logout_redirect()
 
@@ -220,11 +215,9 @@ def auth_before_request():
         if not account:
             return logout_redirect()
     elif request.authorization:
-        # print('request.authorization', request.authorization)
         uname = request.authorization.username
         pword = request.authorization.password
         if not pword:
-            # print("NO PASSWORD so it is uuid")
             account = get_account_by_uuid(uname, is_admin_path)
         else:
             account = AdminUser.by_username_password(uname, pword) if is_admin_path else User.by_username_password(uname, pword)
@@ -232,12 +225,10 @@ def auth_before_request():
             return logout_redirect()
 
     elif (session_user := session.get('_user_id')) and not is_admin_path:
-        # print('session_user', session_user)
         account = User.by_id(int(session_user.split("_")[1]))  # type: ignore
         if not account:
             return logout_redirect()
     elif (session_admin := session.get('_admin_id')) and is_admin_path:
-        # print('session_admin', session_admin)
         account = AdminUser.by_id(int(session_admin.split("_")[1]))  # type: ignore
         if not account:
             return logout_redirect()
@@ -247,7 +238,6 @@ def auth_before_request():
         # g.account_uuid = account.uuid
         g.is_admin = hutils.flask.is_admin_role(account.role)  # type: ignore
         login_user(account, force=True)
-        # print("loggining in")
         if not g.is_admin:
             return
         if next_url is None:
@@ -261,7 +251,6 @@ def auth_before_request():
 
 
 def logout_redirect():
-    print(f"Incorrect user {current_account}.... loggining out")
     logout_user()
     return redirect_to_login()
 
