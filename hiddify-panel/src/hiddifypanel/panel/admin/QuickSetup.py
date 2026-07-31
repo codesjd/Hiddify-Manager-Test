@@ -252,21 +252,36 @@ def get_quick_setup_form(empty=False):
         submit = wtf.SubmitField(_('Submit'))
 
         def post(self, view):
-            Domain.query.filter(Domain.domain == f'{hutils.network.get_ip_str(4)}.sslip.io').delete()
+            # Every lookup here is scoped to the current child (matching
+            # DomainAdmin.py's own convention, e.g. its
+            # `query.filter(Domain.child_id == Child.current().id)`) -
+            # Domain.domain has no unique constraint (multiple children, or
+            # this same child in a different mode, can share a domain
+            # string), so an unscoped `Domain.query.filter(Domain.domain ==
+            # ...)` can match a stale row left over from a different child
+            # (e.g. an earlier install reusing the same server/domain) and
+            # silently skip creating/claiming it for *this* child. That
+            # leaves the admin's session pointed at the child they just
+            # configured while the domain they submitted still resolves to
+            # the other child's config - including its own, likely still-
+            # True first_setup - which looks like Quick Setup refusing to
+            # complete and redirecting back to itself.
+            current_child_id = Child.current().id
+            Domain.query.filter(Domain.domain == f'{hutils.network.get_ip_str(4)}.sslip.io', Domain.child_id == current_child_id).delete()
             domain = (self.domain.data or '').lower()
             if domain:
-                if not Domain.query.filter(Domain.domain == domain).first():
-                    db.session.add(Domain(domain=domain, mode=DomainType.direct))
+                if not Domain.query.filter(Domain.domain == domain, Domain.child_id == current_child_id).first():
+                    db.session.add(Domain(domain=domain, mode=DomainType.direct, child_id=current_child_id))
                 # Same dual-purpose mechanism as DomainAdmin.py's
                 # also_enable_xicmp - xICMP needs no DNS/NS setup, so the
                 # domain entered above (even a bare server IP) can serve
                 # xICMP at the same time as Direct.
-                if self.enable_xicmp.data and not Domain.query.filter(Domain.domain == domain, Domain.mode == DomainType.xicmp).first():
-                    db.session.add(Domain(domain=domain, mode=DomainType.xicmp))
+                if self.enable_xicmp.data and not Domain.query.filter(Domain.domain == domain, Domain.mode == DomainType.xicmp, Domain.child_id == current_child_id).first():
+                    db.session.add(Domain(domain=domain, mode=DomainType.xicmp, child_id=current_child_id))
             if self.cdn_domain.data:
                 cdn_domain = self.cdn_domain.data.lower()
-                if not Domain.query.filter(Domain.domain == cdn_domain).first():
-                    db.session.add(Domain(domain=cdn_domain, mode=DomainType.cdn))
+                if not Domain.query.filter(Domain.domain == cdn_domain, Domain.child_id == current_child_id).first():
+                    db.session.add(Domain(domain=cdn_domain, mode=DomainType.cdn, child_id=current_child_id))
             set_hconfig(ConfigEnum.block_iran_sites, self.block_iran_sites.data)
             set_hconfig(ConfigEnum.decoy_domain, self.decoy_domain.data)
 
@@ -291,7 +306,11 @@ def validate_domain_not_conflicting(mode):
         submitted = (field.data or '').lower()
         if not submitted:
             return
-        existing = Domain.query.filter(Domain.domain == submitted).first()
+        # Scoped to the current child - see the child_id comment in
+        # get_proxy_form's post() above. An unscoped lookup here would
+        # reject a domain as "already used" based on a different child's
+        # row in a different mode, even though it's free for this child.
+        existing = Domain.query.filter(Domain.domain == submitted, Domain.child_id == Child.current().id).first()
         if existing and existing.mode != mode:
             raise ValidationError(_("config.Domain_already_used"))
     return _validator
