@@ -1433,6 +1433,34 @@ def _ensure_anytls_proxy_rows():
         db.session.rollback()
 
 
+def _ensure_v138_hconfigs_backfilled():
+    """Defensive backfill for _v138's add_config_if_not_exist() calls.
+
+    Same migration-numbering collision _ensure_anytls_proxy_rows() already
+    documents and backfills for the AnyTLS Proxy rows (see its docstring)
+    also applies to the 4 hconfigs _v138 seeds via add_config_if_not_exist:
+    tls_kernel_offload, anytls_enable, anytls_port, tuic_congestion_control.
+    A node whose db_version was already >= 138 before this exact _v138 body
+    existed in the codebase never runs it, so these hconfigs stay unset -
+    the TUIC inbound template (singbox/configs/05_inbounds_4010_tuic.json.j2)
+    reads hconfigs['tuic_congestion_control'] unconditionally, so a missing
+    value there breaks the TUIC inbound's config generation entirely, not
+    just a per-user proxy field. add_config_if_not_exist is idempotent
+    (only sets a key if it's currently unset), so this is safe to call
+    unconditionally on every init_db() run, same as
+    _ensure_anytls_proxy_rows().
+    """
+    try:
+        add_config_if_not_exist(ConfigEnum.tls_kernel_offload, False)
+        add_config_if_not_exist(ConfigEnum.anytls_enable, False)
+        add_config_if_not_exist(ConfigEnum.anytls_port, hutils.random.get_random_unused_port())
+        add_config_if_not_exist(ConfigEnum.tuic_congestion_control, "cubic")
+        db.session.commit()
+    except Exception:
+        logger.exception("Failed to backfill _v138 hconfigs (non-fatal).")
+        db.session.rollback()
+
+
 # (Domain column, the internal_port_* property it mirrors) for the 7
 # per-domain port overrides added alongside the domain Ports-section
 # completion. Shared with _ensure_domain_port_columns_backfilled below -
@@ -1544,6 +1572,7 @@ def init_db():
         _ensure_mieru_naive_relay_variants()
         _ensure_default_proxy_rows()
         _ensure_anytls_proxy_rows()
+        _ensure_v138_hconfigs_backfilled()
         _ensure_domain_port_columns_backfilled()
         return
     
@@ -1609,6 +1638,7 @@ def init_db():
         db.session.commit()
     g.child = Child.by_id(0)
     _ensure_anytls_proxy_rows()
+    _ensure_v138_hconfigs_backfilled()
     _ensure_domain_port_columns_backfilled()
     return BoolConfig.query.all()
 
