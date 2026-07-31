@@ -96,11 +96,14 @@ allow_port "tcp" {{hconfigs['ssh_server_port']}} #ssh_server
 remove_port "tcp" {{hconfigs['ssh_server_port']}}  #ssh_server
 {%endif%}
 
-{% for port in (hconfigs['tls_ports']+","+ hconfigs['http_ports']).split(',') if port %}
-allow_port "tcp" {{port}} #panel ports
-{%endfor%}
-{% for port in (hconfigs['tls_ports']).split(',') if port %}
-  allow_port "udp" {{port}}
+{% for d in domains if d['http_port'] or d['tls_port'] %}
+{% if d['http_port'] %}
+allow_port "tcp" {{d['http_port']}} #{{d['domain']}} http port
+{% endif %}
+{% if d['tls_port'] %}
+allow_port "tcp" {{d['tls_port']}} #{{d['domain']}} tls port
+allow_port "udp" {{d['tls_port']}} #{{d['domain']}} quic port
+{% endif %}
 {%endfor%}
 
 # Check if PasswordAuthentication is enabled
@@ -137,9 +140,17 @@ save_firewall
 #fi
 {% if hconfigs['auto_update'] %}
 echo "0 3 * * * root $(pwd)/../update.sh --no-gui --no-log" >/etc/cron.d/hiddify_auto_update
+# Keeps packages.lock's xray entry pinned to the latest real release
+# (see sync_latest_xray.sh's own header) instead of requiring a manual
+# packages.lock edit every time XTLS/Xray-core ships. Same auto_update
+# gate as the update.sh cron above - an admin who's turned off automatic
+# updates entirely shouldn't have this quietly reintroduce one. A
+# different hour (4am vs 3am) so it doesn't race update.sh's own run.
+echo "0 4 * * * root bash $(pwd)/sync_latest_xray.sh >>/opt/hiddify-manager/log/system/sync_latest_xray.log 2>&1" >/etc/cron.d/hiddify_sync_latest_xray
 service cron reload
 {%else%}
 rm -rf /etc/cron.d/hiddify_auto_update
+rm -rf /etc/cron.d/hiddify_sync_latest_xray
 service cron reload
 {%endif%}
 

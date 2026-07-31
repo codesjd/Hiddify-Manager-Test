@@ -9,7 +9,7 @@ import flask_babel
 import flask_babel
 from flask_babel import lazy_gettext as _
 # from flask_babelex import gettext as _
-from flask import render_template, g  # type: ignore
+from flask import render_template  # type: ignore
 from markupsafe import Markup
 
 from hiddifypanel.hutils.flask import hurl_for
@@ -18,36 +18,13 @@ from hiddifypanel import hutils
 from hiddifypanel.auth import login_required
 import wtforms as wtf
 from flask_bootstrap import SwitchField
+from hiddifypanel.panel.admin.ProxyAdmin import is_shown_on_proxies_page
 
 # from gettext import gettext as _
 from flask_classful import FlaskView
 from flask_wtf import FlaskForm
 from bleach import clean as bleach_clean, ALLOWED_TAGS as BLEACH_ALLOWED_TAGS
 ALLOWED_TAGS = set([*BLEACH_ALLOWED_TAGS, "h1", "h2", "h3", "h4", "p"])
-
-
-# Same BoolConfig keys already editable, with a friendlier per-protocol
-# layout, on the dedicated Proxies page's own top section
-# (ProxyAdmin.get_global_config_form(), which lists every *_enable
-# BoolConfig not in ConfigCategory.hidden) - showing them again here meant
-# two different pages editing the exact same switch. Kept under
-# ConfigCategory.proxies (rather than moved to hidden) since that category
-# also still carries fields with no other home (naive_port, block_iran_sites,
-# shared_secret) and reassigning it would also drop them off the Proxies
-# page's own filter, which itself excludes anything in ConfigCategory.hidden.
-_PROXIES_CATEGORY_DUPES_ON_PROXY_PAGE = {
-    ConfigEnum.vmess_enable, ConfigEnum.ws_enable, ConfigEnum.grpc_enable,
-    ConfigEnum.httpupgrade_enable, ConfigEnum.xhttp_enable, ConfigEnum.naive_enable,
-    ConfigEnum.vless_enable, ConfigEnum.trojan_enable, ConfigEnum.reality_enable,
-    ConfigEnum.tcp_enable, ConfigEnum.quic_enable, ConfigEnum.h2_enable,
-    # Also a BoolConfig ending in "_enable" under ConfigCategory.proxies, so
-    # it passes ProxyAdmin.get_global_config_form()'s filter too (any
-    # non-hidden *_enable BoolConfig not in its own 4-item exclusion list) -
-    # missed in the original pass since it reads as a subscription-format
-    # toggle rather than a protocol switch, but it's still shown on both
-    # pages today.
-    ConfigEnum.sub_full_xray_json_enable,
-}
 
 
 def _skip_if_unchanged(validator, stored_value):
@@ -97,12 +74,9 @@ class SettingAdmin(FlaskView):
                         if k.type == str:
                             if "_domain" in k or "_fakedomain" in k:
                                 v = v.lower()
-                            if k == ConfigEnum.warp_sites and 'https://' in v:
-                                hutils.flask.flash(_("config.warp-https-domain-for-warp-site"), 'error')
-                                return render_template('config.html', form=form)
                             if "port" in k:
                                 for p in v.split(","):
-                                    if (k != ConfigEnum.tls_ports and p == "443") or (k != ConfigEnum.http_ports and p == "80"):
+                                    if p in ("443", "80"):
                                         hutils.flask.flash(_("Port 80 and 443 can not be selected"), 'error')
                                         return render_template('config.html', form=form)
                                     for c_, c_items2 in form.data.items():
@@ -235,8 +209,15 @@ def get_config_form():
             continue
 
         cat_configs = [c for c in ConfigEnum if c.category == cat and (not is_parent or c.show_in_parent)]
-        if cat == ConfigCategory.proxies:
-            cat_configs = [c for c in cat_configs if c not in _PROXIES_CATEGORY_DUPES_ON_PROXY_PAGE]
+        # Every protocol/feature enable-disable toggle already has a switch
+        # on the dedicated Proxies page (get_global_config_form) - showing
+        # the same BoolConfig a second time here, regardless of which
+        # Settings category it's filed under, is just a duplicate control.
+        # webhook_enable also technically passes that page's filter (it's
+        # purely name-based: any non-hidden "*_enable" key), but webhook
+        # isn't a proxy/protocol - Settings stays its one real home.
+        cat_configs = [c for c in cat_configs
+                       if c == ConfigEnum.webhook_enable or not (c.type == bool and is_shown_on_proxies_page(c))]
         if len(cat_configs) == 0:
             continue
 
@@ -259,12 +240,6 @@ def get_config_form():
                                         choices=[("xray", _("Xray")), ("singbox", _("SingBox"))],
                                         description=_(f"config.{c.key}.description"),
                                         default=hconfig(c.key))
-            elif c.key == ConfigEnum.warp_mode:
-                field = wtf.SelectField(_(f"config.{c.key}.label"),
-                                        choices=[("disable", _("Disable")), ("all", _("All")), ("custom", _("Only Blocked and Local websites"))],
-                                        description=_(f"config.{c.key}.description"),
-                                        default=hconfig(c.key))
-            
             elif c.key == ConfigEnum.lang or c.key == ConfigEnum.admin_lang:
                 field = wtf.SelectField(
                     _(f"config.{c.key}.label"),
@@ -279,6 +254,12 @@ def get_config_form():
                 if hconfig(c.key) == "develop":
                     package_modes.append(("develop", _("Develop")))
                 field = wtf.SelectField(_(f"config.{c.key}.label"), choices=package_modes, description=_(f"config.{c.key}.description"), default=hconfig(c.key))
+            elif c.key == ConfigEnum.log_level:
+                field = wtf.SelectField(
+                    _(f"config.{c.key}.label"),
+                    choices=[(lvl.value, lvl.value) for lvl in LogLevel],
+                    description=_(f"config.{c.key}.description"),
+                    default=hconfig(c.key))
             
 
             # the shadowsocks2022_method is hidden now, because it only has one option to choose
@@ -323,13 +304,6 @@ def get_config_form():
                 choices = [("smux", 'smux'), ("yamux", "yamux"), ("h2mux", "h2mux")]
                 field = wtf.SelectField(_(f"config.{c.key}.label"), choices=choices, description=_(f"config.{c.key}.description"), default=hconfig(c.key))
 
-            elif c.key == ConfigEnum.warp_sites:
-                validators = [wtf.validators.Length(max=2048),
-                              wtf.validators.Regexp(r'^(?:[\w.-]+\.\w+(?:\.\w+)?(?:\r?\n|$)|^$)', 0, _("config.invalid-pattern-for-warp-sites") + f' {c.key}')
-                              ]
-                render_kw = {'class': "ltr", 'maxlength': 2048}
-                field = wtf.TextAreaField(_(f'config.{c.key}.label'), validators, default=c.value,
-                                          description=_(f'config.{c.key}.description'), render_kw=render_kw)
             elif c.key == ConfigEnum.additional_configs_urls:
                 render_kw = {'class': "ltr", 'maxlength': 20480}
                 field = wtf.TextAreaField(_(f'config.{c.key}.label'), default=c.value,
@@ -390,16 +364,12 @@ def get_config_form():
                     render_kw['required'] = ""
 
                 if 'port' in c.key:
-                    # tls_ports/http_ports used to be required (couldn't be
-                    # emptied) AND the haproxy fronts always prepended 443/80
-                    # to whatever was set, so a custom port was only ever
-                    # *added* alongside 443/80, never used *instead* of them.
-                    # Now the field is optional and drives the bound ports
-                    # directly (haproxy falls back to 443/80 only when it's
-                    # empty - see haproxy/fronts/*.pj2), so an admin can serve
-                    # on, e.g., 8443 only. The firewall still allows 80/443
-                    # unconditionally (Actions.all_public_ports), so clearing
-                    # this can't close those at the firewall.
+                    # HTTP/TLS ports moved off this page entirely - they're
+                    # now a per-domain Domain.http_port/tls_port override set
+                    # on the Domains page (see DomainAdmin.py), defaulting to
+                    # 80/443 when left blank. This validator still applies to
+                    # the other comma-separated port lists left here
+                    # (mieru_tcp_ports/mieru_udp_ports).
                     validators.append(wtf.validators.Regexp("^(\\d+)(,\\d+)*$|^$", re.IGNORECASE, _("config.Invalid_port")))
                     # validators.append(wtf.validators.Regexp("^(\d+)(,\d+)*$",re.IGNORECASE,_("config.port is required")))
 
@@ -417,9 +387,6 @@ def get_config_form():
                     if hasattr(val, "regex"):
                         render_kw['pattern'] = val.regex.pattern
                         render_kw['title'] = val.message
-
-                if c.key == ConfigEnum.reality_public_key and g.account.mode in [AdminMode.super_admin]:
-                    extra_info = f" <a href='{hurl_for('admin.Actions:change_reality_keys')}'>{_('Change')}</a>"
 
                 label = _(f'config.{c.key}.label')
                 description = _(f'config.{c.key}.description')

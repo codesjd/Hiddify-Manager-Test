@@ -25,6 +25,197 @@
     .breadcrumb {
         display: none;
     }
+
+    .form-group {
+        padding-left: 0.5%;
+    }
+
+    /* Custom checkbox-list widget replacing the native <select multiple>
+       for #show_domains (Domain create/edit) - see initDomainMultiSelect()
+       below. Scrollable instead of growing the page with hundreds of
+       domains, filterable, and a single Select all/Clear all toggle
+       instead of requiring Ctrl+click on the native control. */
+    .domain-multiselect-summary-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        font-size: 12px;
+        color: var(--muted, inherit);
+        margin-bottom: 6px;
+    }
+    .domain-multiselect-selectall {
+        cursor: pointer;
+    }
+    .domain-multiselect-list {
+        max-height: 180px;
+        overflow-y: auto;
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+        margin-top: 8px;
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        padding: 6px;
+        width: 100%;
+        min-width: 0;
+    }
+    /* Each row is itself a flex item of the column-direction list above -
+       same min-width:auto quirk as .ports-row's columns: without
+       min-width:0 here, a long unbreakable domain name can force the row
+       (and the list/card containing it) wider than its actual space
+       instead of wrapping/truncating within it. */
+    .domain-multiselect-row {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 9px 12px;
+        cursor: pointer;
+        border-radius: 8px;
+        font-size: 13px;
+        min-width: 0;
+    }
+    .domain-multiselect-row.selected {
+        background: var(--track);
+    }
+    .domain-multiselect-check {
+        width: 16px;
+        height: 16px;
+        border-radius: 4px;
+        border: 1px solid var(--border);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+        color: #fff;
+        font-size: 11px;
+    }
+    .domain-multiselect-label {
+        min-width: 0;
+        overflow-wrap: break-word;
+    }
+    .domain-multiselect-check.selected {
+        background: var(--accent);
+        border-color: var(--accent);
+    }
+    /* Same row/list box styling as .domain-multiselect-row/-list above, but
+       single-select: a radio circle (outline + centered dot when selected)
+       instead of a checkbox square, for #download_domain - see
+       initDownloadDomainRadioList() below. */
+    .domain-radio-indicator {
+        width: 16px;
+        height: 16px;
+        border-radius: 50%;
+        border: 1px solid var(--border);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+    }
+    .domain-radio-indicator.selected {
+        border-color: var(--accent);
+    }
+    .domain-radio-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: var(--accent);
+        display: none;
+    }
+    .domain-radio-indicator.selected .domain-radio-dot {
+        display: block;
+    }
+
+    /* Collapsible "Ports"/"Advanced" fieldsets on the Domain create/edit
+       form - see initDomainFieldsets() below. Same card/legend/"+"-icon/
+       fade-in look as the Settings page's .cat-card (config.html), but
+       with an explicit .cat-body wrapper instead of hiding .form-group
+       directly: hide_domain_elements() already shows/hides individual
+       moved fields (http_port/tls_port/show_domains/download_domain) via
+       plain jQuery .hide()/.show() on their own .form-group, and giving
+       .cat-card.open .form-group a `display:block !important` (like
+       config.html does) would force-show a field hide_domain_elements()
+       just hid for the current mode. Toggling visibility on the .cat-body
+       wrapper instead - one level up - never touches the per-field inline
+       style, so both mechanisms stay independent.
+       */
+    .cat-card {
+        background: var(--bg); /* not --surface - the modal body itself is
+        --surface, so a --surface card only showed up via its border */
+        border: 1px solid var(--border);
+        border-radius: 16px;
+        box-shadow: var(--card-shadow);
+        margin: 0 0 12px;
+        padding: 17px 17px;
+        box-sizing: border-box;
+        width: 100%;
+        /* Backstop against the same "flex item without min-width:0"
+           overflow this fieldset has already hit twice (Ports' 2-column
+           row, then the show_domains checklist's row/label) - anything
+           that grows past the card's own width gets clipped here instead
+           of pushing the card's right border out of view. The real fixes
+           for both cases are on their own elements below/elsewhere; this
+           is just a net so a third instance can't silently repeat it. */
+        overflow: hidden;
+    }
+    .cat-legend {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-weight: 700;
+        font-size: 13.5px;
+        color: var(--text-primary);
+        cursor: pointer;
+        margin: 0;
+        line-height: 1.2;
+    }
+    .cat-legend-plus {
+        color: var(--accent);
+        font-weight: 700;
+    }
+    .cat-card .cat-body {
+        display: none;
+        margin-top: 14px;
+        width: 100%;
+        box-sizing: border-box;
+    }
+    .cat-card.open .cat-body {
+        display: block;
+        animation: catExpand 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .cat-card .cat-body .form-group:last-child {
+        margin-bottom: 0;
+    }
+    @keyframes catExpand {
+        from { opacity: 0; transform: translateY(-8px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+    /* HTTP Port + TLS Port side by side inside the Ports fieldset instead
+       of each taking a full-width row - see initDomainFieldsets() below,
+       which wraps both .form-group's in a shared .ports-row. */
+    .ports-row {
+        display: flex;
+        gap: 14px;
+        flex-wrap: wrap;
+        width: 100%;
+    }
+    .ports-row > .form-group {
+        flex: 1 1 0; /* not plain flex:1 - a flex item's default min-width
+        is auto (the width of its longest unbreakable content, e.g. TLS
+        Port's help text), which pushes the column wider than its actual
+        share; min-width:0 below is what actually lets it shrink to fit */
+        min-width: 0;
+    }
+    .ports-row .form-text.text-muted {
+        width: 100%;
+        word-wrap: break-word;
+    }
+    /* also_enable_xicmp sits directly under the Ports fieldset (both live
+       right after Resolve IP) with no gap between the fieldset's own
+       bottom margin and this checkbox's label, unlike every other
+       .form-group here which already has breathing room above it. */
+    .form-group:has(#also_enable_xicmp) {
+        margin-top: 1rem;
+    }
 </style>
 {% endblock %}
 
@@ -77,16 +268,383 @@
         $el.multipleSelect({ width: '100%', filter: true, placeholder: placeholder || '{{ _("Select...") }}' });
     }
 
+    // Replaces the native <select multiple id="show_domains"> with a
+    // filterable, scrollable checkbox list - the native control needs
+    // Ctrl+click and has no search, which doesn't scale past a handful of
+    // domains. The original <select> is kept in the DOM (just hidden, not
+    // removed) and its <option>.selected state is updated on every click,
+    // so flask-admin's own form submit still reads the real multi-select
+    // value - no backend/WTForms change needed.
+    function initDomainMultiSelect($select) {
+        if (!$select.length) return;
+
+        // Idempotent like initMultipleSelect()'s .multipleSelect('destroy') -
+        // update_hiddify_ui() can run more than once per modal open (see
+        // bindModalOpenHandler() below), so drop any previous wrapper
+        // before rebuilding instead of stacking a second one.
+        var previous = $select.data('domainMultiselectWrapper');
+        if (previous) {
+            previous.remove();
+        }
+        $select.hide();
+
+        var rows = [];
+        var selectedCount = 0;
+
+        var $wrapper = $('<div class="domain-multiselect-wrapper"></div>');
+        var $summaryRow = $('<div class="domain-multiselect-summary-row"></div>');
+        var $summaryText = $('<span class="domain-multiselect-summary-text"></span>');
+        var $selectAllBtn = $('<a href="#" class="domain-multiselect-selectall"></a>');
+        var $filter = $('<input type="text" class="form-control domain-multiselect-filter">')
+            .attr('placeholder', '{{ _("Filter domains...") }}');
+        var $list = $('<div class="domain-multiselect-list"></div>');
+
+        function updateSummary() {
+            var total = rows.length;
+            if (selectedCount === 0) {
+                $summaryText.text('{{ _("None selected") }}');
+            } else if (selectedCount === total) {
+                $summaryText.text('{{ _("All domains selected") }}');
+            } else {
+                $summaryText.text(selectedCount + ' {{ _("of") }} ' + total + ' {{ _("selected") }}');
+            }
+            $selectAllBtn.text(selectedCount === total ? '{{ _("Clear all") }}' : '{{ _("Select all") }}');
+        }
+
+        Array.from($select[0].options).forEach(function (option) {
+            var $row = $('<div class="domain-multiselect-row"></div>');
+            var $check = $('<div class="domain-multiselect-check"></div>');
+            var $label = $('<span class="domain-multiselect-label"></span>').text(option.text);
+            $row.append($check).append($label);
+
+            function setChecked(isChecked) {
+                option.selected = isChecked;
+                $row.toggleClass('selected', isChecked);
+                $check.toggleClass('selected', isChecked).html(isChecked ? '&#10003;' : '');
+            }
+
+            if (option.selected) {
+                selectedCount++;
+            }
+            setChecked(option.selected);
+
+            $row.on('click', function () {
+                var willSelect = !option.selected;
+                setChecked(willSelect);
+                selectedCount += willSelect ? 1 : -1;
+                updateSummary();
+            });
+
+            $list.append($row);
+            rows.push({ option: option, $row: $row, setChecked: setChecked });
+        });
+
+        $filter.on('input', function () {
+            var q = $filter.val().toLowerCase();
+            rows.forEach(function (r) {
+                r.$row.toggle(r.option.text.toLowerCase().indexOf(q) !== -1);
+            });
+        });
+
+        $selectAllBtn.on('click', function (e) {
+            e.preventDefault();
+            var willSelectAll = selectedCount !== rows.length;
+            rows.forEach(function (r) {
+                r.setChecked(willSelectAll);
+            });
+            selectedCount = willSelectAll ? rows.length : 0;
+            updateSummary();
+        });
+
+        updateSummary();
+
+        $wrapper.append($summaryRow.append($summaryText).append($selectAllBtn))
+            .append($filter)
+            .append($list);
+        $select.after($wrapper);
+        $select.data('domainMultiselectWrapper', $wrapper);
+    }
+
+    // Replaces the native single-select <select id="download_domain"> with
+    // a clickable radio list - same boxed list look as
+    // initDomainMultiSelect()'s .domain-multiselect-list above (border +
+    // border-radius around the whole list), so the two widgets read as
+    // one visual family, but single-select (a radio circle instead of a
+    // checkbox square). The blank/"no override" option's own <option> text
+    // is empty (WTForms' QuerySelectField blank choice), so it's relabeled
+    // to "None" here rather than left blank like the real option. The
+    // original <select> is kept in the DOM (hidden, not removed) and its
+    // value is kept in sync on every click, so flask-admin's own form
+    // submit still reads the real field - no backend/WTForms change needed.
+    function initDownloadDomainRadioList($select) {
+        if (!$select.length) return;
+
+        // Idempotent like initDomainMultiSelect() above - update_hiddify_ui()
+        // can run more than once per modal open (see bindModalOpenHandler()
+        // below), so drop any previous wrapper before rebuilding.
+        var previous = $select.data('downloadDomainRadioWrapper');
+        if (previous) {
+            previous.remove();
+        }
+        $select.hide();
+
+        var rows = [];
+        var $wrapper = $('<div class="domain-multiselect-wrapper"></div>');
+        var $list = $('<div class="domain-multiselect-list"></div>');
+
+        Array.from($select[0].options).forEach(function (option) {
+            var $row = $('<div class="domain-multiselect-row"></div>');
+            var $indicator = $('<div class="domain-radio-indicator"><span class="domain-radio-dot"></span></div>');
+            var label = option.text.trim() || '{{ _("None") }}';
+            var $label = $('<span class="domain-multiselect-label"></span>').text(label);
+            $row.append($indicator).append($label);
+
+            function select() {
+                option.selected = true;
+                rows.forEach(function (r) {
+                    var isThis = r.option === option;
+                    r.$row.toggleClass('selected', isThis);
+                    r.$indicator.toggleClass('selected', isThis);
+                });
+            }
+
+            $row.on('click', function () {
+                select();
+                $select.trigger('change');
+            });
+
+            $list.append($row);
+            rows.push({ option: option, $row: $row, $indicator: $indicator, select: select });
+
+            if (option.selected) {
+                $row.addClass('selected');
+                $indicator.addClass('selected');
+            }
+        });
+
+        $wrapper.append($list);
+        $select.after($wrapper);
+        $select.data('downloadDomainRadioWrapper', $wrapper);
+    }
+
+    // Replaces the single raw JSON textarea backing #extra_params (DNSTT's
+    // per-domain override blob, rendered server-side by CustomJSONField)
+    // with one labeled input per known DNSTT field, matching the design
+    // handoff. The textarea stays in the DOM (hidden) and is exactly
+    // what actually gets submitted - it's kept in sync from the individual
+    // inputs on every change, so the backend's CustomJSONField/Pydantic
+    // validation is completely untouched.
+    //
+    // extra_params doubles as a generic per-domain override for ANY key
+    // (see DnsTT's `model_config = ConfigDict(extra='allow')` and
+    // apply_domain_overrides() server-side) - any key already present in
+    // the textarea that isn't one of the known DNSTT fields below is kept
+    // in extraKeys and merged straight back in on serialize, so editing a
+    // domain that already has a custom override (e.g. "fingerprint") can't
+    // silently drop it just because this UI has no input for it.
+    function initDnsttParamsUI($textarea) {
+        if (!$textarea.length) return;
+
+        var previous = $textarea.data('dnsttParamsWrapper');
+        if (previous) {
+            previous.remove();
+            $textarea.removeData('dnsttParamsWrapper');
+        }
+
+        // This known-fields widget only makes sense for DNSTT's own params
+        // (mtu/keepalive/...) - xdns domains use the same extra_params blob
+        // for their own unrelated xdns_resolvers key (see DomainAdmin.py's
+        // extra_params model) and every other mode uses it as a free-form
+        // override, so leave the raw textarea editable for
+        // all of them instead of showing DNSTT fields that
+        // don't apply.
+        if ($("#mode").val() !== "dnstt") {
+            $textarea.show();
+            return;
+        }
+        $textarea.hide();
+
+        var KNOWN_FIELDS = ['mtu', 'keepalive', 'idle_timeout', 'clientid_size', 'record_type', 'max_qname_len', 'open_stream_timeout'];
+
+        // CustomJSONField._value() always renders one `"key": value, //
+        // comment` line per known model field (server-controlled format,
+        // not free-form JSON5) - a per-line regex is enough to recover the
+        // current values without needing a full JSON5/comment parser.
+        function parseParams(text) {
+            var result = {};
+            (text || '').split('\n').forEach(function (line) {
+                var m = line.match(/^\s*"([A-Za-z0-9_]+)":\s*(.*?),?\s*(?:\/\/.*)?$/);
+                if (!m) return;
+                var raw = m[2].trim().replace(/,$/, '');
+                var value;
+                if (raw === 'true') value = true;
+                else if (raw === 'false') value = false;
+                else if (/^".*"$/.test(raw)) value = raw.slice(1, -1);
+                else if (raw !== '' && !isNaN(Number(raw))) value = Number(raw);
+                else value = raw;
+                result[m[1]] = value;
+            });
+            return result;
+        }
+
+        var current = parseParams($textarea.val());
+        var extraKeys = {};
+        Object.keys(current).forEach(function (key) {
+            if (KNOWN_FIELDS.indexOf(key) === -1 && key !== 'dnstt_compat') extraKeys[key] = current[key];
+        });
+
+        var FIELD_DEFS = [
+            { key: 'mtu', label: '{{ _("MTU") }}', placeholder: '1232 {{ _("(default)") }}', help: '{{ _("Maximum size of DNS responses. Leave empty to use the default 1232.") }}' },
+            { key: 'keepalive', label: '{{ _("Keepalive") }}', placeholder: '2s {{ _("(default)") }}', help: '{{ _("Keepalive ping interval; must be less than the idle timeout.") }}' },
+            { key: 'idle_timeout', label: '{{ _("Idle Timeout") }}', placeholder: '10s {{ _("(default)") }}', help: '{{ _("Session idle timeout. Tears down sessions with no data within this period.") }}' },
+            { key: 'clientid_size', label: '{{ _("Client ID Size") }}', placeholder: '2 {{ _("(default)") }}', help: '{{ _("Client ID size in bytes. Ignored when DNSTT Compat is enabled.") }}' },
+            { key: 'record_type', label: '{{ _("Record Type") }}', placeholder: 'txt {{ _("(default)") }}', help: '{{ _("DNS record type for downstream data: txt, cname, a, aaaa, mx, ns, or srv.") }}' },
+            { key: 'max_qname_len', label: '{{ _("Max QName Length") }}', placeholder: '101 {{ _("(default)") }}', help: '{{ _("Maximum total QNAME length in wire format (253 per RFC 1035).") }}' },
+            { key: 'open_stream_timeout', label: '{{ _("Open Stream Timeout") }}', placeholder: '10s {{ _("(default)") }}', help: '{{ _("Timeout for opening an smux stream, e.g. 500ms, 3s.") }}' }
+        ];
+
+        function buildField(def) {
+            var $group = $('<div class="form-group"></div>');
+            var $label = $('<label class="control-label"></label>').text(def.label);
+            var $input = $('<input type="text" class="form-control ltr">').attr('placeholder', def.placeholder);
+            var val = current[def.key];
+            if (val !== undefined && val !== '' && val !== 0 && val !== false) {
+                $input.val(val);
+            }
+            var $help = $('<small class="form-text text-muted"></small>').text(def.help);
+            $group.append($label).append($input).append($help);
+            return { $group: $group, $input: $input, key: def.key };
+        }
+
+        var $wrapper = $('<div class="dnstt-params-wrapper"></div>');
+        var fields = FIELD_DEFS.map(buildField);
+        var byKey = {};
+        fields.forEach(function (f) { byKey[f.key] = f; });
+
+        // Same paired-row layout as the Ports fieldset (2 per row, wrapping
+        // via .ports-row), except Open Stream Timeout, which stands alone
+        // full-width - matches the design handoff exactly.
+        [['mtu', 'keepalive'], ['idle_timeout', 'clientid_size'], ['record_type', 'max_qname_len']].forEach(function (pair) {
+            var $row = $('<div class="ports-row"></div>').appendTo($wrapper);
+            pair.forEach(function (key) { $row.append(byKey[key].$group); });
+        });
+        $wrapper.append(byKey['open_stream_timeout'].$group);
+
+        // A bare <input type="checkbox"> inside its own .form-group is
+        // exactly what update_hiddify_ui()'s generic custom-switch upgrade
+        // loop (below) looks for - it'll wrap this into the same toggle
+        // markup as Resolve IP without any extra code here.
+        var $compatGroup = $('<div class="form-group"></div>');
+        var $compatLabel = $('<label></label>').text('{{ _("DNSTT Compat") }}');
+        var $compatCheckbox = $('<input type="checkbox" id="dnstt_compat_toggle">');
+        if (current.dnstt_compat === true) $compatCheckbox.prop('checked', true);
+        var $compatHelp = $('<small class="form-text text-muted"></small>').text('{{ _("Use original dnstt wire format (8-byte ClientID, padding prefixes).") }}');
+        $compatGroup.append($compatLabel).append($compatCheckbox).append($compatHelp);
+        $wrapper.append($compatGroup);
+
+        function serialize() {
+            var result = Object.assign({}, extraKeys);
+            FIELD_DEFS.forEach(function (def) {
+                var raw = byKey[def.key].$input.val().trim();
+                if (def.key === 'record_type') {
+                    result[def.key] = raw;
+                } else {
+                    result[def.key] = raw === '' ? 0 : (isNaN(Number(raw)) ? 0 : Number(raw));
+                }
+            });
+            result.dnstt_compat = $compatCheckbox.prop('checked');
+            $textarea.val(JSON.stringify(result));
+        }
+
+        $wrapper.on('input change', 'input', serialize);
+        serialize();
+
+        $textarea.after($wrapper);
+        $textarea.data('dnsttParamsWrapper', $wrapper);
+    }
+
+    // Physically moves the HTTP Port/TLS Port fields into a collapsible
+    // "Ports" fieldset, and Show Configs of Domains/Download Domain into a
+    // collapsible "Advanced" fieldset, on the Domain create/edit form - the
+    // Basic fields (Mode, Domain, Alias, Resolve IP, ...) are left exactly
+    // where flask-admin's generic bootstrap4 render_form() put them, since
+    // there's no per-field "category" hook in that generic renderer (unlike
+    // config.html's bespoke render_category() macro, which is a fully
+    // custom template - Domain has none).
+    function initDomainFieldsets() {
+        var $resolveIp = $("#resolve_ip");
+        if (!$resolveIp.length) return;
+
+        // update_hiddify_ui() runs twice per modal open (see
+        // bindModalOpenHandler() below), on the very same DOM both times -
+        // a data flag on the form (rather than re-detecting by presence of
+        // .cat-card, which would still be true after the first run anyway)
+        // keeps a second run a no-op instead of re-building/re-nesting the
+        // fieldsets a second time.
+        var $form = $resolveIp.closest('form');
+        if ($form.data('domainFieldsetsBuilt')) return;
+        $form.data('domainFieldsetsBuilt', true);
+
+        // rows: array of either a plain field id ("#foo", its own full-width
+        // .form-group) or an array of ids (["#a","#b"], wrapped together in
+        // a shared .ports-row so they sit side by side instead of stacking).
+        function buildFieldset(title, rows) {
+            var $fieldset = $('<fieldset class="cat-card"></fieldset>');
+            var $legend = $('<div class="cat-legend"><span class="cat-legend-plus">+</span> ' + title + '</div>');
+            var $body = $('<div class="cat-body"></div>');
+            $legend.on('click', function () {
+                $fieldset.toggleClass('open');
+            });
+            rows.forEach(function (row) {
+                var ids = Array.isArray(row) ? row : [row];
+                var $target = ids.length > 1 ? $('<div class="ports-row"></div>').appendTo($body) : $body;
+                ids.forEach(function (id) {
+                    var $group = $(id).closest('.form-group');
+                    // Moves the real .form-group (label+input+help text) -
+                    // not a clone - so hide_domain_elements()'s existing
+                    // $("#id").parent().hide()/.show() calls keep working
+                    // unchanged: .parent() of the field is still this same
+                    // .form-group, just relocated to a new ancestor.
+                    if ($group.length) $target.append($group);
+                });
+            });
+            $fieldset.append($legend).append($body);
+            return $fieldset;
+        }
+
+        // Given stable ids so hide_domain_elements() can hide the whole
+        // Ports card for sub_link_only mode (which serves no traffic
+        // directly and so has no ports of its own at all), not just
+        // individual fields - a card left with a visible "Ports" legend
+        // and an empty body would look broken. Every other mode now shows
+        // at least one port field here (its own protocol-specific one(s),
+        // or http_port/tls_port for the general-purpose modes).
+        var $ports = buildFieldset('{{ _("Ports") }}', [
+            ['#http_port', '#tls_port'],
+            ['#hysteria_port', '#tuic_port'], ['#naive_port', '#anytls_port'],
+            '#dnstt_port', '#xdns_port', '#xicmp_port',
+            '#reality_port',
+        ]).attr('id', 'ports-fieldset');
+        var $advanced = buildFieldset('{{ _("Advanced") }}', [
+            '#also_enable_xicmp', '#servernames', '#cdn_ip',
+            '#reality_private_key', '#reality_public_key', '#reality_short_id',
+            '#show_domains', '#download_domain', '#extra_params'
+        ]).attr('id', 'advanced-fieldset');
+        $resolveIp.closest('.form-group').after($ports, $advanced);
+    }
+
     function update_hiddify_ui() {
 
-        initMultipleSelect($("#show_domains"), '{{ _("All domains") }}');
-        initMultipleSelect($("#download_domain"), '{{ _("None") }}');
+        initDomainFieldsets();
+        initDomainMultiSelect($("#show_domains"));
+        initDownloadDomainRadioList($("#download_domain"));
+        initDnsttParamsUI($("#extra_params"));
         initMultipleSelect($("#inbound_tags"), '{{ _("All inbounds") }}');
 
         if ($("#domain").length > 0) {
             var selectElement = document.getElementById("mode");
             var groups = [
-                { label: `{{_("Direct")}}`, options: ["direct","dnstt"] },
+                { label: `{{_("Direct")}}`, options: ["direct","dnstt","xdns","xicmp"] },
                 { label: `{{_("Panel Link")}}`, options: ["sub_link_only"] },
                 { label: `{{_("Bridge Servers")}}`, options: ["cdn",  "worker", "relay"] },
                 { label: `{{_("Fake")}}`, options: ["special_reality_xhttp","special_reality_tcp","special_reality_grpc", "fake"] }
@@ -125,30 +683,123 @@
         function hide_domain_elements() {
             console.log("test")
             $("#extra_params").parent().hide();
-            if (["dnstt",'fake','reality','special_reality_grpc','special_reality_xhttp'].includes($("#mode").val())){
+            if (["dnstt","xdns","xicmp",'fake','reality','special_reality_grpc','special_reality_xhttp'].includes($("#mode").val())){
                 $("#show_domains").parent().hide()
             }else{
                 $("#show_domains").parent().show()
             }
-           
+
+            var _mode = ($("#mode").val()) ?? "";
+            var _isReality = _mode.indexOf('reality') >= 0;
+            var _isDirectLike = ["direct", "relay", "fake"].includes(_mode);
+
+            // REALITY (any special_reality_* mode, or the deprecated bare
+            // "reality") has its own direct port/keys/short id (below) -
+            // the shared HTTP/TLS port fields, and every other protocol's
+            // own port field, don't apply to it (Domain.internal_port_*
+            // all return 0 for a REALITY-mode domain). Checked
+            // unconditionally (not nested under the sub_link_only/dnstt/
+            // else branching below) so switching straight from a REALITY
+            // mode to sub_link_only/dnstt still resets these correctly.
+            if (_isReality) {
+                $("#http_port").parent().hide();
+                $("#tls_port").parent().hide();
+                $("#reality_port").parent().show();
+                $("#reality_private_key").parent().show();
+                $("#reality_public_key").parent().show();
+                $("#reality_short_id").parent().show();
+            } else {
+                $("#http_port").parent().show();
+                $("#tls_port").parent().show();
+                $("#reality_port").parent().hide();
+                $("#reality_private_key").parent().hide();
+                $("#reality_public_key").parent().hide();
+                $("#reality_short_id").parent().hide();
+            }
+
+            // Hysteria2/TUIC/Naive/AnyTLS each get their own internal port
+            // only for the general-purpose modes (Domain.internal_port_*
+            // all gate on direct/relay/fake, or direct/relay for naive -
+            // showing naive_port on a fake-mode domain is harmless (its own
+            // property still returns 0 there regardless of this field) but
+            // grouping all four together here is simpler than a 5th
+            // near-identical branch just for that one edge case.
+            if (_isDirectLike) {
+                $("#hysteria_port").parent().show();
+                $("#tuic_port").parent().show();
+                $("#naive_port").parent().show();
+                $("#anytls_port").parent().show();
+            } else {
+                $("#hysteria_port").parent().hide();
+                $("#tuic_port").parent().hide();
+                $("#naive_port").parent().hide();
+                $("#anytls_port").parent().hide();
+            }
+            // DNSTT/xdns/xicmp are each their own single-purpose mode with
+            // one dedicated port of their own - only show that one mode's
+            // own field, matching how none of these three ever coexist.
+            $("#dnstt_port").parent().toggle(_mode == "dnstt");
+            $("#xdns_port").parent().toggle(_mode == "xdns");
+            $("#xicmp_port").parent().toggle(_mode == "xicmp");
+
+            // also_enable_xicmp (DomainAdmin.py's after_model_change())
+            // only means anything for direct-mode domains - xicmp itself
+            // has no such field (it's already the target), and every
+            // other mode has its own unrelated semantics.
+            if ($("#mode").val() == "direct") {
+                $("#also_enable_xicmp").closest('.form-group').show();
+            } else {
+                $("#also_enable_xicmp").closest('.form-group').hide();
+            }
+
+            // sub_link_only ("Only for Subscription") domains don't serve
+            // traffic directly at all, so none of the ports above apply -
+            // hide the whole Ports card, not just its fields, so it doesn't
+            // render as an empty bordered box with nothing under its
+            // legend. Every other mode now shows at least one port field.
+            if (_mode == "sub_link_only") {
+                $("#ports-fieldset").hide();
+            } else {
+                $("#ports-fieldset").show();
+            }
+
             if ($("#mode").val() == "sub_link_only") {
                 $("#cdn_ip").parent().hide();
                 $("#cdn_ip").val("")
                 //$("#mode").parent().hide();
                 
-                $("#resolve_ip").parent().hide()
+                // .closest('.form-group'), not .parent(): #resolve_ip is a
+                // checkbox that update_hiddify_ui()'s custom-switch upgrade
+                // (above) already rewrapped in a .custom-control.custom-switch
+                // div by the time this runs, so .parent() only hides that
+                // inner wrapper - the trailing help text, a sibling of the
+                // wrapper inside the same .form-group, would stay visible
+                // with no control above it.
+                $("#resolve_ip").closest('.form-group').hide()
                 $("#servernames").parent().hide();
                 $("#domain").parent().find(".control-label").html(`{{_('domain.domain')}}`)
                 $("#domain").parent().find(".help-block").html(`{{_('domain.description')}}`)
                 $("#download_domain").parent().hide();
 
             }else if ($("#mode").val() == "dnstt") {
-                $("#resolve_ip").parent().hide()
+                $("#resolve_ip").closest('.form-group').hide()
                 $("#servernames").parent().hide();
                 $("#download_domain").parent().hide();
                 $("#cdn_ip").parent().hide();
                 $("#extra_params").parent().show();
-                
+
+
+            }else if (["xdns", "xicmp"].includes($("#mode").val())) {
+                // Same shape as dnstt above: no CDN/A-record routing, no
+                // separate download domain, no HTTP/TLS ports - the
+                // the xdns_resolvers knob lives in extra_params (see
+                // DomainAdmin.py's extra_params model),
+                // same mechanism dnstt already uses for its own params.
+                $("#resolve_ip").closest('.form-group').hide()
+                $("#servernames").parent().hide();
+                $("#download_domain").parent().hide();
+                $("#cdn_ip").parent().hide();
+                $("#extra_params").parent().show();
 
             } else {
                 
@@ -156,7 +807,7 @@
                 $("#cdn_ip").parent().show();
                 //$("#mode").parent().show();
                 
-                $("#resolve_ip").parent().show()
+                $("#resolve_ip").closest('.form-group').show()
 
                 if ($("#mode").val() == 'direct') {
                     $("#cdn_ip").parent().hide();
@@ -176,7 +827,7 @@
                     $("#domain").parent().find(".help-block").html(`{{_('config.reality_fallback_domain.description')+("<a target='_blank' href='" +hurl_for('admin.Actions:get_some_random_reality_friendly_domain',test_domain=domain)+"'>"+_('Example Domains')+"</a>")}}`)
                     $("#download_domain").parent().hide();
                 } else {
-                    
+
                     if ($("#mode").val() == 'cdn' || $("#mode").val() == 'auto_cdn_ip') {
                         $("#servernames").parent().show();
                         $("#servernames").parent().find(".control-label").html(`{{_('domain.domain_fronting.label')}}`)
@@ -198,6 +849,10 @@
         // below) rebind rather than stack a fresh handler each time.
         $("#sub_link_only").off('change.hiddifyui').on('change.hiddifyui', hide_domain_elements)
         $("#mode").off('change.hiddifyui').on('change.hiddifyui', hide_domain_elements)
+        // Also re-run the DNSTT params widget on mode change, so switching
+        // into/out of "dnstt" toggles between its known-fields widget and
+        // the plain extra_params textarea without needing a modal reopen.
+        $("#mode").off('change.hiddifyuiparams').on('change.hiddifyuiparams', function () { initDnsttParamsUI($("#extra_params")); })
         hide_domain_elements()
         ConvertNumberToPersion(document.getElementById('fa_modal_window'));
         
@@ -205,7 +860,16 @@
     
     update_hiddify_ui()
 
-    
+    // A moved field (http_port/tls_port/show_domains/download_domain) can
+    // fail HTML5 validation while its "Ports"/"Advanced" fieldset is still
+    // collapsed - same auto-open-on-invalid behavior as the Settings
+    // page's .cat-card (config.html), so the admin isn't left staring at a
+    // form that silently refuses to submit with no visible error.
+    document.addEventListener('invalid', function (e) {
+        var card = e.target.closest && e.target.closest('.cat-card');
+        if (card) card.classList.add('open');
+    }, true);
+
       // bs4_modal.js (loaded as *part of* the modal's own AJAX content) binds
       // its own click.modal.data-api handler on 'body' every time a modal
       // opens, without ever calling .off() first - so by the 2nd+ Edit/

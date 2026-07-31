@@ -1,17 +1,22 @@
 import ipaddress
+import random
+import uuid
 from typing import Literal
 from hiddifypanel.auth import login_required, current_account
 
 from hiddifypanel.hutils.flask import hurl_for
 from hiddifypanel.models import *
 import re
-from flask import g  # type: ignore
+from flask import g, request  # type: ignore
 from markupsafe import Markup
 
 from flask_babel import gettext as __
 from flask_babel import lazy_gettext as _
 from hiddifypanel.panel.run_commander import Command, commander
-from wtforms.validators import Regexp, ValidationError
+from hiddifypanel.database import db
+import wtforms as wtf
+from wtforms.validators import Regexp, ValidationError, Optional, NumberRange
+from sqlalchemy import inspect as sa_inspect
 
 from hiddifypanel.models import *
 from hiddifypanel.panel import hiddify, custom_widgets
@@ -38,10 +43,14 @@ class DnsTT(BaseModel):
     # override just that domain's transport/security params without
     # touching the global config. Without extra='allow', pydantic silently
     # dropped any key that wasn't one of the dnstt-specific fields below.
+    #
+    # Also doubles as the per-domain override schema for xdns-mode domains
+    # (xdns_resolvers below) - same reasoning, this mode has no dedicated DB
+    # column either.
     model_config = ConfigDict(extra='allow')
 
-    mtu: int = Field(0, description="maximum size of DNS responses (0-> use default 1232)")
-    
+    mtu: int = Field(0, description="dnstt: maximum size of DNS responses (0-> default 1232). xdns: mKCP MTU for this domain's Xray inbound (0-> default 132, empirically confirmed via live testing) - Xray-core's xdns encoder hard-rejects any raw mKCP segment of 224 bytes or more (silently dropped, no retry) and real deployments hit that ceiling earlier than the theoretical 223-byte math suggests, so values above the confirmed-safe default risk breaking the tunnel completely; only raise this if you've verified higher values produce zero \"too long\" errors in your own client logs.")
+
     keepalive: int = Field(0, description='keepalive ping interval in seconds; must be less than idle-timeout (0-> use default 2s)', ge=0,le=100)
     idle_timeout:int = Field(0, description='session idle timeout in seconds; tears down sessions with no data within this period (0-> use default 10 seconds)', ge=0,le=100)
     clientid_size:int=Field(0, description="client ID size in bytes (ignored when dnstt_compat is true) (0-> use default 2)")
@@ -49,7 +58,25 @@ class DnsTT(BaseModel):
     record_type:Literal["","txt", "cname", "a", "aaaa", "mx", "ns", "srv"] =Field("",description='DNS record type for downstream data (txt, cname, a, aaaa, mx, ns, srv) (""->default "txt")')
     max_qname_len: int= Field(0, description='maximum total QNAME length in wire format (253 per RFC 1035) (0->default 101)')
     open_stream_timeout: int = Field(0, description='timeout for opening an smux stream (e.g. 500ms, 3s) (0->default "10s")')
-    
+
+    # xdns mode only (Xray-core finalmask, XTLS/Xray-core#5633): comma-separated
+    # "ip:port" public DNS resolvers this domain's clients should route their
+    # DNS-tunneled queries through. Empty -> falls back to the server-wide
+    # xdns_resolvers hconfig default.
+    xdns_resolvers: str = Field("", description='comma-separated "ip:port" resolvers for this xdns domain ("" -> use the server default)')
+    # No admin-facing xicmp knobs at all: the server always needs a real raw
+    # ICMP socket (dgram=false - Xray already runs as root, so CAP_NET_RAW
+    # is never actually a problem) and the client link/config always asks
+    # for the unprivileged datagram socket (dgram=true, Xray's own
+    # recommended default for end-user clients that don't run elevated).
+    # Both sides are hardcoded (xray/configs/05_inbounds_06_xicmp.json.j2,
+    # xrayjson.py's add_mask_finalmask_stream()) rather than exposed here,
+    # since there's no scenario where either side legitimately wants the
+    # other value. There's also no per-domain "id"/echo-ID concept in
+    # Xray-core's current xicmp finalmask schema (v26.6.1+) - client
+    # demuxing is done via an embedded client ID in the ICMP payload
+    # instead, not anything configured in JSON.
+
 
 class DomainAdmin(AdminLTEModelView):
     # edit_modal = False
@@ -62,7 +89,14 @@ class DomainAdmin(AdminLTEModelView):
                     # "extra_params":custom_widgets.CustomJSONField(DnsTT, "Extra Params")
                     }
     form_extra_fields = {
-        "extra_params": custom_widgets.CustomJSONField(DnsTT, "Extra Params / Per-Domain Override")
+        "extra_params": custom_widgets.CustomJSONField(DnsTT, "Extra Params / Per-Domain Override"),
+        # xicmp needs no DNS/NS setup (see the mode description below), so
+        # the server's own IP works as an xicmp target exactly as well as
+        # any other domain would - this just automates creating/removing
+        # the companion Domain(mode=xicmp) row that actually makes it one,
+        # instead of requiring a second, manually-created "Add Domain" for
+        # the identical domain string. See after_model_change() below.
+        "also_enable_xicmp": wtf.BooleanField(_("Also enable xICMP on this domain")),
     }
     form_widget_args = {
         'description': {
@@ -75,7 +109,10 @@ class DomainAdmin(AdminLTEModelView):
         domain=_("domain.description"),
         mode=_("Direct mode means you want to use your server directly (for usual use), CDN means that you use your server on behind of a CDN provider. "
                "Fake mode defaults to your server's own direct IP unless you set a different IP/domain in the 'cdn_ip' field below - set it explicitly if you don't want this domain tied to your direct settings. "
-               "dnstt mode is DNS tunneling: it does NOT work like the other modes (no CDN/A-record setup). You must delegate an NS record for this subdomain to your server's IP first, or it will never connect."),
+               "dnstt mode is DNS tunneling: it does NOT work like the other modes (no CDN/A-record setup). You must delegate an NS record for this subdomain to your server first, or queries for it are answered entirely inside your DNS provider and never reach this server at all. This takes TWO records at your DNS provider, not one: an A record for a helper name (e.g. ns.thisdomain -> your server IP, NOT proxied/CDN'd - an NS target must resolve to a real IP) PLUS an NS record for this exact domain pointing at that helper name (e.g. thisdomain -> ns.thisdomain). Both are required together. "
+               "xdns mode tunnels traffic inside DNS queries (Xray-core's xdns finalmask) - same two-record NS delegation requirement as dnstt above, and gets its own isolated inbound so it never affects your other connection modes. "
+               "xicmp mode tunnels traffic inside ICMP (ping) packets (Xray-core's xicmp finalmask) - no DNS/NS setup needed, but the server needs CAP_NET_RAW to open a raw ICMP socket."),
+        also_enable_xicmp=_("xICMP needs no DNS/NS setup, so this domain (including a bare server IP) can serve xICMP at the same time as its main mode. Creates/removes a matching xICMP entry for you - equivalent to adding it separately with the same domain value."),
         cdn_ip=_("config.cdn_forced_host.description"),
         show_domains=_('domain.show_domains_description'),
         alias=_('The name shown in the configs for this domain.'),
@@ -84,6 +121,19 @@ class DomainAdmin(AdminLTEModelView):
         grpc=_('grpc-proxy.description'),
         download_domain=_('download_domain.description'),
         resolve_ip=_("domain.resolveip.description"),
+        http_port=_("Plain-HTTP port for this domain. Leave empty to use the default port 80. A custom port is exclusive to this domain - no other domain can use it, and this domain won't be reachable on 80 anymore."),
+        tls_port=_("TLS port for this domain. Leave empty to use the default port 443. A custom port is exclusive to this domain - no other domain can use it, and this domain won't be reachable on 443 anymore."),
+        reality_port=_("REALITY direct port for this domain (special_reality_* modes only). Auto-generated the first time this domain is saved as a REALITY mode if left empty; edit it to set your own."),
+        reality_private_key=_("REALITY private key for this domain. Auto-generated the first time this domain is saved as a REALITY mode if left empty; edit it to set your own."),
+        reality_public_key=_("REALITY public key for this domain, matching the private key above. Auto-generated the first time this domain is saved as a REALITY mode if left empty; edit it to set your own."),
+        reality_short_id=_("REALITY short ID for this domain. Auto-generated the first time this domain is saved as a REALITY mode if left empty; edit it to set your own."),
+        hysteria_port=_("Hysteria2 port for this domain (direct/relay/fake modes only). Leave empty to keep the automatically assigned port; set a value to pin this domain to a specific one."),
+        tuic_port=_("TUIC port for this domain (direct/relay/fake modes only). Leave empty to keep the automatically assigned port; set a value to pin this domain to a specific one."),
+        naive_port=_("Naive port for this domain (direct/relay modes only). Leave empty to keep the automatically assigned port; set a value to pin this domain to a specific one."),
+        anytls_port=_("AnyTLS port for this domain (direct/relay/fake modes only). Leave empty to keep the automatically assigned port; set a value to pin this domain to a specific one."),
+        dnstt_port=_("DNSTT port for this domain (dnstt mode only). Leave empty to keep the automatically assigned port; set a value to pin this domain to a specific one."),
+        xdns_port=_("xDNS port for this domain (xdns mode only). Leave empty to keep the automatically assigned port; set a value to pin this domain to a specific one."),
+        xicmp_port=_("xICMP port for this domain (xicmp mode only). Leave empty to keep the automatically assigned port; set a value to pin this domain to a specific one."),
         extra_params=_("The dnstt-specific fields below are pre-filled with defaults. You can also add ANY other key here "
                         "(e.g. \"fingerprint\": \"firefox\", \"hysteria_obfs_password\": \"...\", \"alpn\": \"h2\") to override "
                         "just THIS domain's transport/security settings instead of the global config every domain shares."),
@@ -116,7 +166,28 @@ class DomainAdmin(AdminLTEModelView):
                 Regexp(r"(((((25[0-5]|(2[0-4]|1\d|[1-9]|)\d).){3}(25[0-5]|(2[0-4]|1\d|[1-9]|)\d))|^([A-Za-z0-9\-\.]+\.[a-zA-Z]{2,}))[ \t\n,;]*\w{3}[ \t\n,;]*)*",message=__("Invalid IP or domain"))]},
         "servernames": {
             'validators': [
-                Regexp(r"^([\w-]+\.)+[\w-]+(,\s*([\w-]+\.)+[\w-]+)*$",re.IGNORECASE,_("Invalid REALITY hostnames"))]}}
+                Regexp(r"^([\w-]+\.)+[\w-]+(,\s*([\w-]+\.)+[\w-]+)*$",re.IGNORECASE,_("Invalid REALITY hostnames"))]},
+        "http_port": {
+            'validators': [Optional(), NumberRange(min=1, max=65535, message=__("Invalid port"))]},
+        "tls_port": {
+            'validators': [Optional(), NumberRange(min=1, max=65535, message=__("Invalid port"))]},
+        "reality_port": {
+            'validators': [Optional(), NumberRange(min=1, max=65535, message=__("Invalid port"))]},
+        "hysteria_port": {
+            'validators': [Optional(), NumberRange(min=1, max=65535, message=__("Invalid port"))]},
+        "tuic_port": {
+            'validators': [Optional(), NumberRange(min=1, max=65535, message=__("Invalid port"))]},
+        "naive_port": {
+            'validators': [Optional(), NumberRange(min=1, max=65535, message=__("Invalid port"))]},
+        "anytls_port": {
+            'validators': [Optional(), NumberRange(min=1, max=65535, message=__("Invalid port"))]},
+        "dnstt_port": {
+            'validators': [Optional(), NumberRange(min=1, max=65535, message=__("Invalid port"))]},
+        "xdns_port": {
+            'validators': [Optional(), NumberRange(min=1, max=65535, message=__("Invalid port"))]},
+        "xicmp_port": {
+            'validators': [Optional(), NumberRange(min=1, max=65535, message=__("Invalid port"))]},
+        }
     column_list = ["domain", "alias", "mode",  "show_domains"]
     column_editable_list = ["alias"]
     # column_filters=["domain","mode"]
@@ -124,6 +195,7 @@ class DomainAdmin(AdminLTEModelView):
     column_searchable_list = ["domain", "mode"]
     column_labels = {
         "domain": _("domain.domain"),
+        'also_enable_xicmp': _('Also enable xICMP on this domain'),
         'sub_link_only': _('Only for sublink?'),
         "mode": _("domain.mode"),
         "cdn_ip": _("config.cdn_forced_host.label"),
@@ -134,18 +206,37 @@ class DomainAdmin(AdminLTEModelView):
         'grpc': _('gRPC'),
         "download_domain":_('download_domain.label'),
         'resolve_ip':_("domain.resolveip.label"),
+        'http_port': _('HTTP Port'),
+        'tls_port': _('TLS Port'),
+        'reality_port': _('REALITY Port'),
+        'reality_private_key': _('REALITY Private Key'),
+        'reality_public_key': _('REALITY Public Key'),
+        'reality_short_id': _('REALITY Short ID'),
+        'hysteria_port': _('Hysteria2 Port'),
+        'tuic_port': _('TUIC Port'),
+        'naive_port': _('Naive Port'),
+        'anytls_port': _('AnyTLS Port'),
+        'dnstt_port': _('DNSTT Port'),
+        'xdns_port': _('xDNS Port'),
+        'xicmp_port': _('xICMP Port'),
     }
 
-    form_columns = ['mode', 'domain', 'alias', 'servernames', 'cdn_ip', 'resolve_ip', 'show_domains', 'download_domain',"extra_params"]
+    form_columns = ['mode', 'domain', 'also_enable_xicmp', 'alias', 'servernames', 'cdn_ip', 'resolve_ip', 'http_port', 'tls_port',
+                    'hysteria_port', 'tuic_port', 'naive_port', 'anytls_port', 'dnstt_port', 'xdns_port', 'xicmp_port',
+                    'reality_port', 'reality_private_key', 'reality_public_key', 'reality_short_id',
+                    'show_domains', 'download_domain', "extra_params"]
     
     def _domain_admin_link(view, context, model, name):
         if hiddify.is_fake_domain(model):
             return Markup(hutils.flask.hf_chip(model.domain))
         resolve_url = hurl_for('admin.Actions:get_domain_ip', domain=model.domain)
         resolve_title = _("Resolve IP")
+        manage_url = hurl_for('admin.DomainProxyManage:index', domain_id=model.id)
+        manage_title = _("Manage Proxies")
         return Markup(
             hutils.flask.hf_chip(model.domain) +
-            f' <a href="{resolve_url}" title="{resolve_title}"><i class="fa-solid fa-dharmachakra"></i></a>')
+            f' <a href="{resolve_url}" title="{resolve_title}"><i class="fa-solid fa-dharmachakra"></i></a>'
+            f' <a href="{manage_url}" title="{manage_title}"><i class="fa-solid fa-sliders"></i></a>')
 
     def _domain_ip(view, context, model, name):
         dips = hutils.network.get_domain_ips_cached(model.domain)
@@ -184,6 +275,45 @@ class DomainAdmin(AdminLTEModelView):
     def search_placeholder(self):
         return f"{_('search')} {_('domain.domain')} {_('domain.mode')}"
 
+    def create_form(self, obj=None):
+        # Pre-fill the REALITY fields with fresh, ready-to-use values on a
+        # brand new Add Domain page (GET only - a POST re-render after a
+        # validation error already has the admin's just-submitted values in
+        # form.data, which must not be clobbered). They stay hidden (see
+        # flaskadmin-layout.html's hide_domain_elements()) unless/until the
+        # admin actually picks a REALITY mode, and on_model_change below
+        # blanks them right back out if the domain isn't saved as one - so
+        # this is purely a preview for whoever does pick a REALITY mode,
+        # not something that can leak onto a non-REALITY domain.
+        form = super().create_form(obj)
+        if request.method == 'GET':
+            if not form.reality_port.data:
+                form.reality_port.data = hutils.random.get_random_unused_port()
+            if not form.reality_private_key.data or not form.reality_public_key.data:
+                keys = hutils.crypto.generate_x25519_keys()
+                form.reality_private_key.data = keys['private_key']
+                form.reality_public_key.data = keys['public_key']
+            if not form.reality_short_id.data:
+                form.reality_short_id.data = uuid.uuid4().hex[0:random.randint(1, 8) * 2]
+        return form
+
+    def edit_form(self, obj=None):
+        # also_enable_xicmp isn't a model column - it's a plain checkbox
+        # (see form_extra_fields), so it has no obj value to prefill from
+        # automatically the way every real column does. Reflect whether a
+        # companion xICMP row already exists for this domain string, or
+        # editing-and-resaving without touching the checkbox would read as
+        # "no" and after_model_change() below would delete it.
+        form = super().edit_form(obj)
+        if request.method == 'GET' and obj is not None:
+            form.also_enable_xicmp.data = Domain.query.filter(
+                Domain.domain == obj.domain,
+                Domain.mode == DomainType.xicmp,
+                Domain.child_id == obj.child_id,
+                Domain.id != obj.id,
+            ).first() is not None
+        return form
+
     # def on_form_prefill(self, form, id):
         # Get the Domain object being edited
         # domain = self.session.query(Domain).get(id)
@@ -205,11 +335,24 @@ class DomainAdmin(AdminLTEModelView):
         if model.download_domain and model.domain==model.download_domain.domain:
             model.download_domain_id=None
             model.download_domain=None
+        # REALITY's port/keys/short id are meaningless (and hidden - see
+        # flaskadmin-layout.html) for every other mode. Also guards against
+        # create_form()'s GET-time preview values above ending up saved onto
+        # a non-REALITY domain if the admin never actually switches the
+        # Mode dropdown away from its hidden pre-filled state.
+        if "reality" not in model.mode:
+            model.reality_port = None
+            model.reality_private_key = None
+            model.reality_public_key = None
+            model.reality_short_id = None
+        self._clear_inapplicable_ports(model)
+        self._auto_assign_ports(model, is_created)
         # Basic validation
         if model.domain == '' and model.mode != DomainType.fake:
             raise ValidationError(_("domain.empty.allowed_for_fake_only"))
 
         self._validate_not_used_before(model,is_created)
+        self._validate_port_exclusivity(model)
         ipv4_list = hutils.network.get_ips(4)
         ipv6_list = hutils.network.get_ips(6)
         server_ips = [*ipv4_list, *ipv6_list]
@@ -249,7 +392,7 @@ class DomainAdmin(AdminLTEModelView):
             set_hconfig(ConfigEnum.xtls_enable, True)
             hutils.proxy.get_proxies.invalidate_all()
         elif "reality" in  model.mode:
-            self._validate_reality_settings(model, server_ips)
+            self._validate_reality_settings(model, server_ips, is_created)
                 
             # Signal config update if needed
         old_db_domain = Domain.by_domain(model.domain)
@@ -257,8 +400,110 @@ class DomainAdmin(AdminLTEModelView):
             # return hiddify.reinstall_action(complete_install=False, domain_changed=True)
             hutils.apply_scope.mark_dirty(hutils.apply_scope.DOMAIN_CHANGE_SUBSYSTEMS)
             hutils.flask.flash_config_success(restart_mode=ApplyMode.apply_config, domain_changed=True)
+        elif any(sa_inspect(model).attrs[attr].history.has_changes()
+                 for attr in ('http_port', 'tls_port', 'reality_port', 'reality_private_key', 'reality_public_key', 'reality_short_id')):
+            # Not a new domain / mode change, but a port/key binding itself
+            # changed - haproxy's bind lists/dst_port ACLs and the
+            # xray/singbox REALITY inbounds need to be regenerated too.
+            hutils.apply_scope.mark_dirty(hutils.apply_scope.DOMAIN_CHANGE_SUBSYSTEMS)
+            hutils.flask.flash_config_success(restart_mode=ApplyMode.apply_config, domain_changed=True)
 
-            
+
+
+    # (field, modes it applies to) for the 7 per-domain port overrides -
+    # shared between _clear_inapplicable_ports and _auto_assign_ports so
+    # the two can't quietly drift apart on which modes use which port.
+    _PORT_FIELD_MODES = (
+        ('hysteria_port', 'internal_port_hysteria2', [DomainType.direct, DomainType.relay, DomainType.fake]),
+        ('tuic_port', 'internal_port_tuic', [DomainType.direct, DomainType.relay, DomainType.fake]),
+        ('anytls_port', 'internal_port_anytls', [DomainType.direct, DomainType.relay, DomainType.fake]),
+        ('naive_port', 'internal_port_naive', [DomainType.direct, DomainType.relay]),
+        ('dnstt_port', 'internal_port_dnstt', [DomainType.dnstt]),
+        ('xdns_port', 'internal_port_xdns', [DomainType.xdns]),
+        ('xicmp_port', 'internal_port_xicmp', [DomainType.xicmp]),
+    )
+
+    def _clear_inapplicable_ports(self, model):
+        # Same reasoning as the reality_port clearing just above: a stale
+        # value left behind after switching a domain away from a mode that
+        # used it would otherwise keep "claiming" that port forever in
+        # _validate_port_exclusivity's conflict check, permanently blocking
+        # any other domain from ever using it even though this domain no
+        # longer does either.
+        for field_name, _computed_attr, modes in self._PORT_FIELD_MODES:
+            if model.mode not in modes:
+                setattr(model, field_name, None)
+
+    def _auto_assign_ports(self, model, is_created):
+        """Write a concrete value into each still-blank port column the
+        first time this domain is created - never again on a later edit -
+        mirroring exactly how _validate_reality_settings only ever fills
+        reality_port/keys in on creation. Without this, these columns
+        stayed NULL forever unless an admin happened to type a value in by
+        hand, and the admin form only ever showed a blank input with the
+        real, actually-in-use port number buried in a description hint -
+        not what "auto-generated" should look like.
+
+        Needs model.id (internal_port_* keys the offset off it via
+        port_index) to exist first. flask_admin's ModelView.create_model()
+        already does self.session.add(model) before calling
+        on_model_change(), so a flush() here safely assigns the id without
+        committing anything - if a later validation in this same
+        on_model_change call raises, flask_admin's except block rolls back
+        the whole transaction, undoing this flush along with everything
+        else, exactly as if it had never happened.
+        """
+        if not is_created:
+            return
+        db.session.flush()
+        # http_port/tls_port's fallback (effective_http_port/
+        # effective_tls_port) is a plain hardcoded 80/443, not derived from
+        # any global setting or this domain's id - unlike the 7 fields
+        # below, there's nothing that could ever change out from under a
+        # filled-in value later, so this is unconditional.
+        if not model.http_port:
+            model.http_port = 80
+        if not model.tls_port:
+            model.tls_port = 443
+        for field_name, computed_attr, _modes in self._PORT_FIELD_MODES:
+            if not getattr(model, field_name):
+                computed = getattr(model, computed_attr)
+                if computed:
+                    setattr(model, field_name, computed)
+
+    def _validate_port_exclusivity(self, model):
+        # "Exclusive to that domain": a custom (non-default) port can only
+        # ever belong to one domain at a time - reject the save instead of
+        # silently letting haproxy's dst_port ACLs end up ambiguous between
+        # two domains claiming the same port.
+        if model.http_port and model.http_port != 80:
+            conflict = Domain.query.filter(Domain.http_port == model.http_port, Domain.id != model.id, Domain.child_id == model.child_id).first()
+            if conflict:
+                raise ValidationError(_("This HTTP port is already assigned to domain: ") + conflict.domain)
+        if model.tls_port and model.tls_port != 443:
+            conflict = Domain.query.filter(Domain.tls_port == model.tls_port, Domain.id != model.id, Domain.child_id == model.child_id).first()
+            if conflict:
+                raise ValidationError(_("This TLS port is already assigned to domain: ") + conflict.domain)
+        if model.reality_port:
+            # Unlike http_port/tls_port, a REALITY port has no shared
+            # default to fall back to - xray/singbox bind it directly, so
+            # any collision between two domains would fail outright.
+            conflict = Domain.query.filter(Domain.reality_port == model.reality_port, Domain.id != model.id, Domain.child_id == model.child_id).first()
+            if conflict:
+                raise ValidationError(_("This REALITY port is already assigned to domain: ") + conflict.domain)
+        # Same "no shared default, so any collision fails outright" reasoning
+        # as REALITY above, for the other per-domain port overrides (each
+        # domain's own base-port+id offset is already collision-free by
+        # construction - this only matters once an admin sets one by hand).
+        for field_name, label in (
+            ('hysteria_port', _('Hysteria2')), ('tuic_port', _('TUIC')), ('naive_port', _('Naive')),
+            ('anytls_port', _('AnyTLS')), ('dnstt_port', _('DNSTT')), ('xdns_port', _('xDNS')), ('xicmp_port', _('xICMP')),
+        ):
+            value = getattr(model, field_name)
+            if value:
+                conflict = Domain.query.filter(getattr(Domain, field_name) == value, Domain.id != model.id, Domain.child_id == model.child_id).first()
+                if conflict:
+                    raise ValidationError(f"{_('This')} {label} {_('port is already assigned to domain: ')}{conflict.domain}")
 
     def _update_cloudflare(self, model, ipv4_list,ipv6_list):
         if hconfig(ConfigEnum.cloudflare) and model.mode not in [DomainType.fake, DomainType.relay, DomainType.reality]:
@@ -273,13 +518,30 @@ class DomainAdmin(AdminLTEModelView):
                 raise ValidationError(__("cloudflare.error") + f' {e}')
         return False
 
-    def _validate_reality_settings(self, model, server_ips):
+    def _validate_reality_settings(self, model, server_ips, is_created):
         """Validate REALITY protocol settings with proper error handling"""
         if not hconfig(ConfigEnum.reality_enable):
             set_hconfig(ConfigEnum.reality_enable, True)
             hutils.proxy.get_proxies.invalidate_all()
 
         model.servernames = (model.servernames or model.domain).lower().strip()
+
+        # Auto-generate this new domain's own REALITY port/keys/short ID -
+        # only on creation, never on a later edit of an already-existing
+        # domain, since regenerating them out from under a domain that's
+        # already handed its port/keys out to real clients would silently
+        # break every one of them. An admin can still set/change any of
+        # these by hand at any time; this only fills in blanks at creation.
+        if is_created:
+            if not model.reality_port:
+                model.reality_port = hutils.random.get_random_unused_port()
+            if not model.reality_private_key or not model.reality_public_key:
+                keys = hutils.crypto.generate_x25519_keys()
+                model.reality_private_key = keys['private_key']
+                model.reality_public_key = keys['public_key']
+            if not model.reality_short_id:
+                model.reality_short_id = uuid.uuid4().hex[0:random.randint(1, 8) * 2]
+
         domains_to_check = set()
         for v in [model.domain, model.servernames]:
             domains_to_check.update(d.strip() for d in v.split(",") if d.strip())
@@ -331,7 +593,7 @@ class DomainAdmin(AdminLTEModelView):
         # Skip validation for wildcard or empty domains
         if (model.domain.startswith('*') or not model.domain) and model.mode not in [DomainType.direct]:
             return True
-        if model.mode in [DomainType.fake, DomainType.reality, DomainType.relay, DomainType.dnstt]:
+        if model.mode in [DomainType.fake, DomainType.reality, DomainType.relay, DomainType.dnstt, DomainType.xdns, DomainType.xicmp]:
             return True
         if "special" in model.mode:
             return True
@@ -374,6 +636,16 @@ class DomainAdmin(AdminLTEModelView):
         if hconfig(ConfigEnum.cloudflare) and model.mode not in [DomainType.fake, DomainType.reality, DomainType.relay] and "special" not in model.mode:
             if not hutils.network.cf_api.delete_dns_record(model.domain):
                 hutils.flask.flash(_('cf-delete.failed'), 'warning')  # type: ignore
+        if model.mode == DomainType.direct:
+            # Companion of after_model_change()'s also_enable_xicmp sync -
+            # don't leave an orphaned xICMP entry behind once the direct
+            # domain it was tied to is gone.
+            Domain.query.filter(
+                Domain.domain == model.domain,
+                Domain.mode == DomainType.xicmp,
+                Domain.child_id == model.child_id,
+                Domain.id != model.id,
+            ).delete()
         model.showed_by_domains = []
         # db.session.commit()
         hutils.apply_scope.mark_dirty(hutils.apply_scope.DOMAIN_CHANGE_SUBSYSTEMS)
@@ -388,6 +660,30 @@ class DomainAdmin(AdminLTEModelView):
             set_hconfig(ConfigEnum.first_setup, False)
         if model.need_valid_ssl and "*" not in model.domain:
             commander(Command.get_cert, domain=model.domain)
+        if model.mode == DomainType.direct:
+            # also_enable_xicmp (form_extra_fields above) isn't a real
+            # column on `model` - sync a companion Domain(mode=xicmp) row
+            # with the same domain string to match it. Only for direct
+            # mode: xicmp needs no DNS/NS setup (unlike dnstt/xdns), so a
+            # bare server IP works here exactly as well as a real domain -
+            # this is what lets one domain (or the IP itself) serve both
+            # Direct and xICMP at once instead of requiring two separate
+            # "Add Domain" entries with the identical value.
+            xicmp_companion = Domain.query.filter(
+                Domain.domain == model.domain,
+                Domain.mode == DomainType.xicmp,
+                Domain.child_id == model.child_id,
+                Domain.id != model.id,
+            ).first()
+            if form.also_enable_xicmp.data:
+                if not xicmp_companion:
+                    db.session.add(Domain(domain=model.domain, mode=DomainType.xicmp, child_id=model.child_id))
+                    db.session.commit()
+                    hutils.apply_scope.mark_dirty(hutils.apply_scope.DOMAIN_CHANGE_SUBSYSTEMS)
+            elif xicmp_companion:
+                db.session.delete(xicmp_companion)
+                db.session.commit()
+                hutils.apply_scope.mark_dirty(hutils.apply_scope.DOMAIN_CHANGE_SUBSYSTEMS)
         if hutils.node.is_child():
             hutils.node.run_node_op_in_bg(hutils.node.child.sync_with_parent, *[hutils.node.child.SyncFields.domains])
 

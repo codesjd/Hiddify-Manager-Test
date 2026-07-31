@@ -29,6 +29,42 @@ if ! nslookup google.com &> /dev/null; then
     ./change_dns.py 8.8.8.8 1.1.1.1
 fi
 
+# Auto-provision swap on low-RAM VPS instances - a common install-time OOM
+# cause on 1GB boxes: install.sh runs several apt/pip installs and mariadb
+# bootstrap in parallel via `&`, on top of mariadb+haproxy+xray+singbox+the
+# panel's own uwsgi workers steady-state usage. Idempotent (skipped if swap
+# already exists, however it was provisioned) and skipped inside a
+# container (MODE=docker), where the host kernel - not this container -
+# owns swap.
+if [ "${MODE}" != "docker" ]; then
+    total_mem_kb=$(awk '/MemTotal/{print $2}' /proc/meminfo 2>/dev/null)
+    existing_swap_kb=$(awk '/SwapTotal/{print $2}' /proc/meminfo 2>/dev/null)
+    if [ "${existing_swap_kb:-0}" -eq 0 ] && [ "${total_mem_kb:-0}" -lt 2097152 ] && [ ! -f /swapfile ]; then
+        warning "Low RAM and no swap detected - creating a 1GB swapfile at /swapfile to avoid install-time OOM kills."
+        if fallocate -l 1G /swapfile 2>/dev/null || dd if=/dev/zero of=/swapfile bs=1M count=1024 2>/dev/null; then
+            chmod 600 /swapfile
+            mkswap /swapfile >/dev/null 2>&1
+            swapon /swapfile 2>/dev/null
+            grep -q '^/swapfile ' /etc/fstab 2>/dev/null || echo '/swapfile none swap sw 0 0' >>/etc/fstab
+        else
+            warning "Could not create /swapfile (disk full?) - continuing without swap."
+        fi
+    fi
+
+    # Cap systemd-journald's in-memory buffer - on a 1GB box its default
+    # unbounded runtime buffer was observed using ~77MB RSS, pure overhead
+    # with no functional loss from capping (only trims retained log
+    # history, doesn't disable logging).
+    if command -v systemctl >/dev/null 2>&1 && [ -d /etc/systemd ]; then
+        mkdir -p /etc/systemd/journald.conf.d
+        cat >/etc/systemd/journald.conf.d/hiddify-limit.conf <<'EOF'
+[Journal]
+SystemMaxUse=50M
+RuntimeMaxUse=50M
+EOF
+        systemctl restart systemd-journald >/dev/null 2>&1 || true
+    fi
+fi
 
 ln -sf $(pwd)/sysctl.conf /etc/sysctl.d/hiddify.conf
 
@@ -54,10 +90,13 @@ if [[ "$ONLY_IPV4" == true ]]; then
     INT_STAT_STR="Disable"
 fi
 
-declare -a excluded_interfaces=("warp" "lo")
+declare -a excluded_interfaces=("lo")
 
 for interface_name in $(ip link | awk -F': ' '$2 ~ /^[[:alnum:]]+$/ {print $2}'); do
-    if [[ " ${excluded_interfaces[@]} " =~ " ${interface_name} " ]]; then
+    # awg* covers every AmneziaWG interface (hiddifyawg, and each per-Outbound
+    # awg{id} - including a WARP-flavored one, now just an amneziawg-protocol
+    # Outbound like any other instead of a hardcoded "warp" interface).
+    if [[ " ${excluded_interfaces[@]} " =~ " ${interface_name} " ]] || [[ "$interface_name" == awg* ]]; then
         continue
     fi
     

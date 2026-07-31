@@ -1,0 +1,130 @@
+{% from 'bootstrap4/form.html' import render_form %}
+{% extends 'admin-layout.html' %}
+
+{% block title %}{{ _('Manage Proxies') }} - {{ domain.domain }}{% endblock %}
+
+{% block body %}
+{{super()}}
+
+<div class="row">
+    <div class="card col-12">
+        <div class="card-header">
+            {{_('Manage Proxies')}} &mdash; <span class="hf-chip">{{domain.domain}}</span>
+        </div>
+        <div class="card-body">
+            <p class="domain-proxy-manage-note">
+                {{ _('Toggle a proxy off or on for just this domain, without changing it anywhere else. Need to override its SNI, fingerprint, ALPN, or another field for just this domain too?') }}
+                <a href="{{ hurl_for('flask.domain_proxy_override.index_view') }}">{{ _('Domain Proxy Overrides') }}</a>
+            </p>
+            <div class="row domain-proxy-grid-row">
+                <div class="domain-proxy-grid">
+                    {{ render_form(form, form_type="", extra_classes="domain-proxy-grid-form") }}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .domain-proxy-manage-note {
+        color: var(--text-secondary, #6c757d);
+        margin-bottom: 16px;
+    }
+
+    .form-group {
+        display: inline-block;
+        width: 100%;
+    }
+
+    /* Bootstrap/AdminLTE's own .row sets display:flex - a flex item
+       (.domain-proxy-grid) doesn't behave the same as a normal block child
+       (e.g. it can end up sized to its content instead of the row's full
+       width), which fights the CSS grid inside it below. Scoped to just
+       this row (not every .row on the page, which relies on the flex
+       behavior elsewhere). */
+    .domain-proxy-grid-row {
+        display: block;
+    }
+
+    /* Real 2-column grid, not CSS multi-column (column-count) - a masonry
+       layout flows items down one column then the next with no row
+       relationship between the two columns at all, so two adjacent boxes
+       of slightly different height drift out of alignment and stop
+       looking like "two boxes in a row" the moment their content wraps
+       differently (same issue already fixed the same way in
+       quick_setup.html's step 4). Matches proxy.html's own .toggle-grid
+       rule exactly (display:grid + repeat(2,1fr) + align-items:stretch),
+       so this page's grid behaves identically to the real Proxies page's. */
+    .domain-proxy-grid-form {
+        display: grid !important;
+        grid-template-columns: repeat(2, 1fr) !important;
+        gap: 12px !important;
+        align-items: stretch !important;
+    }
+    @media (max-width: 900px) {
+        .domain-proxy-grid-form {
+            grid-template-columns: 1fr !important;
+        }
+    }
+
+    /* Same card-boxed toggle-row design as the Proxies admin page
+       (proxy.html's .toggle-grid/.custom-switch) and Quick Setup's step 4
+       (quick_setup.html's .quicksetup-proxy-grid) - reused verbatim here so
+       all three "pick which proxies are active" surfaces look consistent.
+       --surface (not --bg) matches proxy.html's own card color exactly:
+       the page background (--bg) is the darker of the two in both themes,
+       so each box already reads as a lighter card standing out against a
+       darker page, same contrast direction as the real Proxies page. */
+    .domain-proxy-grid-form .form-group.custom-switch {
+        background: var(--surface) !important;
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        padding: 16px !important;
+        margin-bottom: 0 !important;
+        text-align: left !important;
+    }
+    .domain-proxy-grid-form .form-group.custom-switch .custom-control-label {
+        position: relative !important;
+        padding-left: 2.5rem !important;
+        display: inline-block !important;
+    }
+    .domain-proxy-grid-form .form-group.custom-switch .custom-control-label::before {
+        left: 0 !important;
+    }
+    .domain-proxy-grid-form .form-group.custom-switch .custom-control-label::after {
+        left: 0.15rem !important;
+    }
+    .domain-proxy-grid-form .form-group.custom-switch .form-text.text-muted {
+        padding-left: 0 !important;
+        margin-top: 8px !important;
+        text-align: left !important;
+    }
+    [dir="rtl"] .domain-proxy-grid-form .form-group.custom-switch .custom-control-label {
+        padding-left: 0 !important;
+        padding-right: 2.5rem !important;
+    }
+    [dir="rtl"] .domain-proxy-grid-form .form-group.custom-switch .custom-control-label::before {
+        left: auto !important;
+        right: 0 !important;
+    }
+    [dir="rtl"] .domain-proxy-grid-form .form-group.custom-switch .custom-control-label::after {
+        left: auto !important;
+        right: 0.15rem !important;
+    }
+
+    /* SubmitField has no .form-group wrapper (bare <input>), so it's a
+       direct grid child that would otherwise stretch to fill one grid
+       cell's row height/width like any other item (grid's default
+       align-items/justify-items: stretch) instead of rendering as a
+       normal button - same fix as quick_setup.html's submit button,
+       grid-column instead of column-span since this is a real grid now. */
+    .domain-proxy-grid-form > input[type="submit"],
+    .domain-proxy-grid-form > button[type="submit"] {
+        grid-column: 1 / -1;
+        align-self: start;
+        justify-self: center;
+        display: block;
+        margin: 8px auto 0;
+    }
+</style>
+{% endblock %}

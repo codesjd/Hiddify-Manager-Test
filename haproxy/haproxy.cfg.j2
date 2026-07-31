@@ -8,9 +8,31 @@ global
     # option forwardfor except 127.0.0.1  # Add X-Forwarded-For header except for HAProxy itself
     # log /opt/hiddify/hiddify-manager/log/system/haproxy.log local0
 
-    log /opt/hiddify-manager/log/system/haproxy.err.log local0 warning
-        
+    # HAProxy's `log <address>` directive requires a syslog target - a
+    # UDP/TCP address or a Unix *socket* - not a plain file path. Pointing
+    # it at a regular file path here silently produced nothing (there was
+    # never a haproxy.err.log to tail at all), so every haproxy-side
+    # diagnosis had zero log data to work with. `log stdout` (HAProxy
+    # 2.0+) writes to the process's own stdout instead, which
+    # hiddify-haproxy.service's systemd defaults already capture into the
+    # journal - `journalctl -u hiddify-haproxy` now actually shows
+    # something.
+    log stdout format raw local0 warning
+
     {%endif%}
+
+    # TLS floor for every `bind ... ssl` line across haproxy/fronts/*.cfg.pj2
+    # (none of them set per-bind cipher/version options) - previously unset
+    # entirely, relying solely on whatever the installed OpenSSL happened to
+    # default to. Mozilla "Intermediate" cipher list (broad client
+    # compatibility - these binds serve arbitrary third-party VPN client
+    # apps, not a controlled browser fleet, so the stricter "Modern" list
+    # risks breaking older embedded TLS stacks) plus a TLS 1.2 floor (rules
+    # out SSLv3/TLSv1.0/TLSv1.1). QUIC/h3 binds are unaffected (QUIC always
+    # mandates TLS 1.3 regardless of these directives).
+    ssl-default-bind-ciphers ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-CHACHA20-POLY1305:DHE-RSA-AES128-GCM-SHA256:DHE-RSA-AES256-GCM-SHA384
+    ssl-default-bind-ciphersuites TLS_AES_128_GCM_SHA256:TLS_AES_256_GCM_SHA384:TLS_CHACHA20_POLY1305_SHA256
+    ssl-default-bind-options ssl-min-ver TLSv1.2
 
 
 

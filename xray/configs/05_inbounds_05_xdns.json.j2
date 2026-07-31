@@ -1,0 +1,95 @@
+{# Not gated by core_type: unlike the shared xhttp/ws/grpc streams (gated
+   to avoid duplicating what sing-box already serves as the "primary"
+   core), Xray itself always runs regardless of core_type (see
+   install.sh), and finalmask/xdns has no sing-box equivalent at all - a
+   domain in xdns mode needs this inbound generated no matter which core
+   is set as primary. #}
+{
+    "inbounds": [
+        {% for d in domains if d['mode']=='xdns' %}
+            {% set port = d['internal_port_xdns'] %}
+            {
+                "tag": "xdnsin_{{port}}",
+                {# dnstm's DNS router (see other/dnstt/dnstm_configs/config.json.j2)
+                   owns port 53 and forwards this domain's raw DNS-tunnel
+                   packets here over loopback - this inbound never needs to
+                   be reachable from outside the host directly. #}
+                "listen": "127.0.0.1",
+                "port": {{port}},
+                {% set protocol='vless' %}
+                {% with flow="" %}
+                    {% include '/opt/hiddify-manager/xray/configs/common/protocols/'~protocol~'.pj2' %},
+                {% endwith %}
+                "streamSettings": {
+                    {# xdns's own docs: MTU is too small for QUIC/xhttp - pair
+                       with mKCP. This is a dedicated inbound, never the
+                       shared xhttp/ws/grpc one every other domain uses, so
+                       the finalmask below only ever changes the wire format
+                       for this domain's own tunnel. #}
+                    "network": "mkcp",
+                    {# extra_params.mtu (DnsTT pydantic model - same field
+                       dnstt-server's own -mtu flag reads in run.sh.j2) was
+                       already documented as xdns's per-domain override
+                       schema but never actually wired into this inbound -
+                       500 was hardcoded regardless, giving no way to test
+                       whether it's actually the right value for a given
+                       path's real overhead without editing this template
+                       by hand.
+
+                       500 is also flatly wrong as a default: Xray-core's
+                       xdns client.go encode() hard-rejects any raw mKCP
+                       segment >= 224 bytes ("too long"), and WriteTo()
+                       silently drops the packet when that happens (no
+                       retry, no fragmentation) - confirmed live against a
+                       real client (Xray 26.7.11), where every data packet
+                       logged "xdns wireformat err ... too long" at sizes
+                       265-405 and the tunnel carried zero real traffic.
+                       mtu=500 guarantees mKCP produces segments over that
+                       ceiling, so xdns was 100% broken by default
+                       regardless of anything else being correct (NS
+                       delegation, resolvers, schema...). 200 was meant to
+                       leave comfortable margin under the theoretical
+                       223-byte cap, but empirical live testing
+                       (2026-07-20) found 200 still intermittently produced
+                       "too long" errors against a real deployment - the
+                       theory didn't hold exactly in practice. 132 is the
+                       largest value confirmed to produce zero such errors,
+                       so this default is evidence-based, not calculated. #}
+                    "kcpSettings": {
+                        "mtu": {{ d.extra_params.get("mtu", 0) or 132 }},
+                        "tti": 20,
+                        "uplinkCapacity": 5,
+                        "downlinkCapacity": 20,
+                        "congestion": false
+                    },
+                    {# Real Xray-core JSON schema (transport/internet/finalmask/xdns/
+                       server.go's NewConnServer, verified against v26.6.1 source -
+                       common/packages.lock pins this Xray-core version now). The
+                       server side only ever needs "domains" (plural) - NewConnServer
+                       hard-errors "empty domains" if missing, and never even looks
+                       at "resolvers" (that's parsed client-side only, see
+                       hutils/proxy/xrayjson.py's add_mask_finalmask_stream()). An
+                       earlier v26.3.27-only "domain" (singular) field was removed
+                       in a later Xray-core release ("The feature domain has been
+                       removed and migrated to domains(server) & resolvers(client)")
+                       - this mask's config schema has already broken backwards
+                       compatibility once, so keep the server's pinned Xray-core
+                       version and any client apps roughly in sync going forward. #}
+                    "finalmask": {
+                        "udp": [
+                            {
+                                "type": "xdns",
+                                "settings": {
+                                    "domains": ["{{d.domain}}"]
+                                }
+                            }
+                        ]
+                    }
+                },
+                "sniffing": {
+                    "enabled": false
+                }
+            },
+        {% endfor %}
+    ]
+}

@@ -183,10 +183,22 @@ class ConfigEnum(metaclass=FastEnum):
     ssh_server_enable = _BoolConfigDscr(ConfigCategory.ssh, ApplyMode.reinstall)
     first_setup = _BoolConfigDscr(ConfigCategory.hidden)
     core_type = _StrConfigDscr(ConfigCategory.advanced, ApplyMode.reinstall, hide_in_virtual_child=True)
-    warp_enable = _BoolConfigDscr(ConfigCategory.hidden, ApplyMode.reinstall, hide_in_virtual_child=True)
-    warp_mode = _StrConfigDscr(ConfigCategory.warp, ApplyMode.apply_config, hide_in_virtual_child=True)
-    warp_plus_code = _StrConfigDscr(ConfigCategory.warp, ApplyMode.apply_config, hide_in_virtual_child=True)
-    warp_sites = _StrConfigDscr(ConfigCategory.warp, ApplyMode.apply_config, hide_in_virtual_child=True)
+    # WARP used to be its own Settings section (mode toggle + plus-code +
+    # custom-sites list) driving a hardcoded "WARP" outbound bound to a
+    # wgcf-managed wg-quick@warp interface, plus built-in geo-routing rules
+    # that auto-routed streaming/blocked sites through it. Retired in favor
+    # of a plain Outbound (Protocol "amneziawg" - a real WireGuard peer like
+    # Cloudflare's WARP endpoint tolerates the Jc/Jmin/Jmax junk-packet
+    # obfuscation fine, just not the H1-H4/S1-S4/I1-I5 params that change the
+    # actual handshake bytes) on the Outbounds page, selectable from any
+    # Routing Rule like any other outbound - same pattern as the
+    # amneziawg_enable/amneziawg_config retirement above. Kept here (hidden)
+    # instead of deleted outright so old DB rows from before this change
+    # don't error.
+    warp_enable = _BoolConfigDscr(ConfigCategory.hidden, ApplyMode.reinstall, hide_in_virtual_child=True)  # removed
+    warp_mode = _StrConfigDscr(ConfigCategory.hidden, ApplyMode.apply_config, hide_in_virtual_child=True)  # removed
+    warp_plus_code = _StrConfigDscr(ConfigCategory.hidden, ApplyMode.apply_config, hide_in_virtual_child=True)  # removed
+    warp_sites = _StrConfigDscr(ConfigCategory.hidden, ApplyMode.apply_config, hide_in_virtual_child=True)  # removed
 
     # AmneziaWG used to be a separate Settings section (toggle + one global
     # pasted .conf) - moved into the Outbounds form instead (Protocol
@@ -200,11 +212,33 @@ class ConfigEnum(metaclass=FastEnum):
     dns_server = _StrConfigDscr(ConfigCategory.general, ApplyMode.apply_config, hide_in_virtual_child=True)
     reality_fallback_domain = _StrConfigDscr(ConfigCategory.hidden, ApplyMode.apply_config)  # removed
     reality_server_names = _StrConfigDscr(ConfigCategory.hidden, ApplyMode.apply_config)  # removed
-    reality_short_ids = _StrConfigDscr(ConfigCategory.reality, ApplyMode.apply_config, hide_in_virtual_child=True)
-    reality_private_key = _StrConfigDscr(ConfigCategory.reality, ApplyMode.apply_config, hide_in_virtual_child=True)
-    reality_public_key = _StrConfigDscr(ConfigCategory.reality, ApplyMode.apply_config, hide_in_virtual_child=True)
+    # Reality Settings section removed - special_port/reality_private_key/
+    # reality_public_key/reality_short_ids are now a per-domain
+    # Domain.reality_port/reality_private_key/reality_public_key/
+    # reality_short_id override (see DomainAdmin.py), auto-generated the
+    # first time a domain is saved as a REALITY mode. Retired to
+    # ConfigCategory.hidden rather than deleted - Domain.effective_reality_*
+    # and internal_port_special still fall back to these exact keys for any
+    # existing domain that hasn't been given its own value yet.
+    reality_short_ids = _StrConfigDscr(ConfigCategory.hidden, ApplyMode.apply_config, hide_in_virtual_child=True)
+    reality_private_key = _StrConfigDscr(ConfigCategory.hidden, ApplyMode.apply_config, hide_in_virtual_child=True)
+    reality_public_key = _StrConfigDscr(ConfigCategory.hidden, ApplyMode.apply_config, hide_in_virtual_child=True)
+    # ML-DSA-65 post-quantum REALITY signature (XTLS/Xray-core only - sing-box's
+    # REALITY has no equivalent, confirmed against sing-box.sagernet.org/
+    # configuration/shared/tls/). Global-only, no per-domain override (unlike
+    # reality_private_key/public_key above) - deliberately scoped smaller: adding
+    # this would mean new Domain columns + DomainAdmin.py form fields, more UI
+    # surface than this optional hardening field is worth. Generated (if at
+    # all) via init_db.py's migration shelling out to the real `xray mldsa65`
+    # CLI command rather than reimplementing FIPS 204 key derivation in Python -
+    # a bit-mismatch between a from-scratch Python implementation and Xray-
+    # core's own Go/CIRCL one would silently break every REALITY handshake
+    # using it, so correctness-by-construction (using Xray's own binary) beats
+    # reimplementing and hoping.
+    reality_mldsa65_seed = _StrConfigDscr(ConfigCategory.hidden, ApplyMode.apply_config, hide_in_virtual_child=True)
+    reality_mldsa65_verify = _StrConfigDscr(ConfigCategory.hidden, ApplyMode.apply_config, hide_in_virtual_child=True)
     reality_port = _StrConfigDscr(ConfigCategory.hidden, ApplyMode.apply_config, hide_in_virtual_child=True)
-    special_port = _StrConfigDscr(ConfigCategory.reality, ApplyMode.apply_config, hide_in_virtual_child=True)
+    special_port = _StrConfigDscr(ConfigCategory.hidden, ApplyMode.apply_config, hide_in_virtual_child=True)
     
 
     restls1_2_domain = _StrConfigDscr(ConfigCategory.hidden)
@@ -213,7 +247,12 @@ class ConfigEnum(metaclass=FastEnum):
     cloudflare = _StrConfigDscr(ConfigCategory.too_advanced)
     license = _StrConfigDscr(ConfigCategory.hidden)
     country = _StrConfigDscr(ConfigCategory.general, ApplyMode.reinstall, hide_in_virtual_child=True)
-    package_mode = _StrConfigDscr(ConfigCategory.advanced, hide_in_virtual_child=True)
+    # Package Update Mode section removed from Settings - retired to
+    # ConfigCategory.hidden (same pattern as tls_ports/http_proxy_enable
+    # above) rather than deleted, since hiddify.py's reinstall_action still
+    # reads this key to decide whether a package_mode change needs a
+    # do_update reinstall.
+    package_mode = _StrConfigDscr(ConfigCategory.hidden, hide_in_virtual_child=True)
     utls = _StrConfigDscr(ConfigCategory.advanced)
     telegram_bot_token = _StrConfigDscr(ConfigCategory.telegram, hide_in_virtual_child=True)
 
@@ -249,7 +288,13 @@ class ConfigEnum(metaclass=FastEnum):
     panel_mode = _TypedConfigDscr(PanelMode, ConfigCategory.hidden, hide_in_virtual_child=True)
     # endregion
 
-    log_level = _TypedConfigDscr(LogLevel, ConfigCategory.hidden, ApplyMode.reinstall, hide_in_virtual_child=True)
+    # Visible (not hidden): _v83() force-sets this to CRITICAL for every
+    # install (quieter logs/less disk by default), which also makes
+    # xray/configs/00_log.json.j2 turn output/error/access/dnsLog fully
+    # off - there was previously no way to turn logging back on short of
+    # a direct DB edit, which meant every "check the Xray logs" diagnosis
+    # request had nothing to work with by default.
+    log_level = _TypedConfigDscr(LogLevel, ConfigCategory.advanced, ApplyMode.reinstall, hide_in_virtual_child=True)
 
     unique_id = _StrConfigDscr(ConfigCategory.hidden)
     last_hash = _StrConfigDscr(ConfigCategory.hidden)
@@ -267,7 +312,12 @@ class ConfigEnum(metaclass=FastEnum):
     default_useragent_string = _StrConfigDscr(ConfigCategory.general)    
     use_ip_in_config=_BoolConfigDscr(ConfigCategory.hidden)
     # tls
-    tls_ports = _StrConfigDscr(ConfigCategory.tls, ApplyMode.apply_config)
+    # retired - HTTP/TLS ports are now a per-domain Domain.http_port/tls_port
+    # override (see DomainAdmin.py) instead of one global list shared by
+    # every domain. Kept under ConfigCategory.hidden (not deleted) only so
+    # old DB rows/migrations referencing this key don't error, same pattern
+    # as the retired kcp_ports/wireguard_* fields.
+    tls_ports = _StrConfigDscr(ConfigCategory.hidden, ApplyMode.apply_config)
 
     tls_fragment_enable = _BoolConfigDscr(ConfigCategory.tls_trick)
     tls_fragment_size = _StrConfigDscr(ConfigCategory.tls_trick)
@@ -276,7 +326,10 @@ class ConfigEnum(metaclass=FastEnum):
     tls_mixed_case = _BoolConfigDscr(ConfigCategory.tls_trick)
     tls_padding_enable = _BoolConfigDscr(ConfigCategory.tls_trick, ApplyMode.apply_config)
     tls_padding_length = _StrConfigDscr(ConfigCategory.tls_trick, ApplyMode.apply_config)
-    tls_ech_enable = _BoolConfigDscr(ConfigCategory.tls, ApplyMode.apply_config)
+    # Removed from the TLS Settings section - retired to ConfigCategory.hidden
+    # (same pattern as tls_ports above) rather than deleted, since old DB
+    # rows/migrations still reference the key.
+    tls_ech_enable = _BoolConfigDscr(ConfigCategory.hidden, ApplyMode.apply_config)
     
 
     # mux
@@ -290,7 +343,8 @@ class ConfigEnum(metaclass=FastEnum):
     mux_brutal_up_mbps = _IntConfigDscr(ConfigCategory.mux, ApplyMode.apply_config)
     mux_brutal_down_mbps = _IntConfigDscr(ConfigCategory.mux, ApplyMode.apply_config)
 
-    http_ports = _StrConfigDscr(ConfigCategory.http, ApplyMode.apply_config)
+    # retired - see tls_ports above; replaced by the per-domain Domain.http_port.
+    http_ports = _StrConfigDscr(ConfigCategory.hidden, ApplyMode.apply_config)
     mieru_tcp_ports = _StrConfigDscr(ConfigCategory.mieru, ApplyMode.apply_config, hide_in_virtual_child=True)
     mieru_udp_ports = _StrConfigDscr(ConfigCategory.mieru, ApplyMode.apply_config, hide_in_virtual_child=True)
     # retired (_v137 forces kcp_enable off for every install) - KCP's whole
@@ -313,7 +367,13 @@ class ConfigEnum(metaclass=FastEnum):
     proxy_path_client = _StrConfigDscr(ConfigCategory.too_advanced, ApplyMode.apply_config, hide_in_virtual_child=True)
     firewall = _BoolConfigDscr(ConfigCategory.general, ApplyMode.apply_config, hide_in_virtual_child=True)
     netdata = _BoolConfigDscr(ConfigCategory.hidden, ApplyMode.reinstall)  # removed
-    http_proxy_enable = _BoolConfigDscr(ConfigCategory.http)
+    # HTTP Configuration section removed from Settings - http_ports (above)
+    # was the only other member of this category, so this was the last field
+    # keeping the section around. Retired to ConfigCategory.hidden rather
+    # than deleted, since old DB rows/migrations still reference the key,
+    # and hutils/proxy/shared.py still reads it to decide whether to offer
+    # plain-HTTP proxy links at all.
+    http_proxy_enable = _BoolConfigDscr(ConfigCategory.hidden)
     block_iran_sites = _BoolConfigDscr(ConfigCategory.proxies, ApplyMode.apply_config, hide_in_virtual_child=True)
     allow_invalid_sni = _BoolConfigDscr(ConfigCategory.tls, ApplyMode.apply_config, hide_in_virtual_child=True)
     auto_update = _BoolConfigDscr(ConfigCategory.hidden if os.environ.get('HIDDIFY_DISABLE_UPDATE',"").lower() in {'1',"true"} else ConfigCategory.general, ApplyMode.apply_config, True, hide_in_virtual_child=True)
@@ -367,6 +427,13 @@ class ConfigEnum(metaclass=FastEnum):
     hysteria_obfs_enable = _BoolConfigDscr(ConfigCategory.hysteria, ApplyMode.apply_config)
     hysteria_up_mbps = _StrConfigDscr(ConfigCategory.hysteria, ApplyMode.apply_config)
     hysteria_down_mbps = _StrConfigDscr(ConfigCategory.hysteria, ApplyMode.apply_config)
+    # Orphaned: was the port for Xray-core's native "hysteria" protocol
+    # ("Hysteria (Xray)"), removed entirely (see init_db.py's _v149) - no
+    # obfuscation support in Xray's implementation meant its plain QUIC
+    # handshake couldn't survive network paths that only pass obfuscated
+    # traffic cleanly. Left defined (unused) since _v148's historical
+    # migration still references this key and migrations aren't rewritten.
+    xray_hysteria_port = _StrConfigDscr(ConfigCategory.hidden, ApplyMode.apply_config, hide_in_virtual_child=True)
 
     shadowsocks2022_enable = _BoolConfigDscr(ConfigCategory.shadowsocks, ApplyMode.apply_config)
     shadowsocks2022_method = _StrConfigDscr(ConfigCategory.hidden, ApplyMode.apply_config)
@@ -389,6 +456,19 @@ class ConfigEnum(metaclass=FastEnum):
     grpc_enable = _BoolConfigDscr(ConfigCategory.proxies, ApplyMode.apply_config)
     httpupgrade_enable = _BoolConfigDscr(ConfigCategory.proxies, ApplyMode.apply_config)
     xhttp_enable = _BoolConfigDscr(ConfigCategory.proxies, ApplyMode.apply_config)
+    # Default public DNS resolvers for xdns-mode domains (Xray-core's xdns
+    # finalmask, XTLS/Xray-core#5560/#5633 - see DomainType.xdns in
+    # models/domain.py). Hidden like special_port/hysteria_port above:
+    # there's no separate on/off switch here, a domain opts in by setting
+    # its own 'mode' to xdns, and can override this default per-domain via
+    # extra_params.xdns_resolvers.
+    xdns_resolvers = _StrConfigDscr(ConfigCategory.hidden, ApplyMode.apply_config, hide_in_virtual_child=True)
+    # Admin on/off switches for the xdns/xicmp Proxy rows (get_proxies()),
+    # same role dnstt_enable plays for the DNSTT proxy row above - separate
+    # from a domain actually being in xdns/xicmp mode, which is what makes
+    # the underlying inbound/config functionally exist at all.
+    xdns_enable = _BoolConfigDscr(ConfigCategory.proxies, ApplyMode.apply_config)
+    xicmp_enable = _BoolConfigDscr(ConfigCategory.proxies, ApplyMode.apply_config)
 
     naive_enable = _BoolConfigDscr(ConfigCategory.proxies, ApplyMode.apply_config)
     naive_port = _StrConfigDscr(ConfigCategory.proxies, ApplyMode.apply_config)

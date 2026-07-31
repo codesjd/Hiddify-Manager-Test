@@ -8,32 +8,21 @@
       "tag": "direct",
       "type": "direct"
     },
-    {
-      "tag": "WARP",
-      "type": "direct",
-      "bind_interface": "warp"
-    },
-    // Add an outbound with Protocol "amneziawg" (with its Peer/PrivateKey/
-    // Jc/Jmin/Jmax fields filled in) on the Outbounds admin page to bind to
-    // the per-row interface other/amneziawg/run.sh.j2 brings up for it -
-    // same as building a WARP-style bind_interface outbound above, just
-    // user-defined instead of hardcoded, so the tag/routing/interface are
-    // all fully under admin control instead of colliding with a fixed one
-    // here.
+    // WARP: add an Outbound on the Outbounds admin page instead (Protocol
+    // "amneziawg", address=engage.cloudflareclient.com, port=2408,
+    // uuid_or_password=<your WireGuard private key>,
+    // peer_public_key=bmXOC+F1FxEMF9dyiK2H5/1SUtzH0JuVo51h2wPfgyo= (Cloudflare's
+    // well-known WARP public key), local_address=<your WARP-assigned IPv4/32,
+    // IPv6/128>, and Jc/Jmin/Jmax if you want junk-packet obfuscation - a real
+    // WireGuard peer like Cloudflare's tolerates those fine, just not
+    // H1-H4/S1-S4/I1-I5 (those change the actual handshake bytes, which only
+    // another AmneziaWG-aware peer would understand). It binds to the
+    // per-row interface other/amneziawg/run.sh.j2 brings up, same as any
+    // other amneziawg-protocol Outbound - fully admin-controlled instead of
+    // a fixed tag/interface. Then select its Tag from any Routing Rule.
     {% set extra = hconfigs.get('additional_configs_singbox','') | from_json %}
     {% for ob in extra.get('outbounds', []) %}
     {{ ob | tojson }},
     {% endfor %}
-    // {
-    //   "tag":"WARP",
-    //   "type":"socks",
-    //   "version": "5",
-    //   "server":"127.0.0.1",
-    //   "server_port":3000
-    // },
-    //hiddify!!!!_warp
-    
-    
-    
   ]
 }

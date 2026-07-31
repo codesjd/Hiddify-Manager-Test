@@ -64,13 +64,31 @@ def init_app(app):
         from hiddifypanel import hutils
         app.jinja_env.filters['b64encode'] = hutils.encode.do_base_64
         app.jinja_env.filters['sanitize_html'] = hutils.encode.sanitize_html
-        # csrf_token(): exposes Flask-WTF's session-tied token generator to
-        # every template, independent of whether a given view uses a
+        # raw_csrf_token(): exposes Flask-WTF's session-tied token generator
+        # to every template, independent of whether a given view uses a
         # FlaskForm (which already gets CSRF via its own hidden field) - the
         # admin blueprint's raw <form method="post"> actions (see
         # panel/admin/__init__.py's before_request CSRF check) need it too.
+        #
+        # Deliberately NOT named "csrf_token": flask_adminlte3's vendored
+        # flask-admin/adminlte/forms.html renders every ModelView form
+        # (DomainAdmin, OutboundAdmin, ...) through form_body(), which does
+        # `{% if form.hidden_tag is defined %} ... {% else %} {% if
+        # csrf_token %}<input name="csrf_token" .../>{% endif %} ...`.
+        # AdminLTEModelView's forms use flask_admin's SecureForm, which has
+        # no hidden_tag (that's a FlaskForm-only method), so that branch
+        # always runs - and a truthy bare `csrf_token` global made it inject
+        # a second, bogus `name="csrf_token"` field ahead of SecureForm's own
+        # real one in the same <form>. Both get submitted under the same
+        # name, the server reads the first (wrong) value, and SecureForm's
+        # own CSRF check fails silently (hidden field, no visible error) -
+        # every Domain/Outbound/RoutingRule/... create or edit just
+        # redisplayed the form with no indication why. A distinct global
+        # name leaves the ambient `csrf_token` undefined again for that
+        # vendored template, restoring SecureForm's own token as the only
+        # one rendered.
         from flask_wtf.csrf import generate_csrf
-        app.jinja_env.globals['csrf_token'] = generate_csrf
+        app.jinja_env.globals['raw_csrf_token'] = generate_csrf
         app.view_functions['admin.static'] = {}  # fix bug in apiflask
         flask_bootstrap.Bootstrap4(app)
 

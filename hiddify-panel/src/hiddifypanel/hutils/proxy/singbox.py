@@ -30,6 +30,25 @@ def configs_as_json(domains: list[Domain], **kwargs) -> dict:
         # plain-link subscription already does in make_v2ray_configs().
         if pinfo.get('transport') == ProxyTransport.xhttp:
             continue
+        # SSH, Mieru, Naive, AmneziaWG and DNSTT outbounds aren't compiled
+        # into every sing-box build (mieru needs CGO, ssh/naive/wireguard/
+        # dnstt are optional modules some minimal/mobile builds leave out) -
+        # unlike xhttp above this doesn't fail the whole config, but it does
+        # leave dead, unusable proxy group entries in the client's Select/
+        # Auto lists. Excluded from the sing-box JSON specifically; these
+        # protocols are untouched in every other subscription format (they
+        # still get their own independent links, see to_link()).
+        if pinfo.get('proto') in (ProxyProto.ssh, ProxyProto.mieru, ProxyProto.naive, ProxyProto.amneziawg, ProxyProto.dnstt):
+            continue
+        # xdns/xicmp are Xray-core's finalmask DNS/ICMP-tunneled vless
+        # (xray/configs/05_inbounds_0{5,6}_x{dns,icmp}.json.j2) - Xray-core-
+        # exclusive concepts sing-box has no matching outbound type for, and
+        # to_singbox() below has no branch for either - without this, they
+        # fell through to the generic tail of to_singbox() and got emitted
+        # as literal `"type": "xdns"/"xicmp"` outbounds, which aren't real
+        # sing-box outbound types at all.
+        if pinfo.get('proto') in (ProxyProto.xdns, ProxyProto.xicmp):
+            continue
         sing = to_singbox(pinfo)
         if 'msg' not in sing:
             if hutils.flask.is_client_version(hutils.flask.ClientVersion.hiddify_next, 4, 0, 0) and sing[0]['type']=="wireguard":
@@ -84,7 +103,7 @@ def to_singbox(proxy: dict) -> list[dict] | dict:
     base = {}
     all_base.append(base)
     # vmess ws
-    base["tag"] = f"""{proxy['extra_info']} {proxy["name"]} Â§ {proxy['port']} {proxy["dbdomain"].id}"""
+    base["tag"] = f"""{proxy['extra_info']} {proxy["name"]} § {proxy['port']} {proxy["dbdomain"].id}"""
     if is_xray_proxy(proxy):
         if hutils.flask.is_client_version(hutils.flask.ClientVersion.hiddify_next, 1, 9, 0):
             base['type'] = "xray"
@@ -339,7 +358,7 @@ def add_dnstt(all_base:list,proxy:dict):
         if v:= proxy.get(s):
             all_base[0][s.replace("_","-")]=v
     tag=all_base[0]["tag"]
-    all_base[0]["tag"]+="Â§hideÂ§"
+    all_base[0]["tag"]+="§hide§"
     all_base.append({
         "type":"socks",
         "username":proxy['uuid'],
@@ -514,7 +533,7 @@ def add_shadowsocks_base(all_base: list[dict], proxy: dict):
         base["plugin_opts"] = f'mode=websocket;path={proxy["path"]};host={proxy["host"]};tls'
 
     if proxy["transport"] == "shadowtls":
-        base['detour'] = base['tag'] + "_shadowtls-out Â§hideÂ§"
+        base['detour'] = base['tag'] + "_shadowtls-out §hide§"
 
         shadowtls_base = {
             "type": "shadowtls",
@@ -570,8 +589,19 @@ def add_hysteria(base: dict, proxy: dict):
     # 'hysteria_down_mbps'); reading them with the ConfigEnum member as the
     # key (which is a FastEnum, not str-equal to the key) silently returned
     # None, so sing-box/Hiddify-app clients never got the configured speeds.
-    base['up_mbps'] = proxy.get('hysteria_up_mbps')
-    base['down_mbps'] = proxy.get('hysteria_down_mbps')
+    #
+    # hysteria_up_mbps/hysteria_down_mbps are _StrConfigDscr hconfigs, so
+    # these come through as strings ("150") - sing-box's schema requires
+    # up_mbps/down_mbps to be JSON integers and hard-rejects the whole
+    # config ("cannot unmarshal string into Go value of type int") if
+    # they're left as strings, so cast them here.
+    def _to_int(v):
+        try:
+            return int(v)
+        except (TypeError, ValueError):
+            return None
+    base['up_mbps'] = _to_int(proxy.get('hysteria_up_mbps'))
+    base['down_mbps'] = _to_int(proxy.get('hysteria_down_mbps'))
     # TODO: check the obfs should be empty or not exists at all
     if proxy.get('hysteria_obfs_enable'):
         base['obfs'] = {

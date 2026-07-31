@@ -71,10 +71,18 @@ def configs_as_json(domains: list[Domain], user: User, expire_days: int, remarks
 
         base_config = json.loads(render_template(
             'base_xray_config.json.j2', remarks=remarks))
+        # base_xray_config.json.j2's catch-all routing rule always sends
+        # traffic to an outbound literally tagged "proxy" - the actual
+        # proxy outbound built above keeps its own descriptive tag (used
+        # for base['remarks'] below), so without this rename that rule
+        # matches nothing ("non existing outTag: proxy") and every
+        # connection silently falls through instead of using the proxy.
         if len(outbounds) > 1:
             for out in outbounds:
                 base = copy.deepcopy(base_config)
                 base['remarks'] = out['tag']
+                out = copy.deepcopy(out)
+                out['tag'] = 'proxy'
                 base['outbounds'].insert(0, out)
                 # if all_configs:
                 #     all_configs.insert(0, copy.deepcopy(base_config))
@@ -82,6 +90,7 @@ def configs_as_json(domains: list[Domain], user: User, expire_days: int, remarks
                 all_configs.append(base)
 
         elif len(outbounds) == 1:  # single outbound
+            outbounds[0]['tag'] = 'proxy'
             base_config['outbounds'].insert(0, outbounds[0])
             all_configs = [base_config]
         # len(outbounds) == 0 (active user, but every proxy was filtered out
@@ -96,13 +105,46 @@ def configs_as_json(domains: list[Domain], user: User, expire_days: int, remarks
 
 
 def to_xray(proxy: dict) -> dict:
-    # naive/mieru/anytls/tuic are all sing-box-only; xray-core has no
-    # protocol implementation for any of them. tuic was previously only
-    # filtered conditionally for v2rayng user agents (see the
-    # unsupported_protos set above) - every other/unknown client requesting
-    # the full-Xray-JSON subscription format fell through to here and got a
-    # `{"protocol": "tuic", "settings": {}}` outbound, which is invalid.
-    if proxy['proto'] in {ProxyProto.naive, ProxyProto.mieru, ProxyProto.anytls, ProxyProto.tuic}:
+    # naive/mieru/anytls/tuic/hysteria2 are all sing-box-only; xray-core has
+    # no protocol implementation for any of them under those names. tuic was
+    # previously only filtered conditionally for v2rayng user agents (see
+    # the unsupported_protos set above) - every other/unknown client
+    # requesting the full-Xray-JSON subscription format fell through to
+    # here and got a `{"protocol": "tuic", "settings": {}}` outbound, which
+    # is invalid. hysteria2 had the exact same latent bug - it wasn't in
+    # this skip-list, so any client other than v2rayng requesting the
+    # full-Xray-JSON format with a hysteria2 proxy present would get a
+    # broken `{"protocol": "hysteria2", "settings": {}}` outbound too.
+    #
+    # ProxyProto.hysteria (Xray-core's own native hysteria outbound) used to
+    # be handled here as a real, connectable option - removed entirely: its
+    # protocol has no obfuscation support at all (confirmed against
+    # transport/internet/hysteria/config.proto), and in practice its plain
+    # QUIC handshake never completed over network paths that only pass
+    # obfuscated traffic cleanly (e.g. Cloudflare WARP) - a client-network-
+    # path/protocol-capability gap no server-side config could fix. Now
+    # excluded the same way hysteria2/tuic/etc already are.
+    #
+    # ssh/dnstt/amneziawg are real, connectable protocols, but not ones most
+    # Xray-JSON clients understand as an outbound alongside vless/vmess/
+    # trojan/etc - they get their own independent links (see to_link()
+    # elsewhere) instead of being bundled into this combined subscription
+    # format, same reasoning as the sing-box subscription's exclusion list.
+    if proxy['proto'] in {ProxyProto.naive, ProxyProto.mieru, ProxyProto.anytls, ProxyProto.tuic, ProxyProto.hysteria2,
+                          ProxyProto.hysteria, ProxyProto.ssh, ProxyProto.dnstt, ProxyProto.amneziawg}:
+        return {}
+    # ShadowTLS rides on ProxyProto.ss (same as plain Shadowsocks/SS-2022,
+    # differentiated only by transport=='shadowtls'), so it isn't caught by
+    # the proto-based skip-list above. Xray-core has no ShadowTLS
+    # implementation at all (confirmed against XTLS/Xray-core docs; xray.py's
+    # to_link() already refuses it for the same reason: "ShadowTLS is Not
+    # Supported for this platform"). Without this check it fell through into
+    # the generic Shadowsocks branch below, which builds a plain TLS+TCP
+    # outbound with no ShadowTLS wrapper at all - not just suboptimal, never
+    # connectable, since there's no ShadowTLS server on the other end of a
+    # bare TLS handshake. Plain Shadowsocks/SS-2022 (transport=='shadowsocks')
+    # is unaffected - Xray-core supports 2022-blake3 ciphers natively.
+    if proxy['transport'] == 'shadowtls':
         return {}
     outbound = {
         'tag': f'{proxy["extra_info"]} {proxy["name"]}',
@@ -116,6 +158,13 @@ def to_xray(proxy: dict) -> dict:
     }
 
     outbound['protocol'] = 'shadowsocks' if outbound['protocol'] == 'ss' else outbound['protocol']
+    # xdns/xicmp are ProxyProto values for admin-toggle/domain-mode-matching
+    # purposes only (see is_proxy_valid()) - the wire protocol Xray-core
+    # actually speaks underneath the finalmask is plain vless, same as any
+    # other vless proxy. Emitting "protocol": "xdns"/"xicmp" literally isn't
+    # a real Xray-core protocol at all and fails config parsing outright.
+    if proxy['proto'] in (ProxyProto.xdns, ProxyProto.xicmp):
+        outbound['protocol'] = 'vless'
     # add multiplex to outbound
     add_multiplex(outbound, proxy)
 
@@ -138,6 +187,11 @@ def add_proto_settings(base: dict, proxy: dict):
     elif proxy['proto'] == ProxyProto.ss:
         add_shadowsocks_settings(base, proxy)
     elif proxy['proto'] == ProxyProto.vless:
+        add_vless_settings(base, proxy)
+    elif proxy['proto'] in (ProxyProto.xdns, ProxyProto.xicmp):
+        # Underlying protocol is vless (see to_xray()'s protocol override
+        # above) - address/port/uuid all come from the same proxy dict
+        # fields any other vless proxy uses.
         add_vless_settings(base, proxy)
     elif proxy['proto'] == ProxyProto.vmess:
         add_vmess_settings(base, proxy)
@@ -286,6 +340,17 @@ def add_stream_settings(base: dict, proxy: dict):
     ss = base['streamSettings']
 
     _add_security(ss, proxy, proxy)
+
+    if proxy['proto'] in (ProxyProto.xdns, ProxyProto.xicmp):
+        # finalmask masks (XTLS/Xray-core#5560/#5633) only ever attach to
+        # mKCP transport (Xray-core docs: "header/seed fields removed, use
+        # FinalMask instead") - never xhttp/ws/grpc/tcp, and never TLS
+        # security (security stays 'none' from _add_security() above, which
+        # is correct here). Returns early: none of the transport-matching
+        # branches below apply to a masked mKCP outbound.
+        add_mask_finalmask_stream(ss, proxy)
+        return
+
     if proxy['l3'] == ProxyL3.kcp:
         ss['network'] = 'kcp'
         add_kcp_stream(ss, proxy)
@@ -414,7 +479,16 @@ def _add_xhttp_details(ss: dict, proxy: dict):
         'mode':proxy['xhttp_mode'],
         "extra": {
             "headers": proxy['params'].get('headers', {})
-        }
+        },
+        # Matches the server inbound's own xPaddingBytes (xray/configs/
+        # common/streams/xhttp.pj2) - a top-level field, not nested under
+        # "extra" like headers above. infra/conf's Int32Range.UnmarshalJSON
+        # (the type this field actually decodes into) only accepts a plain
+        # integer or a "100-1000" string - an object like {"from":100,
+        # "to":1000} fails both parse attempts and gets rejected outright,
+        # which is exactly why some clients "don't even recognize" this
+        # config at all rather than just ignoring an unknown field.
+        "xPaddingBytes": "100-1000",
     }
     if proxy.get("download"):
         # The download sub-object is only guaranteed to carry WHATEVER
@@ -460,6 +534,76 @@ def add_kcp_stream(ss: dict, proxy: dict):
     }
 
 
+def add_mask_finalmask_stream(ss: dict, proxy: dict):
+    # kcpSettings mirror the dedicated server-side inbound exactly
+    # (xray/configs/05_inbounds_05_xdns.json.j2 /
+    # 05_inbounds_06_xicmp.json.j2) - xdns's own docs say its MTU is too
+    # small for QUIC, hence the much smaller mtu there than xicmp's.
+    #
+    # finalmask.settings schema below is taken directly from Xray-core's
+    # actual runtime source (transport/internet/finalmask/{xdns,xicmp}/
+    # client.go, verified against v26.6.1 - common/packages.lock pins this
+    # version now), not any doc summary. xdns is asymmetric: the client's
+    # NewConnClient only ever reads "resolvers" (hard-errors "empty
+    # resolvers" if missing) and never looks at "domains" at all - that's
+    # server-only (see xray/configs/05_inbounds_05_xdns.json.j2). Each
+    # resolver string must be "<domain>[:method]+udp://<host>:<port>"
+    # (parseResolver() in xdns/spec.go).
+    ss['network'] = 'mkcp'
+    if proxy['proto'] == ProxyProto.xdns:
+        # 500 used to be hardcoded here regardless of the domain's
+        # extra_params.mtu override (unlike the server-side inbound
+        # template, which already respected it) - and 500 itself is above
+        # Xray-core's real ceiling anyway: xdns's client.go encode() hard-
+        # rejects any raw mKCP segment >= 224 bytes, and the caller just
+        # drops the packet silently on that error, so every mtu>=224 config
+        # tunnels zero real traffic. 132 mirrors the server inbound's own
+        # corrected default (xray/configs/05_inbounds_05_xdns.json.j2) -
+        # empirically confirmed via live testing (2026-07-20) as the
+        # largest value producing zero "too long" errors against a real
+        # deployment; the theoretical 223-byte ceiling didn't hold exactly
+        # in practice (200 still intermittently overflowed it). proxy.get(
+        # 'mtu') picks up a per-domain override the same way the server
+        # side already does via apply_domain_overrides().
+        ss['kcpSettings'] = {
+            'mtu': proxy.get('mtu') or 132,
+            'tti': 20,
+            'uplinkCapacity': 5,
+            'downlinkCapacity': 20,
+            'congestion': False,
+        }
+        resolvers = proxy.get('resolvers') or ['8.8.8.8:53']
+        xdns_domain = proxy['xdns_domain']
+        ss['finalmask'] = {
+            'udp': [{
+                'type': 'xdns',
+                'settings': {
+                    'resolvers': [f'{xdns_domain}+udp://{r}' for r in resolvers],
+                }
+            }]
+        }
+    elif proxy['proto'] == ProxyProto.xicmp:
+        ss['kcpSettings'] = {
+            'mtu': 1200,
+            'tti': 20,
+            'uplinkCapacity': 5,
+            'downlinkCapacity': 20,
+            'congestion': False,
+        }
+        ss['finalmask'] = {
+            'udp': [{
+                'type': 'xicmp',
+                'settings': {
+                    # true: unprivileged UDP-datagram socket, the client-side
+                    # default per xicmp/client.go (server needs the real raw
+                    # socket instead - see the inbound template's dgram=false).
+                    'dgram': True,
+                    'ips': [],
+                }
+            }]
+        }
+
+
 def add_quic_stream(ss: dict, proxy: dict):
     # TODO: fix server side configs first
     return
@@ -481,6 +625,13 @@ def add_reality_stream(ss: dict, proxy: dict, domain_info: dict):
         'publicKey': domain_info['reality_pbk'],
         'show': False,
     }
+    # ML-DSA-65 PQ signature verify value - omitted (not sent as an empty
+    # string) when unset, matching the server's own mldsa65Seed omission
+    # (xray/configs/05_inbounds_02_reality_main.json.j2) - Xray-core
+    # clients treat a missing mldsa65Verify as "no PQ check", same as an
+    # absent field on the server side.
+    if domain_info.get('reality_mldsa65_verify'):
+        ss['realitySettings']['mldsa65Verify'] = domain_info['reality_mldsa65_verify']
 
 
 def add_tls_fragmentation_stream_settings(base: dict, proxy: dict):

@@ -14,7 +14,156 @@ from hiddifypanel.database import db, db_execute
 
 
 from loguru import logger
-MAX_DB_VERSION = 141
+MAX_DB_VERSION = 150
+
+
+def _v150(child_id):
+    """ML-DSA-65 post-quantum REALITY signature (see config_enum.py's
+    reality_mldsa65_seed/verify docstring). Skips entirely (no config rows
+    added) if hutils.crypto.generate_mldsa65_keys() returns None - e.g. the
+    xray binary isn't downloaded yet at migration time - so a missing PQ
+    hardening field never blocks bootstrap; REALITY works identically
+    without it, just without the additional PQ signature. Migrations don't
+    auto-retry, so an install that hits this at exactly the wrong bootstrap
+    moment stays without it until an admin uses the existing "regenerate
+    REALITY keys" action (Actions.py's change_reality_keys(), which also
+    attempts this and runs well after installation, when the binary is
+    reliably present)."""
+    keys = hutils.crypto.generate_mldsa65_keys()
+    if keys:
+        add_config_if_not_exist(ConfigEnum.reality_mldsa65_seed, keys['seed'])
+        add_config_if_not_exist(ConfigEnum.reality_mldsa65_verify, keys['verify'])
+
+
+def _v149(child_id):
+    """Removing the "Hysteria (Xray)" feature added in _v148 entirely.
+    Xray-core's native hysteria protocol has no obfuscation support at all
+    (confirmed against transport/internet/hysteria/config.proto - only
+    auth/udp_idle_timeout/masq_* fields exist), and in real-world testing
+    its plain QUIC handshake never completed over network paths that only
+    pass obfuscated traffic cleanly (e.g. Cloudflare WARP) - a client-
+    network-path/protocol-capability gap no server-side config could fix.
+    Deletes any "Hysteria (Xray)" Proxy rows _v148 already created; the
+    inbound template and all proto=hysteria handling elsewhere are removed
+    in the same change."""
+    Proxy.query.filter(Proxy.proto == ProxyProto.hysteria).delete()
+
+
+def _v148(child_id):
+    """Xray-core's own native "hysteria" protocol (XTLS/Xray-core docs:
+    config/outbounds+inbounds/hysteria.html, config/transports/hysteria.
+    html) - wire-compatible with the standard Hysteria2 protocol but with
+    no obfs/salamander support, unlike the existing sing-box hysteria2
+    inbound. Needs its own port (can't share hysteria2's - Xray and
+    sing-box both always run and would collide binding the same port) and
+    its own Proxy row so it shows up in subscriptions as a distinct
+    option, gated on the same hysteria_enable toggle as hysteria2 (see
+    get_proxies() in hutils/proxy/shared.py)."""
+    add_config_if_not_exist(ConfigEnum.xray_hysteria_port, hutils.random.get_random_unused_port())
+    db.session.bulk_save_objects([
+        Proxy(l3=ProxyL3.tls, transport=ProxyTransport.custom, cdn='direct', proto=ProxyProto.hysteria, enable=True, name="Hysteria (Xray)"),
+    ])
+
+
+def _v147(child_id):
+    """Default public DNS resolvers for xdns-mode domains (Xray-core's
+    DNS-tunneling finalmask, XTLS/Xray-core#5560/#5633). xdns/xicmp are
+    per-domain modes (see DomainType.xdns/xicmp in models/domain.py), not
+    global toggles - a domain only gets a mask-isolated inbound when its
+    own 'mode' is set to xdns/xicmp in the domain form. This hconfig is
+    just the fallback resolver list a domain uses when it doesn't set its
+    own via extra_params.xdns_resolvers, mirroring how dnstt domains don't
+    need a global on/off switch either.
+
+    A NEW version number, not a rewrite of an already-shipped one: an
+    earlier commit on this branch used _v145 for this same seed. Any
+    install that already ran that _v145 (any db_version >= 145) permanently
+    skips it on every future boot - the version-gate only checks the
+    number, never whether a given version's body actually changed. Reusing
+    _v145 here would have silently left xdns_resolvers unset (and
+    effective_xdns_resolvers crashing on a None.split()) on every
+    already-migrated install, including this repo's own earlier test runs.
+    """
+    set_hconfig(ConfigEnum.xdns_resolvers, "8.8.8.8:53,1.1.1.1:53", child_id=child_id)
+
+
+def _v146(child_id):
+    """xdns/xicmp proxy rows + their admin enable switches (Xray-core's
+    finalmask, XTLS/Xray-core#5560/#5633). Off by default like dnstt_enable
+    originally wasn't (see _v116) - functionally inert until an admin also
+    puts a domain into xdns/xicmp mode (DomainType.xdns/xicmp), same
+    two-step as dnstt already requires."""
+    set_hconfig(ConfigEnum.xdns_enable, False, child_id=child_id)
+    set_hconfig(ConfigEnum.xicmp_enable, False, child_id=child_id)
+    db.session.bulk_save_objects([
+        Proxy(l3=ProxyL3.custom, transport=ProxyTransport.custom, cdn='direct', proto=ProxyProto.xdns, enable=True, name="XDNS"),
+        Proxy(l3=ProxyL3.custom, transport=ProxyTransport.custom, cdn='direct', proto=ProxyProto.xicmp, enable=True, name="XICMP"),
+    ])
+
+
+def _v144(child_id):
+    """AmneziaWG S1-S4/I1-I5 obfuscation params, auto-generated per install
+    instead of left blank. _v134's rationale for seeding them blank was that
+    a *shared* canned template would itself be a DPI fingerprint - but a
+    value randomized independently on every install doesn't have that
+    problem, and leaving them permanently blank meant this "opt-in" knob
+    needed hand-rolled hex/tag guessing before an admin could ever benefit
+    from it. Only fills in a field that's still blank, so an admin who
+    already set their own value (here or via Settings before this change)
+    keeps it untouched.
+
+    Ranges are AmneziaWG 2.0's documented header-obfuscation constraints:
+    S1<=1132 (recommended 15-150) with S1+56 != S2; S2<=1188 (15-150);
+    S3 0-64; S4 0-32. I1-I5 use the documented Custom Protocol Signature
+    "<r N>" tag (N bytes of fresh cryptographically random data generated
+    by the client/server on every real handshake, per docs.amnezia.org) -
+    only the packet-length *shape* is fixed per install, real content is
+    never reused/predictable."""
+    s2 = random.randint(15, 150)
+    s1 = random.randint(15, 150)
+    while s1 + 56 == s2:
+        s1 = random.randint(15, 150)
+    if not hconfig(ConfigEnum.amneziawg_s1, child_id):
+        set_hconfig(ConfigEnum.amneziawg_s1, str(s1), child_id=child_id)
+    if not hconfig(ConfigEnum.amneziawg_s2, child_id):
+        set_hconfig(ConfigEnum.amneziawg_s2, str(s2), child_id=child_id)
+    if not hconfig(ConfigEnum.amneziawg_s3, child_id):
+        set_hconfig(ConfigEnum.amneziawg_s3, str(random.randint(0, 64)), child_id=child_id)
+    if not hconfig(ConfigEnum.amneziawg_s4, child_id):
+        set_hconfig(ConfigEnum.amneziawg_s4, str(random.randint(0, 32)), child_id=child_id)
+    for i_key in [ConfigEnum.amneziawg_i1, ConfigEnum.amneziawg_i2, ConfigEnum.amneziawg_i3, ConfigEnum.amneziawg_i4, ConfigEnum.amneziawg_i5]:
+        if not hconfig(i_key, child_id):
+            set_hconfig(i_key, f"<r {random.randint(16, 64)}>", child_id=child_id)
+
+
+def _v143(child_id):
+    """Per-domain REALITY port/keys/short ID columns (Domain.reality_port/
+    reality_private_key/reality_public_key/reality_short_id), replacing the
+    global Settings-page special_port/reality_private_key/reality_public_key/
+    reality_short_ids fields - see Domain.effective_reality_*/
+    internal_port_special and DomainAdmin._validate_reality_settings.
+    Existing domains get NULL, which those fall back to the unchanged
+    global-config-derived value for, so nothing changes for them until an
+    admin (re-)saves the domain or edits a value by hand."""
+    add_column(Domain.reality_port)
+    add_column(Domain.reality_private_key)
+    add_column(Domain.reality_public_key)
+    add_column(Domain.reality_short_id)
+
+
+def _v142(child_id):
+    """Per-domain HTTP/TLS port override columns (Domain.http_port/tls_port),
+    replacing the global Settings-page http_ports/tls_ports lists - see
+    Domain.effective_http_port/effective_tls_port and the dst_port ACLs in
+    haproxy/fronts/in_tcpmode.cfg.pj2 and sni_proxy.cfg.pj2. Existing domains
+    get NULL, which effective_http_port/effective_tls_port treat as the
+    unchanged shared default (80/443), so nothing changes for them until an
+    admin explicitly sets a domain's port. ConfigEnum.http_ports/tls_ports
+    are retired to ConfigCategory.hidden (same pattern as kcp_ports/
+    wireguard_*) rather than deleted, since old DB rows/migrations still
+    reference the keys."""
+    add_column(Domain.http_port)
+    add_column(Domain.tls_port)
 
 
 def _v140(child_id):
@@ -473,8 +622,6 @@ def _v101(child_id):
 
 def _v97(child_id):
     keys = hutils.crypto.generate_ssh_host_keys()
-    # set_hconfig(ConfigEnum.ssh_host_dsa_pk, keys['dsa']['pk'])
-    # set_hconfig(ConfigEnum.ssh_host_dsa_pub, keys['dsa']['pub'])
     set_hconfig(ConfigEnum.ssh_host_rsa_pk, keys['rsa']['pk'])
     set_hconfig(ConfigEnum.ssh_host_rsa_pub, keys['rsa']['pub'])
     set_hconfig(ConfigEnum.ssh_host_ed25519_pk, keys['ed25519']['pk'])
@@ -772,7 +919,26 @@ def _v42():
 def _v41():
     add_config_if_not_exist(ConfigEnum.core_type, "xray")
     if not (Domain.query.filter(Domain.domain == hconfig(ConfigEnum.reality_fallback_domain)).first()):
-        db.session.add(Domain(domain=hconfig(ConfigEnum.reality_fallback_domain), servernames=hconfig(ConfigEnum.reality_server_names), mode=DomainType.reality))
+        # Unlike a domain created through DomainAdmin's form, this raw
+        # db.session.add() bypasses on_model_change()'s
+        # _validate_reality_settings(), which is the only place that fills
+        # in reality_port/reality_private_key/reality_public_key/
+        # reality_short_id for a new domain - 05_inbounds_02_reality_main.
+        # json.j2 reads those fields directly with no fallback, so leaving
+        # them unset here rendered a broken/empty REALITY inbound on every
+        # fresh install until the domain was deleted and recreated by hand.
+        # Reuse the account-wide keypair/short-id _v31() already generated
+        # (same values, just actually wired into the domain row) rather
+        # than minting a redundant second set.
+        db.session.add(Domain(
+            domain=hconfig(ConfigEnum.reality_fallback_domain),
+            servernames=hconfig(ConfigEnum.reality_server_names),
+            mode=DomainType.reality,
+            reality_port=hutils.random.get_random_unused_port(),
+            reality_private_key=hconfig(ConfigEnum.reality_private_key),
+            reality_public_key=hconfig(ConfigEnum.reality_public_key),
+            reality_short_id=hconfig(ConfigEnum.reality_short_ids),
+        ))
 
 
 def _v38():
@@ -797,7 +963,16 @@ def _v31():
     add_config_if_not_exist(ConfigEnum.reality_public_key, key_pair['public_key'])
     db.session.bulk_save_objects(get_proxy_rows_v1())
     if not (AdminUser.query.filter(AdminUser.id == 1).first()):
-        db.session.add(AdminUser(id=1, uuid=hconfig(ConfigEnum.admin_secret), name="Owner", mode=AdminMode.super_admin, comment=""))
+        owner = AdminUser(id=1, uuid=hconfig(ConfigEnum.admin_secret), name="Owner", username="admin", mode=AdminMode.super_admin, comment="")
+        # Fresh installs get a real, working username/password from the
+        # first login (matches Quick Setup's own admin_pass default of
+        # "admin" and validate_username_unique's self-exclusion, so
+        # keeping these defaults through Quick Setup is a no-op, not a
+        # conflict). Previously this left username/password blank,
+        # forcing every fresh install through the secret-link+blank-
+        # password flow with no working admin/admin login at all.
+        owner.update_password("admin")
+        db.session.add(owner)
         execute("update admin_user set id=1 where name='owner'")
     for i in range(1, 10):
         for d in hutils.network.get_random_domains(50):
@@ -1223,6 +1398,112 @@ def _ensure_mieru_naive_relay_variants():
         db.session.rollback()
 
 
+def _ensure_anytls_proxy_rows():
+    """Defensive backfill for the _v138 migration.
+
+    _v138 seeds the direct/relay AnyTLS Proxy rows once, gated on db_version.
+    This codebase's migration numbers have been known to collide across
+    branches/releases (see the _v149/_v150/_v151 renumbering history), which
+    can leave a node's db_version already past 138 without _v138's own body
+    ever having run for it - the AnyTLS toggle then saves fine (it's a plain
+    BoolConfig) but no Proxy row exists, so AnyTLS silently never appears in
+    any generated config or subscription regardless of the toggle. Mirrors
+    _ensure_mieru_naive_relay_variants()'s pattern: safe to call unconditionally
+    on every init_db() run, only adds rows that don't already exist.
+    """
+    try:
+        to_add = []
+        for cdn in [ProxyCDN.direct, ProxyCDN.relay]:
+            exists = Proxy.query.filter_by(proto=ProxyProto.anytls, l3=ProxyL3.tls, cdn=cdn, child_id=0).first()
+            if not exists:
+                to_add.append(Proxy(
+                    name=f"AnyTLS{'Relay' if cdn == ProxyCDN.relay else ''}",
+                    proto=ProxyProto.anytls,
+                    l3=ProxyL3.tls,
+                    transport=ProxyTransport.custom,
+                    cdn=cdn,
+                    enable=True,
+                ))
+        if to_add:
+            db.session.bulk_save_objects(to_add)
+            db.session.commit()
+            logger.info(f"Backfilled {len(to_add)} missing AnyTLS proxy row(s).")
+    except Exception:
+        logger.exception("Failed to backfill AnyTLS proxy rows (non-fatal).")
+        db.session.rollback()
+
+
+# (Domain column, the internal_port_* property it mirrors) for the 7
+# per-domain port overrides added alongside the domain Ports-section
+# completion. Shared with _ensure_domain_port_columns_backfilled below -
+# DomainAdmin.py's own _PORT_FIELD_MODES is the form-side copy of this
+# same list (can't import across those two modules without a cycle, so
+# it's duplicated rather than shared - keep both in sync if this changes).
+_DOMAIN_PORT_FIELDS = (
+    ('hysteria_port', 'internal_port_hysteria2'),
+    ('tuic_port', 'internal_port_tuic'),
+    ('naive_port', 'internal_port_naive'),
+    ('anytls_port', 'internal_port_anytls'),
+    ('dnstt_port', 'internal_port_dnstt'),
+    ('xdns_port', 'internal_port_xdns'),
+    ('xicmp_port', 'internal_port_xicmp'),
+)
+
+
+def _ensure_domain_port_columns_backfilled():
+    """DomainAdmin._auto_assign_ports only ever fills these 7 columns in
+    for a domain at the moment it's created - every domain that already
+    existed before this feature shipped would otherwise show blank port
+    fields in the admin form forever, with the real, actually-in-use port
+    number only ever visible via Domain.internal_port_*'s live computation.
+    Runs unconditionally on every init_db() call, same self-healing
+    pattern as _ensure_anytls_proxy_rows/_ensure_default_proxy_rows above -
+    only fills genuinely blank columns, never touches one a domain (or an
+    admin) already set.
+
+    add_column() calls for these 7 fields were missing entirely until now -
+    db.create_all() only creates tables that don't exist yet, it never
+    ALTERs an existing table to add a new column to it (see the
+    add_column(Domain.reality_port)/add_column(Domain.http_port) calls
+    elsewhere in this file, from when THOSE fields were added the same
+    way). Without this, the `domain` table on any already-migrated
+    install never actually gained these 7 columns even though the ORM
+    model claims they exist - every single Domain query (the admin
+    domain list, subscription generation, literally everything) started
+    raising a raw "no such column" SQL error, which is what actually
+    caused the reported hang/freeze across the whole panel, not a
+    performance regression.
+    """
+    add_column(Domain.hysteria_port)
+    add_column(Domain.tuic_port)
+    add_column(Domain.naive_port)
+    add_column(Domain.anytls_port)
+    add_column(Domain.dnstt_port)
+    add_column(Domain.xdns_port)
+    add_column(Domain.xicmp_port)
+    try:
+        changed = False
+        for domain in Domain.query.all():
+            if not domain.http_port:
+                domain.http_port = 80
+                changed = True
+            if not domain.tls_port:
+                domain.tls_port = 443
+                changed = True
+            for field_name, computed_attr in _DOMAIN_PORT_FIELDS:
+                if not getattr(domain, field_name):
+                    computed = getattr(domain, computed_attr)
+                    if computed:
+                        setattr(domain, field_name, computed)
+                        changed = True
+        if changed:
+            db.session.commit()
+            logger.info("Backfilled missing per-domain port override values.")
+    except Exception:
+        logger.exception("Failed to backfill domain port columns (non-fatal).")
+        db.session.rollback()
+
+
 def _ensure_default_proxy_rows():
     """get_proxy_rows_v1() is called from inside several version-gated
     migrations (_v.. functions that only ever run once). On installs where
@@ -1262,6 +1543,8 @@ def init_db():
         add_new_enum_values()
         _ensure_mieru_naive_relay_variants()
         _ensure_default_proxy_rows()
+        _ensure_anytls_proxy_rows()
+        _ensure_domain_port_columns_backfilled()
         return
     
     db.create_all()
@@ -1293,7 +1576,13 @@ def init_db():
         db_version = int(hconfig(ConfigEnum.db_version, child.id) or 0)
         start_version = db_version
 
-        for ver in range(1, MAX_DB_VERSION):
+        # Inclusive of MAX_DB_VERSION itself: latest_db_version() (used by
+        # the is_db_latest()/fast-path check above) treats db_version ==
+        # MAX_DB_VERSION as fully migrated, but an exclusive range(1,
+        # MAX_DB_VERSION) can never actually set db_version to that value -
+        # the newest _vN migration silently never runs until some future
+        # _vN+1 bumps the ceiling past it on a later release.
+        for ver in range(1, MAX_DB_VERSION + 1):
             if ver <= db_version:
                 continue
 
@@ -1319,6 +1608,8 @@ def init_db():
 
         db.session.commit()
     g.child = Child.by_id(0)
+    _ensure_anytls_proxy_rows()
+    _ensure_domain_port_columns_backfilled()
     return BoolConfig.query.all()
 
 

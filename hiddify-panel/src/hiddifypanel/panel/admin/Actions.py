@@ -95,18 +95,21 @@ class Actions(FlaskView):
             for p in (500, 4500, 1701):
                 udp_ports.add(p)
 
-        for p in (hconfig(ConfigEnum.tls_ports)).split(','):
-            tcp_ports.add(p)
-            udp_ports.add(p)
-        for p in hconfig(ConfigEnum.http_ports).split(','):
-            tcp_ports.add(p)
-
         for d in Domain.query.all():
             udp_ports.add(d.internal_port_tuic)
             udp_ports.add(d.internal_port_naive)
             udp_ports.add(d.internal_port_hysteria2)
+            # xdns/xicmp (finalmask) ride mKCP, which is UDP-based, same as
+            # every other finalmask/QUIC protocol above.
+            udp_ports.add(d.internal_port_xdns)
+            udp_ports.add(d.internal_port_xicmp)
             # AnyTLS is TCP-based (unlike its QUIC/UDP siblings above).
             tcp_ports.add(d.internal_port_anytls)
+            if d.tls_port:
+                tcp_ports.add(d.tls_port)
+                udp_ports.add(d.tls_port)
+            if d.http_port:
+                tcp_ports.add(d.http_port)
             # tcp+vision REALITY now binds directly instead of only being
             # reachable via HAProxy on 443 (see get_port() in
             # hutils/proxy/shared.py) - needs its own firewall opening too.
@@ -180,6 +183,16 @@ class Actions(FlaskView):
             direct_domain = next((d for d in direct_domains if not is_ip_or_auto_ip_domain(d.domain)), None)
             if direct_domain:
                 redirect_host = direct_domain.domain
+        elif preferred_type == 'ip':
+            # Explicit "redirect to IP" choice (e.g. Quick Setup, when the
+            # domain's DNS isn't pointed at this server yet) - redirect_host
+            # already defaults to the IP above, so this is a no-op, but it
+            # must stay its own branch. Falling through to the "no
+            # preference" else below would let the "stay on current host"
+            # check silently override an explicit IP choice back onto
+            # whatever domain the admin happens to be browsing from right
+            # now - including the one they just added in this same step.
+            pass
         else:
             # If no preference is specified (e.g. standard Apply Configs button),
             # stay on the same host the admin is currently using, if valid.
@@ -222,6 +235,17 @@ class Actions(FlaskView):
         key = hutils.crypto.generate_x25519_keys()
         set_hconfig(ConfigEnum.reality_private_key, key['private_key'])
         set_hconfig(ConfigEnum.reality_public_key, key['public_key'])
+        # Best-effort: the migration that first tries this
+        # (init_db.py's _v150) can silently skip if the xray binary wasn't
+        # downloaded yet at that point in bootstrap - this button runs well
+        # after installation, so it's a reliable place to actually get it
+        # populated. Still best-effort (returns None on any failure) since
+        # PQ signing is optional hardening, never required for REALITY to
+        # work.
+        mldsa65_keys = hutils.crypto.generate_mldsa65_keys()
+        if mldsa65_keys:
+            set_hconfig(ConfigEnum.reality_mldsa65_seed, mldsa65_keys['seed'])
+            set_hconfig(ConfigEnum.reality_mldsa65_verify, mldsa65_keys['verify'])
         hutils.apply_scope.mark_dirty(hutils.apply_scope.CORE_ONLY_SUBSYSTEMS)
         hutils.flask.flash_config_success(restart_mode=ApplyMode.apply_config, domain_changed=False)
         return redirect(hurl_for('admin.SettingAdmin:index'))

@@ -1,7 +1,9 @@
 frontend in-httpmode-quic
-  {# tls_ports = *additional* QUIC/h3 ports. 443 is always included so the
-     panel + client Alt-Svc h3 advertisement stay reachable. #}
-  {% for port in (["443"] + hconfigs['tls_ports'].split(',')) | select | unique %}
+  {# Each domain can set its own exclusive TLS port (Domain.tls_port,
+     default 443 when unset) - same list as sni_proxy.cfg.pj2's TCP/TLS
+     front. 443 is always included so the panel + client Alt-Svc h3
+     advertisement stay reachable. #}
+  {% for port in (["443"] + (domains | selectattr('tls_port') | map(attribute='tls_port') | map('string') | list)) | unique %}
   bind quic4@:{{port}},quic6@:{{port}} v4v6 tfo ssl crt /opt/hiddify-manager/ssl/ alpn h3
   {%endfor%}
 
@@ -21,8 +23,18 @@ frontend in-httpmode-quic
   
 
   use_backend naive_quic if is_naive
-  
-  use_backend %[var(txn.backend)]    
+
+  {# Per-domain TLS port exclusivity - mirrors sni_proxy.cfg.pj2/
+     in_tcpmode.cfg.pj2. A domain with a custom (non-443) tls_port is only
+     reachable on that port over h3 too. #}
+  {% for d in domains if d['tls_port'] and d['tls_port']|int != 443 %}
+  http-request deny if { hdr(host) -i {{d['domain']}} } !{ dst_port {{d['tls_port']}} }
+  {%endfor%}
+  {% for d in domains if not d['tls_port'] or d['tls_port']|int == 443 %}
+  http-request deny if { hdr(host) -i {{d['domain']}} } !{ dst_port 443 }
+  {%endfor%}
+
+  use_backend %[var(txn.backend)]
 
 
   default_backend nginx_dispatcher_http_h2

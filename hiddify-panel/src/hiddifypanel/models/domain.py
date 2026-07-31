@@ -30,6 +30,16 @@ class DomainType(StrEnum):
     special_reality_grpc = auto()
     old_xtls_direct = auto() #deprecated
     dnstt = auto()
+    # DNS-tunneled and ICMP-tunneled traffic via Xray-core's finalmask
+    # (xdns/xicmp masks, XTLS/Xray-core#5560/#5633). Modeled the same way
+    # as dnstt above - each is its own dedicated mKCP+finalmask Xray inbound
+    # on a per-domain auto-allocated port (see internal_port_xdns/
+    # internal_port_xicmp below), never sharing the plain xhttp/ws/grpc
+    # inbounds every other mode uses. finalmask changes the wire format for
+    # the whole inbound it's attached to, so masked traffic must never be
+    # stacked onto an inbound normal clients also connect through.
+    xdns = auto()
+    xicmp = auto()
     # special_shadowtls = auto()
 
     # fake_cdn = "fake_cdn"
@@ -65,6 +75,44 @@ class Domain(db.Model):
     download_domain = db.relationship('Domain',remote_side=[id],    foreign_keys=[download_domain_id])
     extra_params = db.Column(db.String(2000), nullable=True, default='{}')
     resolve_ip= db.Column(db.Boolean, nullable=True, default=False)
+    # Per-domain HTTP/TLS port override, replacing the old global Settings-page
+    # http_ports/tls_ports lists. NULL means "use the shared default port"
+    # (80 for http, 443 for tls) - every existing domain keeps working
+    # unchanged. A non-default value is exclusive to this domain: haproxy
+    # (haproxy/fronts/in_tcpmode.cfg.pj2, sni_proxy.cfg.pj2) rejects that
+    # domain's traffic on any other port, and rejects every other domain's
+    # traffic on this one.
+    http_port = db.Column(db.Integer, nullable=True, default=None)
+    tls_port = db.Column(db.Integer, nullable=True, default=None)
+    # Per-domain REALITY port/keys/short ID, replacing the old global
+    # Settings-page special_port/reality_private_key/reality_public_key/
+    # reality_short_ids fields. NULL means "fall back to the previous
+    # global-config-derived value" (see effective_reality_*/
+    # internal_port_special below) - every existing REALITY domain keeps
+    # serving the exact same port/keys/short ID it already handed out to
+    # clients. DomainAdmin auto-generates fresh, independent values for
+    # each *new* reality-mode domain (see DomainAdmin._validate_reality_settings),
+    # while still letting the admin override them by hand afterward.
+    reality_port = db.Column(db.Integer, nullable=True, default=None)
+    reality_private_key = db.Column(db.String(100), nullable=True, default=None)
+    reality_public_key = db.Column(db.String(100), nullable=True, default=None)
+    reality_short_id = db.Column(db.String(200), nullable=True, default=None)
+    # Per-domain override for the other protocols' own internal listening
+    # port (internal_port_hysteria2/tuic/naive/anytls/dnstt/xdns/xicmp
+    # below), same NULL-means-auto pattern as http_port/tls_port/
+    # reality_port above. Before these existed, every domain's port for
+    # these protocols was 100% derived (global base port + this domain's
+    # id) with no way to see or change the actual number short of reading
+    # the source - these columns make that computed value visible in the
+    # admin form and overridable, without changing the default behavior
+    # for any domain that leaves them blank.
+    hysteria_port = db.Column(db.Integer, nullable=True, default=None)
+    tuic_port = db.Column(db.Integer, nullable=True, default=None)
+    naive_port = db.Column(db.Integer, nullable=True, default=None)
+    anytls_port = db.Column(db.Integer, nullable=True, default=None)
+    dnstt_port = db.Column(db.Integer, nullable=True, default=None)
+    xdns_port = db.Column(db.Integer, nullable=True, default=None)
+    xicmp_port = db.Column(db.Integer, nullable=True, default=None)
 
     def extra_params_json(self):
         import json
@@ -102,7 +150,9 @@ class Domain(db.Model):
             'download_domain':self.download_domain.domain if self.download_domain else "",
             'show_domains': [dd.domain for dd in self.show_domains],  # type: ignore
             "resolve_ip":self.resolve_ip,
-            "extra_params":extra
+            "extra_params":extra,
+            "http_port": self.http_port,
+            "tls_port": self.tls_port,
         }
         if dump_child_id:
             data['child_id'] = self.child_id
@@ -112,8 +162,14 @@ class Domain(db.Model):
             data["internal_port_naive"] = self.internal_port_naive
             data["internal_port_special"] = self.internal_port_special
             data["internal_port_dnstt"] = self.internal_port_dnstt
+            data["internal_port_xdns"] = self.internal_port_xdns
+            data["internal_port_xicmp"] = self.internal_port_xicmp
+            data["xdns_resolvers"] = self.effective_xdns_resolvers
             data["internal_port_anytls"] = self.internal_port_anytls
             data["need_valid_ssl"] = self.need_valid_ssl
+            data["reality_private_key"] = self.effective_reality_private_key
+            data["reality_public_key"] = self.effective_reality_public_key
+            data["reality_short_id"] = self.effective_reality_short_id
 
         return data
 
@@ -158,6 +214,14 @@ class Domain(db.Model):
     def port_index(self):
         return self.id
 
+    @property
+    def effective_http_port(self) -> int:
+        return self.http_port or 80
+
+    @property
+    def effective_tls_port(self) -> int:
+        return self.tls_port or 443
+
     @staticmethod
     def _safe_port_offset(base_port: int, offset: int) -> int:
         """Combine a configured base port with a per-domain offset (port_index)
@@ -192,38 +256,70 @@ class Domain(db.Model):
     def internal_port_hysteria2(self):
         if self.mode not in [DomainType.direct, DomainType.relay, DomainType.fake]:
             return 0
-        return self._safe_port_offset(int(hconfig(ConfigEnum.hysteria_port, self.child_id)), self.port_index)
+        return self.hysteria_port or self._safe_port_offset(int(hconfig(ConfigEnum.hysteria_port, self.child_id)), self.port_index)
 
     @property
     def internal_port_dnstt(self):
         if self.mode not in [DomainType.dnstt]:
             return 0
-        return self._safe_port_offset(5400, self.port_index)
+        return self.dnstt_port or self._safe_port_offset(5400, self.port_index)
+
+    @property
+    def internal_port_xdns(self):
+        # Own base offset (distinct from dnstt's 5400), so a server running
+        # both dnstt and xdns domains never collides on the same port.
+        if self.mode not in [DomainType.xdns]:
+            return 0
+        return self.xdns_port or self._safe_port_offset(5500, self.port_index)
+
+    @property
+    def internal_port_xicmp(self):
+        if self.mode not in [DomainType.xicmp]:
+            return 0
+        return self.xicmp_port or self._safe_port_offset(5600, self.port_index)
 
 
     @property
     def internal_port_tuic(self):
         if self.mode not in [DomainType.direct, DomainType.relay, DomainType.fake]:
             return 0
-        return self._safe_port_offset(int(hconfig(ConfigEnum.tuic_port, self.child_id)), self.port_index)
+        return self.tuic_port or self._safe_port_offset(int(hconfig(ConfigEnum.tuic_port, self.child_id)), self.port_index)
 
     @property
     def internal_port_anytls(self):
         if self.mode not in [DomainType.direct, DomainType.relay, DomainType.fake]:
             return 0
-        return self._safe_port_offset(int(hconfig(ConfigEnum.anytls_port, self.child_id)), self.port_index)
+        return self.anytls_port or self._safe_port_offset(int(hconfig(ConfigEnum.anytls_port, self.child_id)), self.port_index)
 
     @property
     def internal_port_naive(self):
         if self.mode not in [DomainType.direct, DomainType.relay]:
             return 0
-        return self._safe_port_offset(int(hconfig(ConfigEnum.naive_port, self.child_id)), self.port_index)
+        return self.naive_port or self._safe_port_offset(int(hconfig(ConfigEnum.naive_port, self.child_id)), self.port_index)
 
     @property
     def internal_port_special(self):
         if self.mode != DomainType.reality and "special" not in self.mode.value:
             return 0
+        if self.reality_port:
+            return self.reality_port
         return self._safe_port_offset(int(hconfig(ConfigEnum.special_port, self.child_id)), self.port_index)
+
+    @property
+    def effective_reality_private_key(self) -> str:
+        return self.reality_private_key or hconfig(ConfigEnum.reality_private_key, self.child_id)
+
+    @property
+    def effective_reality_public_key(self) -> str:
+        return self.reality_public_key or hconfig(ConfigEnum.reality_public_key, self.child_id)
+
+    @property
+    def effective_reality_short_id(self) -> str:
+        return self.reality_short_id or hconfig(ConfigEnum.reality_short_ids, self.child_id)
+
+    @property
+    def effective_xdns_resolvers(self) -> str:
+        return self.extra_params_json().get('xdns_resolvers') or hconfig(ConfigEnum.xdns_resolvers, self.child_id) or "8.8.8.8:53,1.1.1.1:53"
 
     @classmethod
     def by_mode(cls, mode: DomainType) -> List['Domain']:
@@ -283,6 +379,12 @@ class Domain(db.Model):
         dbdomain.servernames = domain.get('servernames', '')
         dbdomain.resolve_ip=domain.get("resolve_ip",False)
         dbdomain.extra_params=domain.get("extra_params","")
+        dbdomain.http_port = domain.get("http_port") or None
+        dbdomain.tls_port = domain.get("tls_port") or None
+        dbdomain.reality_port = domain.get("reality_port") or None
+        dbdomain.reality_private_key = domain.get("reality_private_key") or None
+        dbdomain.reality_public_key = domain.get("reality_public_key") or None
+        dbdomain.reality_short_id = domain.get("reality_short_id") or None
         show_domains = domain.get('show_domains', [])
         dbdomain.show_domains = Domain.query.filter(Domain.domain.in_(show_domains)).all()
         dl_domain=domain.get("download_domain")

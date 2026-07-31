@@ -47,9 +47,11 @@ def init_app(app):
     from .OutboundAdmin import OutboundAdmin
     from .RoutingRuleAdmin import RoutingRuleAdmin
     from .InboundOverrideAdmin import InboundOverrideAdmin
+    from .DomainProxyOverrideAdmin import DomainProxyOverrideAdmin
     flaskadmin.add_view(OutboundAdmin(CustomOutbound, db.session, name=_("Outbounds"), category=_("Xray Configs")))
     flaskadmin.add_view(RoutingRuleAdmin(CustomRoutingRule, db.session, name=_("Routing Rules"), category=_("Xray Configs")))
     flaskadmin.add_view(InboundOverrideAdmin(Proxy, db.session, name=_("Inbound Overrides"), category=_("Xray Configs"), endpoint="inbound_override"))
+    flaskadmin.add_view(DomainProxyOverrideAdmin(DomainProxyOverride, db.session, name=_("Domain Proxy Overrides"), category=_("Xray Configs"), endpoint="domain_proxy_override"))
     from .Dashboard import Dashboard
     from .SettingAdmin import SettingAdmin
     from .commercial_info import CommercialInfo
@@ -57,6 +59,7 @@ def init_app(app):
     from .Actions import Actions
     from .Backup import Backup
     from .QuickSetup import QuickSetup
+    from .DomainProxyManage import DomainProxyManage
     Dashboard.register(admin_bp, route_base="/")
     SettingAdmin.register(admin_bp)
     ProxyAdmin.register(admin_bp)
@@ -64,6 +67,7 @@ def init_app(app):
     CommercialInfo.register(admin_bp)
     QuickSetup.register(admin_bp)
     Backup.register(admin_bp)
+    DomainProxyManage.register(admin_bp)
 
     @app.before_request
     def _admin_csrf_protect():

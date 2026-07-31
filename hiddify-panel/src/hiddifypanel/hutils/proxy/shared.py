@@ -1,4 +1,5 @@
 from collections import defaultdict
+from concurrent.futures import ThreadPoolExecutor
 import ipaddress
 from flask import current_app, request, g
 import glob
@@ -7,7 +8,7 @@ import re
 import json
 from ipaddress import IPv4Address, IPv6Address
 from hiddifypanel.cache import cache
-from hiddifypanel.models import Proxy, ProxyProto, ProxyL3, ProxyTransport, ProxyCDN, Domain, DomainType, ConfigEnum, hconfig, get_hconfigs
+from hiddifypanel.models import Proxy, ProxyProto, ProxyL3, ProxyTransport, ProxyCDN, Domain, DomainType, ConfigEnum, hconfig, get_hconfigs, DomainProxyOverride
 from hiddifypanel import hutils
 
 
@@ -31,7 +32,16 @@ def is_proxy_valid(proxy: Proxy, domain_db: Domain, port: int) -> dict | None:
     
     if proxy.proto!=ProxyProto.dnstt and domain_db.mode==DomainType.dnstt:
         return {'name': name, 'msg': "dnstt domain only works with dnstt protocol", 'type': 'error', 'proto': proxy.proto}
-    
+
+    if proxy.proto!=ProxyProto.xdns and domain_db.mode==DomainType.xdns:
+        return {'name': name, 'msg': "xdns domain only works with xdns protocol", 'type': 'error', 'proto': proxy.proto}
+
+    if proxy.proto!=ProxyProto.xicmp and domain_db.mode==DomainType.xicmp:
+        return {'name': name, 'msg': "xicmp domain only works with xicmp protocol", 'type': 'error', 'proto': proxy.proto}
+
+    if proxy.proto in (ProxyProto.xdns, ProxyProto.xicmp) and domain_db.mode not in (DomainType.xdns, DomainType.xicmp):
+        return {'name': name, 'msg': "xdns/xicmp protocol only works with a matching-mode domain", 'type': 'debug', 'proto': proxy.proto}
+
 
     if proxy.proto not in {ProxyProto.mieru,ProxyProto.dnstt} and not port:
         return {'name': name, 'msg': "port not defined", 'type': 'error', 'proto': proxy.proto}
@@ -104,13 +114,28 @@ def get_port(proxy: Proxy, hconfigs: dict, domain_db: Domain, ptls: int, phttp: 
         port = domain_db.internal_port_hysteria2
     elif proxy.proto == "anytls":
         port = domain_db.internal_port_anytls
-    elif domain_db.mode == DomainType.special_reality_tcp:
+    elif proxy.proto == ProxyProto.xdns:
+        port = domain_db.internal_port_xdns
+    elif proxy.proto == ProxyProto.xicmp:
+        port = domain_db.internal_port_xicmp
+    elif domain_db.mode == DomainType.special_reality_tcp and ptls:
         # tcp+vision REALITY binds directly (see xray/configs/
         # 05_inbounds_02_reality_main.json.j2) instead of routing through
         # HAProxy's SNI frontend on ptls (443) - the extra hop widened
         # REALITY's own validation-vs-decoy-response race closely enough to
         # cause "received real certificate" failures. grpc/xhttp reality
         # still shares ptls via HAProxy, so this only applies to the tcp mode.
+        #
+        # The `and ptls` guard matters beyond picking the right port:
+        # get_valid_proxies() calls get_port() once per 'http'/'tls' option
+        # (ptls set on the tls pass, None on the http pass) so that exactly
+        # one of them resolves to a real port and the other gets filtered
+        # out as "port not defined" below. Without the guard this branch
+        # returned internal_port_special unconditionally on *both* passes,
+        # so both "succeeded" and every reality-tcp proxy was emitted
+        # twice in the subscription. On the http pass (ptls=None) this now
+        # falls through to the is_tls(l3) branch below, which correctly
+        # resolves to None and gets filtered.
         port = domain_db.internal_port_special
     elif l3 == 'ssh':
         port = hconfigs[ConfigEnum.ssh_server_port]
@@ -170,6 +195,10 @@ def get_proxies(child_id: int = 0, only_enabled=False) -> list['Proxy']:
     proxies = [c for c in proxies if 'restls' not in c.transport]
     if not hconfig(ConfigEnum.dnstt_enable,child_id):
         proxies = [c for c in proxies if c.proto != ProxyProto.dnstt]
+    if not hconfig(ConfigEnum.xdns_enable,child_id):
+        proxies = [c for c in proxies if c.proto != ProxyProto.xdns]
+    if not hconfig(ConfigEnum.xicmp_enable,child_id):
+        proxies = [c for c in proxies if c.proto != ProxyProto.xicmp]
     if not hconfig(ConfigEnum.tuic_enable, child_id):
         proxies = [c for c in proxies if c.proto != ProxyProto.tuic]
 
@@ -249,6 +278,11 @@ def get_proxies(child_id: int = 0, only_enabled=False) -> list['Proxy']:
     return proxies
 
 
+@cache.cache(ttl=300)
+def get_domain_proxy_overrides(domain_id: int) -> dict[int, 'DomainProxyOverride']:
+    return {o.proxy_id: o for o in DomainProxyOverride.query.filter_by(domain_id=domain_id).all()}
+
+
 def get_valid_proxies(domains: list[Domain]) -> list[dict]:
     allp = []
     allphttp = [p for p in request.args.get("phttp", "").split(',') if p]
@@ -256,6 +290,22 @@ def get_valid_proxies(domains: list[Domain]) -> list[dict]:
     added_ip = defaultdict(set)
     configsmap = {}
     proxeismap = {}
+    all_proxies_by_id_map = {}
+
+    # Domains without a manually-set CDN IP list need a live DNS lookup.
+    # Doing that inline in the loop below serialized every domain's lookup
+    # one after another - N domains meant N DNS round trips back to back,
+    # turning a page with a few dozen domains into a multi-minute request.
+    # Resolve them all up front, concurrently, so the total wait is roughly
+    # one lookup's worth of time instead of the sum of all of them.
+    domains_needing_dns = {d.domain for d in domains if not d.get_cdn_ips_parsed()}
+    resolved_ips: dict = {}
+    if domains_needing_dns:
+        with ThreadPoolExecutor(max_workers=min(len(domains_needing_dns), 20)) as executor:
+            future_to_domain = {executor.submit(hutils.network.get_domain_ips_cached, d): d for d in domains_needing_dns}
+            for future, d in future_to_domain.items():
+                resolved_ips[d] = future.result()
+
     for domain in domains:
         if domain.child_id not in configsmap:
             configsmap[domain.child_id] = get_hconfigs(domain.child_id)
@@ -264,8 +314,24 @@ def get_valid_proxies(domains: list[Domain]) -> list[dict]:
         hconfigs = configsmap[domain.child_id]
         ips = domain.get_cdn_ips_parsed()
         if not ips:
-            ips = hutils.network.get_domain_ips_cached(domain.domain)
-        for proxy in proxeismap[domain.child_id]:
+            ips = resolved_ips.get(domain.domain)
+            if ips is None:
+                ips = hutils.network.get_domain_ips_cached(domain.domain)
+
+        domain_proxies = proxeismap[domain.child_id]
+        domain_overrides = get_domain_proxy_overrides(domain.id)
+        if domain_overrides:
+            disabled_ids = {pid for pid, o in domain_overrides.items() if o.enable is False}
+            enabled_ids = {pid for pid, o in domain_overrides.items() if o.enable is True}
+            domain_proxies = [p for p in domain_proxies if p.id not in disabled_ids]
+            missing_ids = enabled_ids - {p.id for p in domain_proxies}
+            if missing_ids:
+                if domain.child_id not in all_proxies_by_id_map:
+                    all_proxies_by_id_map[domain.child_id] = {p.id: p for p in Proxy.query.filter_by(child_id=domain.child_id).all()}
+                by_id = all_proxies_by_id_map[domain.child_id]
+                domain_proxies = domain_proxies + [by_id[pid] for pid in missing_ids if pid in by_id]
+
+        for proxy in domain_proxies:
             noDomainProxies = False
             if proxy.proto in [ProxyProto.ssh, ProxyProto.wireguard, ProxyProto.amneziawg, ProxyProto.mieru]:
                 noDomainProxies = True
@@ -274,7 +340,7 @@ def get_valid_proxies(domains: list[Domain]) -> list[dict]:
             options = []
             key = f'{proxy.proto}{proxy.transport}{proxy.cdn}{proxy.l3}'
 
-            if proxy.proto in [ProxyProto.dnstt,ProxyProto.ssh, ProxyProto.tuic, ProxyProto.hysteria2, ProxyProto.anytls, ProxyProto.wireguard, ProxyProto.amneziawg, ProxyProto.ss,ProxyProto.mieru] \
+            if proxy.proto in [ProxyProto.dnstt,ProxyProto.ssh, ProxyProto.tuic, ProxyProto.hysteria2, ProxyProto.anytls, ProxyProto.wireguard, ProxyProto.amneziawg, ProxyProto.ss,ProxyProto.mieru, ProxyProto.xdns, ProxyProto.xicmp] \
                 or (proxy.proto==ProxyProto.naive and proxy.l3==ProxyL3.h3_quic) :
                 if noDomainProxies and all([x in added_ip[key] for x in ips]):
                     continue
@@ -301,6 +367,8 @@ def get_valid_proxies(domains: list[Domain]) -> list[dict]:
                     options = [{'pport':0}]
                 elif proxy.proto == ProxyProto.dnstt:
                     options = [{'pport':0}]
+                elif proxy.proto in (ProxyProto.xdns, ProxyProto.xicmp):
+                    options = [{'pport':0}]
                 elif proxy.proto == ProxyProto.naive:
                     options = [{'pport': hconfigs[ConfigEnum.naive_port]}]
                 elif proxy.proto == ProxyProto.hysteria2:
@@ -310,20 +378,25 @@ def get_valid_proxies(domains: list[Domain]) -> list[dict]:
             else:
                 protos = ['http', 'tls'] if hconfigs.get(ConfigEnum.http_proxy_enable) else ['tls']
                 for t in protos:
-                    for port in hconfigs[ConfigEnum.http_ports if t == 'http' else ConfigEnum.tls_ports].split(','):
-                        phttp = port if t == 'http' else None
-                        ptls = port if t == 'tls' else None
-                        if phttp and len(allphttp) and phttp not in allphttp:
-                            continue
-                        if ptls and len(allptls) and ptls not in allptls:
-                            continue
-                        options.append({'phttp': phttp, 'ptls': ptls})
+                    # Each domain now has at most one http/tls port (its own
+                    # Domain.http_port/tls_port override, default 80/443) -
+                    # replacing the old global http_ports/tls_ports lists this
+                    # used to fan out one link per additional port for.
+                    port = str(domain.effective_http_port if t == 'http' else domain.effective_tls_port)
+                    phttp = port if t == 'http' else None
+                    ptls = port if t == 'tls' else None
+                    if phttp and len(allphttp) and phttp not in allphttp:
+                        continue
+                    if ptls and len(allptls) and ptls not in allptls:
+                        continue
+                    options.append({'phttp': phttp, 'ptls': ptls})
 
             for opt in options:
                 pinfo = make_proxy(hconfigs, proxy, domain, **opt)
                 if 'msg' not in pinfo:
                     hutils.proxy.apply_proxy_overrides(pinfo, proxy)
                     hutils.proxy.apply_domain_overrides(pinfo, domain)
+                    hutils.proxy.apply_domain_proxy_overrides(pinfo, domain_overrides.get(proxy.id))
                     allp.append(pinfo)
     return allp
 
@@ -387,9 +460,16 @@ def sni_host_server_extractor(domain_db: Domain, hconfigs):
         'cdn': is_cdn,
     }
     if 'reality' in domain_db.mode:
-        base['reality_short_id'] = random.sample(hconfigs[ConfigEnum.reality_short_ids].split(','), 1)[0]
+        base['reality_short_id'] = random.sample(domain_db.effective_reality_short_id.split(','), 1)[0]
         # base['flow']="xtls-rprx-vision"
-        base['reality_pbk'] = hconfigs[ConfigEnum.reality_public_key]
+        base['reality_pbk'] = domain_db.effective_reality_public_key
+        # ML-DSA-65 PQ signature verify value (global-only, no per-domain
+        # override - see config_enum.py's reality_mldsa65_verify docstring).
+        # None on installs where it hasn't been generated yet - Xray-core
+        # clients treat an absent mldsa65Verify as "no PQ check", same as
+        # the server omitting mldsa65Seed entirely (05_inbounds_02_reality_
+        # main.json.j2), so this is safe to leave unset.
+        base['reality_mldsa65_verify'] = hconfig(ConfigEnum.reality_mldsa65_verify, domain_db.child_id) or None
         # del base['host']
 
         # if not domain_db.cdn_ip:
@@ -432,7 +512,17 @@ def apply_proxy_overrides(pinfo: dict, proxy: Proxy) -> None:
 # fingerprint, hysteria_*, mieru_*, etc.) is fair game, because those are
 # exactly the transport/security knobs that differ between CDN/direct/relay
 # domains and previously could only be set once, globally, for everyone.
-_OVERRIDE_BLOCKLIST = {'uuid', 'dbe', 'dbdomain', 'proto', 'name', 'params'}
+#
+# xdns_resolvers is also excluded, but for a different reason: make_proxy()'s
+# xdns branch already reads it from domain_db.extra_params_json() itself
+# (via effective_xdns_resolvers), which knows how to treat an unset/blank
+# value as "fall back to the server-wide default" rather than a literal
+# override. Blindly re-applying the SAME raw extra_params key here
+# afterward - which is exactly what this function does for every other key -
+# would stomp that effective_* value right back down to the raw stored
+# default (""), since CustomJSONField always serializes every known model
+# field, never actually omitting an "unset" one.
+_OVERRIDE_BLOCKLIST = {'uuid', 'dbe', 'dbdomain', 'proto', 'name', 'params', 'xdns_resolvers'}
 
 
 def apply_domain_overrides(pinfo: dict, domain_db: Domain) -> None:
@@ -458,6 +548,28 @@ def apply_domain_overrides(pinfo: dict, domain_db: Domain) -> None:
     if not overrides:
         return
     for key, value in overrides.items():
+        if key in _OVERRIDE_BLOCKLIST:
+            continue
+        pinfo[key] = value
+
+
+def apply_domain_proxy_overrides(pinfo: dict, override: 'DomainProxyOverride | None') -> None:
+    """Apply a DomainProxyOverride row's `params` on top of the generated
+    proxy dict, in place. This is the most specific of the three override
+    layers (Proxy.params -> Domain.extra_params -> this), applied last so
+    it wins on any key conflict - it's the only one of the three that's
+    actually scoped to one specific (domain, proxy) pair rather than every
+    domain sharing a proxy row or every proxy on a shared domain.
+
+    `override` is looked up once per domain in get_valid_proxies() (there's
+    at most one override row per domain+proxy pair, enforced by the model's
+    unique constraint) and passed in already resolved, since the enable
+    on/off decision from that same row was already applied earlier in the
+    proxy-selection step, before make_proxy() ever ran.
+    """
+    if not override or not override.params:
+        return
+    for key, value in override.params.items():
         if key in _OVERRIDE_BLOCKLIST:
             continue
         pinfo[key] = value
@@ -528,6 +640,33 @@ def make_proxy(hconfigs: dict, proxy: Proxy, domain_db: Domain, phttp=80, ptls=4
         base['password']="h"
         return base
 
+    if base["proto"] == ProxyProto.xdns:
+        # DNS-tunneled traffic (Xray-core's xdns finalmask, XTLS/Xray-core#5633)
+        # dials one of these public resolvers, not this server's own IP -
+        # the domain being tunneled is encoded inside the DNS query itself.
+        # See xray/configs/05_inbounds_05_xdns.json.j2 for the matching
+        # server-side inbound this has to mirror exactly. Overrides the
+        # 'server'/'port' sni_host_server_extractor() set above (the tunnel
+        # domain / this server's internal listening port) - neither is a
+        # dial target a remote client can actually reach.
+        base['xdns_domain'] = domain
+        resolvers = [r.strip() for r in domain_db.effective_xdns_resolvers.split(",") if r.strip()]
+        base['resolvers'] = resolvers
+        resolver_host, _, resolver_port = (resolvers[0] if resolvers else '8.8.8.8:53').rpartition(':')
+        base['server'] = resolver_host or '8.8.8.8'
+        base['port'] = int(resolver_port) if resolver_port.isdigit() else 53
+        base['password'] = "h"
+        return base
+
+    if base["proto"] == ProxyProto.xicmp:
+        # ICMP-tunneled traffic (Xray-core's xicmp finalmask,
+        # XTLS/Xray-core#5560) dials this server's real IP directly - ICMP
+        # has no ports, so 'port' here is only a nominal identifier (see
+        # xray/configs/05_inbounds_06_xicmp.json.j2).
+        base['server'] = hutils.network.get_direct_host_or_ip(4)
+        base['password'] = "h"
+        return base
+
     if base['proto'] in {ProxyProto.naive}:
         del base['fingerprint']
         base['path']=f'/{hconfigs[ConfigEnum.path_naive]}{hconfigs[ConfigEnum.path_tcp]}'
@@ -580,6 +719,20 @@ def make_proxy(hconfigs: dict, proxy: Proxy, domain_db: Domain, phttp=80, ptls=4
             # client's own config never matched what the server inbound
             # actually used.
             base['tuic_congestion_control'] = hconfigs.get(ConfigEnum.tuic_congestion_control)
+        return base
+    if proxy.proto == ProxyProto.anytls:
+        # AnyTLS runs directly over TCP+TLS (proxy.transport is
+        # ProxyTransport.custom, l3 is plain ProxyL3.tls) - it never matches
+        # any of the vless/vmess/trojan-specific transport branches further
+        # down (tcp/ws/httpupgrade/xhttp/grpc/h1), so without this early
+        # return it fell all the way through to the final catch-all "not
+        # valid" error below. That's why enabling AnyTLS never produced a
+        # config: the Proxy DB row and the toggle both worked, but this
+        # function silently rejected every anytls proxy before xray.py's
+        # to_link()/singbox.py's add_anytls() (which already assume a valid
+        # pinfo with 'uuid') ever got a chance to run. Auth is the bare
+        # 'uuid' already in base - both to_link() and add_anytls() read it
+        # directly, no separate 'password' field needed (unlike trojan).
         return base
     if proxy.proto in ['wireguard']:
         base['wg_pub'] = g.account.wg_pub

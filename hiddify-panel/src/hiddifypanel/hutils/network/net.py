@@ -145,11 +145,63 @@ def invalidate_pinned_cert_cache(host: str, port: int = 443):
 
 
 @cache.cache(300)
-def get_domain_ips_cached(domain: str, retry: int = 3) -> Set[Union[ipaddress.IPv4Address, ipaddress.IPv6Address]]:
+def _get_domain_ips_cached_raw(domain: str, retry: int = 0) -> Set[Union[ipaddress.IPv4Address, ipaddress.IPv6Address]]:
     try:
         return set(ipaddress.ip_address(domain))
     except:
         return get_domain_ips(domain,retry)
+
+
+_failed_dns_lookup_at: dict = {}
+# Bounds how often a domain that never resolves (e.g. resolve_ip enabled on a
+# domain with no real DNS record) can trigger a full synchronous DNS
+# resolution. Without this, every call for such a domain did a fresh,
+# multi-second lookup (see the invalidate-on-empty-result path below) with no
+# floor at all - sni_host_server_extractor() calls get_domain_ips_cached()
+# once per proxy per domain, so a single broken domain turned every
+# subscription/config page load into dozens of consecutive multi-second DNS
+# resolutions, hanging the request for minutes.
+_FAILED_DNS_LOOKUP_RETRY_SECONDS = 10
+
+
+# retry=0 here (unlike get_domain_ips's own retry=3 default): get_domain_ips
+# recurses once per unit of retry with no delay/backoff between attempts, so
+# retrying a domain that has no DNS record just repeats the identical failing
+# query several times over. That's harmless for the one-off manual
+# get_domain_ips() calls (e.g. the admin "test DNS" action), but this cached
+# entry point is what get_valid_proxies()/DomainAdmin's domain list call once
+# per domain in a plain loop - multiplying each domain's cost by the retry
+# count turns a handful of stale domains into a multi-minute page load.
+def get_domain_ips_cached(domain: str, retry: int = 0) -> Set[Union[ipaddress.IPv4Address, ipaddress.IPv6Address]]:
+    result = _get_domain_ips_cached_raw(domain, retry)
+    if not result:
+        last_failure = _failed_dns_lookup_at.get(domain)
+        if last_failure is None:
+            # First time this domain has ever come back empty - the lookup
+            # we just did was already fresh (a cold cache miss), so redoing
+            # it now would just repeat the same dead query. Record the
+            # failure and return; a retry only makes sense once some time
+            # has passed (handled below).
+            _failed_dns_lookup_at[domain] = time.time()
+            return result
+        if (time.time() - last_failure) < _FAILED_DNS_LOOKUP_RETRY_SECONDS:
+            return result
+        # A failed lookup is exactly the case where a 300s cache actively
+        # hurts - e.g. an admin adds a domain before its DNS record
+        # exists, gets a validation error, fixes DNS, and retries within
+        # the window - only to have the same stale "can't resolve"
+        # served back instead of a fresh lookup. Unlike a real answer,
+        # an empty result isn't expensive information worth preserving,
+        # so don't trust/serve it from cache - invalidate and try once
+        # more for real, but no more than once every
+        # _FAILED_DNS_LOOKUP_RETRY_SECONDS for the same domain.
+        _get_domain_ips_cached_raw.invalidate(domain, retry)
+        result = get_domain_ips(domain, retry)
+        if not result:
+            _failed_dns_lookup_at[domain] = time.time()
+        else:
+            _failed_dns_lookup_at.pop(domain, None)
+    return result
 
 def get_domain_ips(domain: str, retry: int = 3) -> Set[Union[ipaddress.IPv4Address, ipaddress.IPv6Address]]:
     res = set()
@@ -385,16 +437,6 @@ def get_direct_host_or_ip(prefer_version: int) -> str:
     return get_ip_str(4 if prefer_version == 6 else 6)
 
 
-# not used
-def get_warp_info() -> str:
-    proxies = dict(http='socks5://127.0.0.1:3000',
-                   https='socks5://127.0.0.1:3000')
-    res = requests.get("https://cloudflare.com/cdn-cgi/trace", proxies=proxies, timeout=1).text
-
-    dicres = {line.split("=")[0]: line.split("=")[0] for line in res}
-    return str(dicres)
-
-
 def is_ssh_password_authentication_enabled() -> bool:
     def check_file(file_path: str) -> bool:
         if os.path.isfile(file_path):
@@ -423,24 +465,11 @@ def is_out_of_range_port(port: int) -> bool:
 
 
 def add_number_to_ipv4(ip: str, number: int) -> str:
-    octets = list(map(int, ip.split('.')))
-
-    octets[2] = (octets[2] + (octets[3] + number) // 256)
-    octets[3] = (octets[3] + number) % 256
-
-    return f"{octets[0]}.{octets[1]}.{octets[2]}.{octets[3]}"
+    return str(ipaddress.IPv4Address(ip) + number)
 
 
 def add_number_to_ipv6(ip: str, number: int) -> str:
-    segments = ip.split(':')
-
-    # Increment the last segment by the specified number
-    segments[-1] = hex(int(segments[-1] or "0", 16) + number)[2:]
-
-    # Join the segments back together with colons
-    modified_ipv6 = ":".join(segments)
-
-    return modified_ipv6
+    return str(ipaddress.IPv6Address(ip) + number)
 
 
 @ cache.cache(600)
@@ -543,16 +572,19 @@ def all_public_ports():
         if hconfig(ConfigEnum.ssh_server_enable):
             tcp_ports[hconfig(ConfigEnum.ssh_server_port)]="ssh"
         
-        for p in (hconfig(ConfigEnum.tls_ports)).split(','):
-            tcp_ports[p]="tls"
-            udp_ports[p]="quic"
-        for p in hconfig(ConfigEnum.http_ports).split(','):
-            tcp_ports[p]="http"
-
         for d in Domain.query.all():
             udp_ports[d.internal_port_tuic]="tuic"
             udp_ports[d.internal_port_naive]="naive"
             udp_ports[d.internal_port_hysteria2]="hysteria"
+            # xdns/xicmp (finalmask) ride mKCP, which is UDP-based, same as
+            # every other finalmask/QUIC protocol above.
+            udp_ports[d.internal_port_xdns]="xdns"
+            udp_ports[d.internal_port_xicmp]="xicmp"
+            if d.tls_port:
+                tcp_ports[d.tls_port]="tls"
+                udp_ports[d.tls_port]="quic"
+            if d.http_port:
+                tcp_ports[d.http_port]="http"
 
         def to_int(ports):
             r={}

@@ -55,19 +55,51 @@
 							"serverNames": [
 								"{{domain}}"
 							],
-							"privateKey": "{{hconfigs['reality_private_key']}}",
+							"privateKey": "{{d['reality_private_key']}}",
 							"shortIds": [
 								""
-								{%for sid in hconfigs['reality_short_ids'].split(',') %}
+								{%for sid in d['reality_short_id'].split(',') %}
 								,"{{sid}}"
 								{%endfor%}
-							]
+							],
+							{# maxTimeDiff/limitFallback* were entirely unset (Xray-core
+							   defaults: maxTimeDiff=0, meaning NO replay-window check at
+							   all - a captured ClientHello never expires). sing-box's own
+							   REALITY inbound (singbox/configs/05_inbounds_2061_reality_
+							   main.json.j2) already sets max_time_difference: 2h - matching
+							   that value here instead of picking a new one keeps the two
+							   backends' REALITY hardening consistent rather than trading
+							   one inconsistency for another. limitFallback* throttles
+							   unauthenticated/decoy-routed traffic (anyone who fails
+							   REALITY's ClientHello check and gets routed to the real
+							   dest's TLS response instead) so the fallback path is
+							   unattractive to use as a free proxy, without affecting any
+							   real authenticated client. #}
+							"maxTimeDiff": 7200000,
+							"limitFallbackUpload": {"afterBytes": 0, "bytesPerSec": 1000000, "burstBytesPerSec": 2000000},
+							"limitFallbackDownload": {"afterBytes": 0, "bytesPerSec": 1000000, "burstBytesPerSec": 2000000}
+							{% if hconfigs['reality_mldsa65_seed'] %}
+							{# ML-DSA-65 PQ signature (global-only, see config_enum.py's
+							   reality_mldsa65_seed docstring) - conditional because it's
+							   best-effort generated (may not exist yet on every install,
+							   see init_db.py's _v150) and omitting it entirely is exactly
+							   how Xray-core's own docs say to disable this optional
+							   hardening, rather than sending an empty string. #}
+							,"mldsa65Seed": "{{hconfigs['reality_mldsa65_seed']}}"
+							{% endif %}
 						},
                         "sockopt": {
                             {% if stream=='tcp' %}
                             "acceptProxyProtocol": false,
                             {%else%}
                             "acceptProxyProtocol": true,
+                            {# xhttp here rides HAProxy's HTTP dispatch same as
+                               the shared v10-*-xhttp inbounds (05_inbounds_new.
+                               json.j2) - same reasoning applies: acceptProxyProtocol
+                               already carries the real client IP, so explicitly
+                               distrust any client-supplied X-Forwarded-For
+                               instead of leaving Xray's implicit-trust default. #}
+                            "trustedXForwardedFor": [],
                             {%endif%}
                             "tcpFastOpen": true
                         }

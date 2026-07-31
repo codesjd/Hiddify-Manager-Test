@@ -1,0 +1,111 @@
+name: Build AmneziaWG binaries
+
+# Manual, on-demand build: amneziawg-tools and amneziawg-go neither ship
+# prebuilt Linux binaries upstream, nor do they move often. This workflow
+# cross-builds both, natively per architecture (no QEMU/cross-toolchain),
+# from a pinned upstream tag, so the results can be committed straight into
+# other/amneziawg/bin/ and installed on the VPS with zero build step and zero
+# dependency on amnezia-vpn's GitHub repos being reachable at install time.
+#
+# To refresh after an upstream release: bump the default tags below (or
+# supply new ones on manual dispatch), run this workflow, download the two
+# per-arch artifacts, and replace the contents of other/amneziawg/bin/.
+
+on:
+  workflow_dispatch:
+    inputs:
+      tools_tag:
+        description: 'amneziawg-tools tag to build (github.com/amnezia-vpn/amneziawg-tools)'
+        required: true
+        default: 'v1.0.20260618-2'
+      go_tag:
+        description: 'amneziawg-go tag to build (github.com/amnezia-vpn/amneziawg-go)'
+        required: true
+        default: 'v0.2.19'
+  # workflow_dispatch only works via the API/UI once this file exists on the
+  # default branch - this push trigger lets it be kicked off from a feature
+  # branch in the meantime (e.g. to populate the initial vendored binaries
+  # before this file has been merged). Scoped to touching this exact file so
+  # it doesn't fire on unrelated commits.
+  push:
+    paths:
+      - '.github/workflows/build-amneziawg.yaml'
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            runner: ubuntu-latest
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    env:
+      # inputs.* is only populated on a workflow_dispatch event - this run
+      # can also fire as a plain push (see the push trigger above, needed
+      # until this file exists on the default branch), where inputs is
+      # empty and github.event.inputs.* isn't defined either. Fall back to
+      # the same defaults declared above so both trigger types build the
+      # same pinned tags.
+      TOOLS_TAG: ${{ inputs.tools_tag || 'v1.0.20260618-2' }}
+      GO_TAG: ${{ inputs.go_tag || 'v0.2.19' }}
+    steps:
+      - name: Install build dependencies
+        run: sudo apt-get update && sudo apt-get install -y build-essential git
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: 'stable'
+
+      - name: Build amneziawg-tools (awg CLI + awg-quick + systemd units)
+        run: |
+          set -eux
+          git clone --depth 1 --branch "$TOOLS_TAG" https://github.com/amnezia-vpn/amneziawg-tools tools-src
+          cd tools-src/src
+          make wg LDFLAGS=-static
+          strip wg
+          mkdir -p /tmp/out
+          cp wg /tmp/out/awg
+          cp wg-quick/linux.bash /tmp/out/awg-quick
+          chmod 755 /tmp/out/awg /tmp/out/awg-quick
+          cp systemd/wg-quick.target /tmp/out/awg-quick.target
+          cp systemd/wg-quick@.service /tmp/out/awg-quick@.service
+          echo "TOOLS_SHA=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
+
+      - name: Build amneziawg-go
+        run: |
+          set -eux
+          git clone --depth 1 --branch "$GO_TAG" https://github.com/amnezia-vpn/amneziawg-go go-src
+          cd go-src
+          CGO_ENABLED=0 go build -o amneziawg-go .
+          strip amneziawg-go || true
+          chmod 755 amneziawg-go
+          cp amneziawg-go /tmp/out/amneziawg-go
+          echo "GO_SHA=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
+
+      - name: Verify binaries actually run
+        run: |
+          set -eux
+          /tmp/out/awg --version
+          /tmp/out/amneziawg-go --version
+
+      - name: Record build provenance
+        run: |
+          cat > /tmp/out/BUILD_INFO.txt <<EOF
+          arch: ${{ matrix.arch }}
+          runner: ${{ matrix.runner }}
+          amneziawg-tools: ${{ env.TOOLS_TAG }} (${{ env.TOOLS_SHA }})
+          amneziawg-go: ${{ env.GO_TAG }} (${{ env.GO_SHA }})
+          built: $(date -u +%Y-%m-%dT%H:%M:%SZ)
+          workflow_run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          EOF
+          cat /tmp/out/BUILD_INFO.txt
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: amneziawg-${{ matrix.arch }}
+          path: /tmp/out/*
+          retention-days: 90

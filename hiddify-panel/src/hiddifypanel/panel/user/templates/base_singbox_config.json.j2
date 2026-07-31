@@ -179,7 +179,16 @@
     },
     "dns": {
         "servers": [
-            {% if g.user_agent['is_singbox'] and g.user_agent['singbox_version'][0] == 1 and g.user_agent['singbox_version'][1] < 12 %}
+            {# Always use the pre-1.12 address-keyed dns.servers format.
+               The newer type-keyed format (kept below as a comment for
+               reference) depends on correctly detecting the client is a
+               genuinely modern (>=1.12) sing-box build, and that detection
+               isn't reliable - reproduced live: a real sing-box client got
+               the type-keyed format and hard-rejected the whole config
+               with dns.servers[0].type: "unknown field \"type\"". The
+               address-keyed format is only deprecated, not removed, until
+               sing-box 1.13.0, so it stays broadly compatible while
+               version detection remains unreliable. #}
             {
                 "address": "tcp://1.1.1.1",
                 "address_resolver": "dns-local",
@@ -196,7 +205,7 @@
                 "address": "rcode:\/\/success",
                 "tag": "dns-block"
             }
-            {% else %}
+            {# type-keyed format (sing-box >=1.12), unused for now:
             {
                 "tag": "dns-remote",
                 "type": "tcp",
@@ -214,7 +223,7 @@
                 "type": "rcode",
                 "rcode": "success"
             }
-            {% endif %}
+            #}
         ],
         "rules": [
             {

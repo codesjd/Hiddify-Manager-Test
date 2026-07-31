@@ -79,6 +79,22 @@ class ProxyAdmin(FlaskView):
         return render_template('proxy.html', global_config_form=global_config_form, detailed_config_form=all_proxy_form)
 
 
+# wireguard_enable: retired in favor of AmneziaWG - forced off by migration
+# _v127, excluded here so there's no toggle to turn it back on. The other
+# three are sub-options of a protocol that's already got its own toggle
+# (mux_enable/hysteria_enable) rather than a protocol switch in their own
+# right, so they don't belong on this page's per-protocol layout.
+_GLOBAL_CONFIG_EXCLUDED_ENABLES = {ConfigEnum.mux_brutal_enable, ConfigEnum.mux_padding_enable, ConfigEnum.hysteria_obfs_enable, ConfigEnum.wireguard_enable}
+
+
+def is_shown_on_proxies_page(key: "ConfigEnum") -> bool:
+    """Whether this BoolConfig key is rendered as a protocol switch on the
+    Proxies page's own global-config form (get_global_config_form below) -
+    used by SettingAdmin.get_config_form() to keep the same toggle from
+    also showing up a second time on the Settings page."""
+    return key.category != 'hidden' and key.endswith("_enable") and key not in _GLOBAL_CONFIG_EXCLUDED_ENABLES
+
+
 def get_global_config_form(empty=False):
     boolconfigs = BoolConfig.query.filter(BoolConfig.child_id == Child.current().id).all()
 
@@ -86,14 +102,9 @@ def get_global_config_form(empty=False):
         pass
 
     for cf in boolconfigs:
-        if cf.key.category == 'hidden':
+        if not is_shown_on_proxies_page(cf.key):
             continue
-        # wireguard_enable: retired in favor of AmneziaWG - forced off by
-        # migration _v127, excluded here so there's no toggle to turn it
-        # back on.
-        if not cf.key.endswith("_enable") or cf.key in [ConfigEnum.mux_brutal_enable, ConfigEnum.mux_padding_enable, ConfigEnum.hysteria_obfs_enable, ConfigEnum.wireguard_enable]:
-            continue
-        
+
         field = SwitchField(_(f'config.{cf.key}.label'), default=cf.value, description=_(f'config.{cf.key}.description'))
         setattr(DynamicForm, f'{cf.key}', field)
     setattr(DynamicForm, "submit_global", wtf.fields.SubmitField(_('Submit')))

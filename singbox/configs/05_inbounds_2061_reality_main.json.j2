@@ -10,14 +10,25 @@
 				{%set stream=modes[d['mode']]%}
 			{
 				"tag":"realityin_{{port}}",
+				{% if stream=='tcp' %}
+				{# tcp+vision REALITY binds directly instead of routing through
+				   HAProxy's SNI frontend (see the matching comment in xray/configs/
+				   05_inbounds_02_reality_main.json.j2) - the extra hop widens
+				   REALITY's own validation-vs-decoy-response race enough to cause
+				   "received real certificate" failures. This mirrors Xray's
+				   existing tcp-mode handling; grpc reality still shares ptls via
+				   HAProxy since it doesn't have this race concern. #}
+				"listen": "::",
+				{%else%}
 				// "port": {{port}}, // This is TLS entrypoint. This entrypoint does the SSL Termination then routes the request based on the Path or ALPN type.
 				"listen": "127.0.0.1",
+				{%endif%}
 				"listen_port": {{ port }},
 				"tcp_fast_open": true,
 				"sniff": true,
 				"sniff_override_destination": true,
 				"domain_strategy": "prefer_ipv4",
-				"proxy_protocol":true,
+				"proxy_protocol": {% if stream=='tcp' %}false{%else%}true{%endif%},
 				{% with flow="xtls-rprx-vision" if stream=='tcp' else "" %}
 					{% include '/opt/hiddify-manager/singbox/configs/common/protocols/'~protocol~'.pj2' %},
 				{%endwith%}
@@ -37,10 +48,10 @@
 							"server": "{{domain}}",
 							"server_port": 443
 						},
-						"private_key": "{{hconfigs['reality_private_key']}}",
+						"private_key": "{{d['reality_private_key']}}",
 						"short_id": [
-							"" 
-							{%for sid in hconfigs['reality_short_ids'].split(',') %}
+							""
+							{%for sid in d['reality_short_id'].split(',') %}
 							,"{{sid}}"
 							{%endfor%}
 						],

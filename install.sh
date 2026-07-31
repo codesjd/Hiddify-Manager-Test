@@ -106,32 +106,28 @@ function main() {
         #update_progress "${PROGRESS_ACTION}" "ShadowTLS" 60
         #install_run other/shadowtls $(hconfig "shadowtls_enable")
         
-        update_progress "${PROGRESS_ACTION}" "Warp" 70
-        
-        if [[ $(hconfig "warp_mode") != "disable" ]];then
-            install_run other/warp 1 &
-        else   
-            install_run other/warp 0 &
-        fi
-
-        # core_type only decides the PRIMARY core. The two cores are
-        # complementary, not redundant: xray serves vless/vmess/trojan/reality,
-        # while hysteria2/tuic/shadowsocks2022/anytls/mieru/naive exist ONLY as
-        # singbox inbounds (there is no xray/configs/ template for them). So on
-        # an xray-core install singbox must ALSO run, or every one of those
-        # protocols points at a dead port. They don't collide: singbox's
-        # overlapping inbounds (vless/vmess/trojan/reality) self-exclude via
-        # `{% if core_type=="singbox" %}` gates, and the two cores use distinct
-        # control/socks ports (xray 10085/1234, singbox 10086/2000). The panel
-        # also polls singbox on 10086 for usage stats, so it must be up.
-        # Only the SINGBOX-primary case can safely drop xray (xhttp is the sole
-        # xray-only transport and is already filtered from singbox subs).
-        CORE_TYPE=$(hconfig "core_type")
+        # core_type only decides the PRIMARY core - both cores always run,
+        # symmetrically, regardless of which is primary. Every overlapping
+        # inbound (vless/vmess/trojan/reality over ws/grpc/tcp/httpupgrade)
+        # self-excludes via a `{% if core_type=="xray"|"singbox" %}` gate in
+        # its own template, on BOTH sides, so exactly one of the two ever
+        # renders a given port - no collision. What's NOT gated, on purpose,
+        # is what only one core can serve at all: hysteria2/tuic/
+        # shadowsocks2022/anytls/mieru/naive exist ONLY as singbox inbounds
+        # (there is no xray/configs/ template for them), while xhttp/xdns/
+        # xicmp/hysteria(-native) exist ONLY as xray inbounds (no sing-box
+        # equivalent) - each of those needs its one and only core running no
+        # matter which core is primary, or it points at a dead port. This
+        # used to special-case XRAY_ENABLE=0 under core_type=="singbox" on
+        # the theory that "xhttp is already filtered from singbox subs, so
+        # it's safe to drop xray" - true but beside the point: a client
+        # using the *dedicated Xray-JSON subscription* still needs xhttp
+        # (and xdns/xicmp/hysteria) actually served, singbox-primary or not.
+        # The un-gated xray templates were already written assuming "Xray
+        # always runs regardless of core_type" (see their own comments) -
+        # this was the one place that assumption wasn't actually true.
         XRAY_ENABLE=1
         SINGBOX_ENABLE=1
-        if [[ "$CORE_TYPE" == "singbox" ]]; then
-            XRAY_ENABLE=0
-        fi
 
         update_progress "${PROGRESS_ACTION}" "Xray" 75
         

@@ -6,14 +6,39 @@
     "address": "0.0.0.0:53"
   },
   "tunnels": [
-  {%for d in domains if d['mode']=="dnstt"%}
+    {%- set ns = namespace(first=true) %}
+    {%for d in domains if d['mode']=="dnstt"%}
+    {% if not ns.first %},{% endif %}{% set ns.first = false %}
     {
       "tag": "{{d.domain}}",
       "enabled": true,
       "transport": "dnstt",
       "domain": "{{d.domain}}",
       "port": {{d['internal_port_dnstt']}}
-    },
+    }
+    {%endfor%}
+    {#- xdns domains have no dnstm-managed backend process (see
+       DomainType.xdns) - dnstm only registers the DNS route and forwards
+       raw UDP to the dedicated Xray xdns inbound
+       (xray/configs/05_inbounds_05_xdns.json.j2) already listening on
+       that port. Requires codesjd/dnstm's "xray" transport (merged into
+       main at codesjd/dnstm@0ca4855, released as dnstm v0.8.0 -
+       common/packages.lock pins it now). This was the actual root cause
+       of xdns's total connection failure: dnstm's actual running binary
+       predated this transport type entirely (packages.lock still pinned
+       v0.7.0, from before this feature existed), so it silently didn't
+       recognize "transport": "xray" and never registered the DNS route
+       at all - traffic never reached xray's xdnsin_* inbound (which was
+       otherwise correctly configured and listening). #}
+    {%for d in domains if d['mode']=="xdns"%}
+    {% if not ns.first %},{% endif %}{% set ns.first = false %}
+    {
+      "tag": "{{d.domain}}-xdns",
+      "enabled": true,
+      "transport": "xray",
+      "domain": "{{d.domain}}",
+      "port": {{d['internal_port_xdns']}}
+    }
     {%endfor%}
   ],
   "route": {

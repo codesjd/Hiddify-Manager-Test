@@ -58,24 +58,76 @@
        just re-laid-out via the shared .toggle-grid/.toggle-row CSS in
        admin-layout.html instead of a hand-rolled markup rebuild. */
     .global-form .toggle-grid {
-        display: grid;
+        display: grid !important;
+        grid-template-columns: repeat(2, 1fr) !important;
+        gap: 12px !important;
+        align-items: stretch !important; /* هر ردیف هر دو ستون رو هم‌قد می‌کنه، بدون هاردکد */
+    }
+    @media (max-width: 900px) {
+        .global-form .toggle-grid {
+            grid-template-columns: 1fr !important;
+        }
     }
     .global-form .form-group.custom-switch {
-        background: var(--surface);
+        background: var(--surface) !important;  /* قبلاً var(--bg) بود - هم‌رنگ پس‌زمینه صفحه */
         border: 1px solid var(--border);
-        border-radius: 12px;
-        padding: 14px !important;
+        border-radius: 14px;
+        padding: 16px !important;               /* پدینگ عادی کارت، بدون رزرو برای دکمه */
         margin-bottom: 0 !important;
-        display: flex;
-        flex-direction: column;
-        justify-content: center;
-        align-items: center;
+        display: flex !important;
+        flex-direction: column !important;
+        justify-content: center !important;
+        align-items: flex-start !important;
+        text-align: left !important;
     }
-    .global-form .form-text.text-muted {
-        text-align: center;
+    /* رزرو فضای دکمه قبلاً روی کل .form-group بود، پس توضیح هم به اندازه‌ی
+       عرض دکمه تو رفته بود و از لبه‌ی واقعی کارت شروع نمی‌شد. الان این رزرو
+       فقط داخل خود .custom-control-label انجام می‌شه (position:relative +
+       left:0 به‌جای افست منفی روی before/after)، و .form-text پدینگ صفر
+       می‌گیره تا از لبه‌ی کارت شروع بشه - دقیقاً مثل چیدمان رفرنس. */
+    .global-form .form-group.custom-switch .custom-control-label {
+        position: relative !important;
+        padding-left: 2.5rem !important;         /* فقط لیبل فضای دکمه رو رزرو می‌کنه */
+        display: inline-block !important;
     }
-    [dir="rtl"] .global-form .form-group.custom-switch {
-        padding: 14px 44px 14px 16px !important;
+    .global-form .form-group.custom-switch .custom-control-label::before {
+        left: 0 !important;                       /* نسبت به خود لیبل، نه با افست منفی */
+    }
+    .global-form .form-group.custom-switch .custom-control-label::after {
+        left: 0.15rem !important;
+    }
+    .global-form .form-group.custom-switch .form-text.text-muted {
+        padding-left: 0 !important;               /* توضیح از لبه‌ی کارت شروع می‌شه، هم‌تراز با خود دکمه */
+        margin-top: 8px !important;
+        text-align: left !important;
+    }
+    /* آینه‌ی همون تکنیک برای RTL: رزرو فضای دکمه سمت راستِ خودِ لیبل. */
+    [dir="rtl"] .global-form .form-group.custom-switch .custom-control-label {
+        padding-left: 0 !important;
+        padding-right: 2.5rem !important;
+    }
+    [dir="rtl"] .global-form .form-group.custom-switch .custom-control-label::before {
+        left: auto !important;
+        right: 0 !important;
+    }
+    [dir="rtl"] .global-form .form-group.custom-switch .custom-control-label::after {
+        left: auto !important;
+        right: 0.15rem !important;
+    }
+    /* کارت بیرونی (Global Configs) و باکس‌های تک‌تک پروکسی هر دو از یک
+       متغیر رنگ (--bg) استفاده می‌کردن، پس هیچ کنتراستی نبود. باکس‌های
+       پروکسی بالا --surface گرفتن تا به چشم بیان؛ کارت بیرونی بی‌رنگ
+       می‌شه چون دیگه لازم نیست جعبه‌ی جدا باشه - فقط ظرف چیدمانه.
+       سلکتور `.card:has(.global-form)` نه `.global-form .card` - توی
+       HTML واقعی این صفحه، .global-form فرزندِ .card ه نه برعکس
+       (.card > .card-body > .global-form)، پس `.global-form .card`
+       هیچ‌چیزی رو match نمی‌کرد. :has() از قبل توی این کدبیس استفاده
+       شده (مثلاً `.card:has(.table-responsive)` توی admin-layout.html)،
+       پس پشتیبانی مرورگر مفروضه. */
+    .card:has(.global-form) {
+        background: transparent !important;
+        border: none !important;
+        box-shadow: none !important;
     }
 
     /* SubmitField renders as a bare <input>, no .form-group wrapper, in

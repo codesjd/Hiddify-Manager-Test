@@ -27,7 +27,6 @@ class Subsystem(StrEnum):
     wireguard = 'other/wireguard'
     amneziawg = 'other/amneziawg'
     ssh = 'other/ssh'
-    warp = 'other/warp'
     dnstt = 'other/dnstt'
     telegram = 'other/telegram'
     ssfaketls = 'other/ssfaketls'
@@ -73,7 +72,6 @@ CATEGORY_SUBSYSTEMS: dict[ConfigCategory, frozenset[str]] = {
     ConfigCategory.ssh: frozenset({Subsystem.ssh}),
     ConfigCategory.telegram: frozenset({Subsystem.telegram}),
     ConfigCategory.dnstt: frozenset({Subsystem.dnstt}),
-    ConfigCategory.warp: frozenset({Subsystem.warp}),
     # L2TP/IPsec is its own strongSwan+xl2tpd subsystem (other/l2tp), not an
     # xray/singbox protocol, so both l2tp_enable and l2tp_psk only need that
     # one subsystem re-run on Apply Configs.
@@ -128,19 +126,11 @@ KEY_SUBSYSTEM_OVERRIDES: dict[ConfigEnum, frozenset[str]] = {
     ConfigEnum.amneziawg_ipv4: frozenset({Subsystem.amneziawg}),
     ConfigEnum.amneziawg_private_key: frozenset({Subsystem.amneziawg}),
     ConfigEnum.amneziawg_public_key: frozenset({Subsystem.amneziawg}),
-    # tls_ports/http_ports are filed under ConfigCategory.tls/.http (both
-    # scoped to {xray, singbox} only via _PROTOCOL_CATEGORIES), but
-    # haproxy/fronts/sni_proxy.cfg.pj2 and in_tcpmode.cfg.pj2 read these
-    # exact values for their own `bind :{{port}}` lines - 443/80 are always
-    # prepended so the panel itself never goes offline, but any *additional*
-    # port an admin adds/removes here only actually starts/stops being
-    # listened on once haproxy itself is scoped in. The other keys in those
-    # two categories (tls_ech_enable, allow_invalid_sni, http_proxy_enable,
-    # tls_kernel_offload) are pure client-link-generation or xray/singbox
-    # template flags with no haproxy footprint, so this is deliberately a
-    # per-key override rather than broadening the whole category.
-    ConfigEnum.tls_ports: frozenset({Subsystem.xray, Subsystem.singbox, Subsystem.haproxy}),
-    ConfigEnum.http_ports: frozenset({Subsystem.xray, Subsystem.singbox, Subsystem.haproxy}),
+    # tls_ports/http_ports are retired (ConfigCategory.hidden - see
+    # config_enum.py) - haproxy's fronts now bind per-domain Domain.http_port/
+    # tls_port instead of these global lists, so a change to either key no
+    # longer has any haproxy footprint. No override needed; falls back to
+    # subsystems_for_key()'s "unknown scope" default like any other hidden key.
 }
 
 

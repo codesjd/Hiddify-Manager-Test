@@ -72,8 +72,52 @@ def generate_x25519_keys(base_64_encode=True):
 
 
 
+def generate_mldsa65_keys():
+    """ML-DSA-65 post-quantum REALITY signature keypair (Seed/Verify).
+
+    Deliberately shells out to Xray-core's own `xray mldsa65` CLI command
+    instead of reimplementing FIPS 204 key derivation in Python: the
+    `cryptography` package's ML-DSA support (if present at all in whatever
+    version is installed) would need to derive the exact same keypair from
+    a given seed as Xray-core's Go/CIRCL implementation
+    (github.com/cloudflare/circl/sign/mldsa/mldsa65) for the two to be
+    interoperable - a subtle mismatch there wouldn't raise an error, it
+    would just make every REALITY client using this feature fail its
+    handshake. Using Xray's own binary is correct by construction instead.
+
+    Returns None (never raises) if the binary isn't available yet or the
+    command fails - same reasoning as get_wg_private_public_psk_pair()'s
+    docstring above: this can run during early migrations, before
+    install.sh has necessarily finished downloading every binary, and a
+    missing optional PQ hardening field should never take down bootstrap.
+    """
+    xray_bin = "/opt/hiddify-manager/xray/bin/xray"
+    if not os.path.isfile(xray_bin):
+        return None
+    try:
+        result = subprocess.run([xray_bin, "mldsa65"], capture_output=True, text=True, timeout=10, check=True)
+    except (subprocess.SubprocessError, OSError):
+        return None
+    seed = None
+    verify = None
+    for line in result.stdout.splitlines():
+        if line.startswith("Seed:"):
+            seed = line.split(":", 1)[1].strip()
+        elif line.startswith("Verify:"):
+            verify = line.split(":", 1)[1].strip()
+    if not seed or not verify:
+        return None
+    return {"seed": seed, "verify": verify}
+
+
 def generate_ssh_host_keys():
-    key_types = ["dsa", "ecdsa", "ed25519", "rsa"]
+    # DSA deliberately excluded: OpenSSH removed DSA key support entirely
+    # (insecure, deprecated for years), so `ssh-keygen -t dsa` just fails
+    # outright on any current OS ("unknown key type dsa"), and nothing
+    # downstream ever consumed keys_dict['dsa'] anyway - _v97's own
+    # set_hconfig calls for ssh_host_dsa_pk/pub are commented out, same as
+    # get_ssh_hostkeys() in hutils/proxy/shared.py.
+    key_types = ["ecdsa", "ed25519", "rsa"]
     keys_dict = {}
 
     # Generate and read keys

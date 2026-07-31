@@ -51,6 +51,12 @@ class ProxyProto(StrEnum):
     dnstt = auto()
     amneziawg = auto()
     anytls = auto()
+    # DNS-tunneled / ICMP-tunneled vless via Xray-core's finalmask
+    # (XTLS/Xray-core#5560/#5633) - unlike dnstt, these ARE real vless
+    # connections a finalmask-aware client can dial directly, see
+    # to_link()'s xdns/xicmp branches.
+    xdns = auto()
+    xicmp = auto()
 
 
 class ProxyL3(StrEnum):
@@ -135,4 +141,40 @@ class Proxy(db.Model):  # type: ignore
             Proxy.add_or_update(commit=False, child_id=child_id, **proxy)
         if commit:
             db.session.commit()  # type: ignore
+
+
+class DomainProxyOverride(db.Model):  # type: ignore
+    """A per-(domain, proxy) override - the axis neither existing override
+    mechanism actually covers.
+
+    InboundOverrideAdmin's Proxy.params overrides a proto/transport/cdn
+    combination for every domain that uses it. Domain.extra_params
+    overrides every proxy generated for one domain. Neither lets an admin
+    say "just THIS domain, just THIS one inbound combination" - which is
+    exactly the request this model exists for: force a specific proxy row
+    on or off for one domain only, or tweak its generated config (sni,
+    fingerprint, alpn, ...) without that also touching every other domain
+    sharing the same proxy row, or every other proxy on this same domain.
+
+    enable=None means "don't touch the decision get_valid_proxies() would
+    otherwise make" (respects the global protocol toggle and the Proxy
+    row's own enable flag). enable=True forces this proxy on for this
+    domain even if it's disabled everywhere else; enable=False forces it
+    off for this domain even if it's enabled everywhere else.
+
+    params is deep-merged on top of the generated proxy dict in
+    get_valid_proxies(), after both Proxy.params and Domain.extra_params -
+    it's the most specific override, so it wins on any key conflict.
+    """
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    domain_id = Column(Integer, ForeignKey('domain.id', ondelete='CASCADE'), nullable=False)
+    proxy_id = Column(Integer, ForeignKey('proxy.id', ondelete='CASCADE'), nullable=False)
+    domain = db.relationship('Domain', foreign_keys=[domain_id])
+    proxy = db.relationship('Proxy', foreign_keys=[proxy_id])
+    enable = Column(Boolean, nullable=True)
+    params = Column(JSON, default=dict)
+
+    __table_args__ = (
+        db.UniqueConstraint('domain_id', 'proxy_id', name='uq_domain_proxy_override'),
+    )
 

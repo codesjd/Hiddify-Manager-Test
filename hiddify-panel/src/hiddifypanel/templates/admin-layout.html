@@ -808,9 +808,6 @@ tr:hover .hf-track {
 }
 
 /* Forms input fields */
-.form-group {
-  margin-bottom: 20px !important;
-}
 .form-control, select, textarea, .multiple-select {
   background: var(--bg) !important;
   border: 1px solid var(--border) !important;
@@ -826,10 +823,17 @@ tr:hover .hf-track {
   background: var(--bg) !important;
   color: var(--text-primary) !important;
 }
+/* Field labels (e.g. "TLS PORT") were the same 13px as a .cat-card's own
+   section legend (e.g. "Ports"), so a field label and its enclosing
+   section header read as the same visual weight/size - shrunk and
+   muted here so the eye can tell "section title" from "field label"
+   at a glance; .cat-legend/.cat-legend label keep their own explicit,
+   larger overrides (config.html, flaskadmin-layout.html) and are
+   unaffected by this. */
 label, .control-label {
   font-weight: 700 !important;
   color: var(--text-secondary) !important;
-  font-size: 13px !important;
+  font-size: 11.5px !important;
   text-transform: uppercase !important;
   letter-spacing: 0.04em !important;
   margin-bottom: 6px !important;
@@ -1060,18 +1064,18 @@ label, .control-label {
   transform: translateX({{ '-1rem' if get_locale()=='fa' else '1rem' }}) !important;
 }
 
-/* Settings/proxies card grid - a 2-col grid of clickable "+"-style cards,
-   used to reskin the existing category fieldsets (config.html) and toggle
+/* Proxies page card grid - a 2-col grid of clickable "+"-style toggle
    rows (proxy.html) without touching the real WTForms rendering/validation
-   underneath. */
-.settings-grid, .toggle-grid {
+   underneath. (config.html's own category cards use a CSS column-count
+   layout instead - see config.html's .settings-grid.) */
+.toggle-grid {
   display: grid !important;
   grid-template-columns: repeat(2, 1fr) !important;
   gap: 12px !important;
   align-items: start !important;
 }
 @media (max-width: 900px) {
-  .settings-grid, .toggle-grid {
+  .toggle-grid {
     grid-template-columns: 1fr !important;
   }
 }
@@ -1102,17 +1106,14 @@ label, .control-label {
    Config Link" after an even number of protocol toggles) otherwise sits
    pinned to the left column with the right column empty next to it - span
    it across both columns and center its card instead. */
-.settings-grid > .form-group:last-child:nth-child(odd),
 .toggle-grid > .form-group:last-child:nth-child(odd) {
   grid-column: 1 / -1 !important;
 }
-.settings-grid > .form-group:last-child:nth-child(odd) .toggle-row,
 .toggle-grid > .form-group:last-child:nth-child(odd) .toggle-row {
   max-width: 50%;
   margin: 0 auto !important;
 }
 @media (max-width: 900px) {
-  .settings-grid > .form-group:last-child:nth-child(odd) .toggle-row,
   .toggle-grid > .form-group:last-child:nth-child(odd) .toggle-row {
     max-width: 100%;
   }
@@ -1178,7 +1179,7 @@ label, .control-label {
           'domain.' in request.endpoint or 'ProxyAdmin' in request.endpoint or
           'SettingAdmin' in request.endpoint or 'Backup' in request.endpoint or
           'customoutbound' in request.endpoint or 'customroutingrule' in request.endpoint or
-          'inbound_override' in request.endpoint) %}
+          'inbound_override' in request.endpoint or 'domain_proxy_override' in request.endpoint) %}
       <div class="nav-item {% if settings_active %}section-active{% endif %}" id="nav-settings" aria-expanded="{{ 'true' if settings_active else 'false' }}" onclick="toggleSection('settings')">
         <span class="nav-icon"><svg width="18" height="18" viewBox="0 0 24 24"><line x1="4" y1="6" x2="20" y2="6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="9" cy="6" r="2.3" fill="currentColor"/><line x1="4" y1="12" x2="20" y2="12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="16" cy="12" r="2.3" fill="currentColor"/><line x1="4" y1="18" x2="20" y2="18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="11" cy="18" r="2.3" fill="currentColor"/></svg></span>
         <span class="nav-label">{{ _('admin.menu.config') }}</span>
@@ -1193,6 +1194,7 @@ label, .control-label {
         <a class="nav-child {% if 'customoutbound' in request.endpoint %}active-child{% endif %}" href="{{ hurl_for('flask.customoutbound.index_view') }}">{{ _('Outbounds') }}</a>
         <a class="nav-child {% if 'customroutingrule' in request.endpoint %}active-child{% endif %}" href="{{ hurl_for('flask.customroutingrule.index_view') }}">{{ _('Routing Rules') }}</a>
         <a class="nav-child {% if 'inbound_override' in request.endpoint %}active-child{% endif %}" href="{{ hurl_for('flask.inbound_override.index_view') }}">{{ _('Inbound Overrides') }}</a>
+        <a class="nav-child {% if 'domain_proxy_override' in request.endpoint %}active-child{% endif %}" href="{{ hurl_for('flask.domain_proxy_override.index_view') }}">{{ _('Domain Proxy Overrides') }}</a>
         {% endif %}
       </div>
       {% endif %}
@@ -1216,7 +1218,16 @@ label, .control-label {
 
 {% block tail_js %}
 {{ super() }}
-<form id="action_form" method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"></form>
+<!-- Deliberately NOT id="action_form": flask-admin's own bulk-row-actions
+     macro (hiddify-flask-admin/actions.html's `form()`) renders a form with
+     that exact id on any ModelView list page that has row actions (e.g. the
+     default "Delete" action), and it renders earlier in the DOM than this
+     block. Two elements sharing an id is invalid HTML, and $("#action_form")
+     resolves via getElementById, which always returns the FIRST match - so
+     on those pages the JS below would silently submit flask-admin's own
+     action form (and its differently-formatted SecureForm CSRF token,
+     rejected by _admin_csrf_protect()) instead of this one. -->
+<form id="hiddify_action_form" method="post"><input type="hidden" name="csrf_token" value="{{ raw_csrf_token() }}"></form>
 <script>
 function toggleSidebarCollapsed() {
   var sidebar = document.getElementById('app-sidebar');
@@ -1262,7 +1273,7 @@ $(document).ready(function () {
           {{ _('admin.menu.api') }}
         </a>
         <form class="lang-switcher" method="post" action="{{ hurl_for('admin.Actions:set_language') }}">
-          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <input type="hidden" name="csrf_token" value="{{ raw_csrf_token() }}">
           <select name="lang" class="lang-switcher-select" onchange="this.form.submit()" title="{{ _('config.admin_lang.label') }}">
             {% for l in ['en', 'fa', 'pt', 'zh', 'ru', 'my'] %}
             <option value="{{ l }}" {% if hconfig(ConfigEnum.admin_lang)==l %}selected{% endif %}>{{ _('lang.' + l) }}</option>
@@ -1322,13 +1333,13 @@ $(document).ready(function () {
   $('.form_post').off('click').click(function (e) {
     e.preventDefault();
     var link = this.href;
-    $("#action_form").attr("action", link);
+    $("#hiddify_action_form").attr("action", link);
     bootbox.confirm({
       message: '{{_("Are you sure you want to do this action?")}}',
       locale: '{{get_locale()}}',
       callback: function (result) {
         if (result) {
-          $("#action_form").submit();
+          $("#hiddify_action_form").submit();
         }
       }
     });

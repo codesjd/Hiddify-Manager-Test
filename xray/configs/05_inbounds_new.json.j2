@@ -16,7 +16,19 @@
                         "security": "none",
                         "sockopt": {
                             "acceptProxyProtocol": true,
-                            "tcpFastOpen": true
+                            "tcpFastOpen": true,
+                            {# haproxy already hands Xray the real client IP via
+                               acceptProxyProtocol above, so an X-Forwarded-For
+                               header on the HTTP-layer transports (xhttp/ws/
+                               httpupgrade) is never needed to identify the
+                               client - it could only be spoofed by whoever's
+                               allowed to talk to haproxy. Xray's own startup
+                               warning ("has not configured trustedXForwardedFor
+                               ... still trusts X-Forwarded-For implicitly") is
+                               about exactly this gap; an explicit empty list
+                               disables that implicit trust instead of silently
+                               honoring a header nothing here relies on. #}
+                            "trustedXForwardedFor": []
                         }
                     },
 

@@ -1464,7 +1464,7 @@ msgid "config.dnstt_enable.description"
 msgstr "Enables the DNSTT (DNS tunneling) proxy."
 
 msgid "config.dnstt_enable.label"
-msgstr "DNSTT Enable"
+msgstr "DNSTT"
 
 msgid "config.dnstt_private_key.description"
 msgstr "The DNSTT server's private key, generated automatically - clients need the matching public key below to connect."
@@ -1612,7 +1612,7 @@ msgid "config.hysteria_enable.label"
 msgstr "⚫️ Hysteria2"
 
 msgid "config.hysteria_obfs_enable.description"
-msgstr " Enables Hysteria Obfuscation (Salamander)"
+msgstr "Enables Hysteria2 Obfuscation (Salamander) - Sing-box's Hysteria2 only. Xray-core's own native Hysteria protocol has no obfs/Salamander support at all, so this has no effect on Hysteria2 (Xray) connections regardless of this setting."
 
 msgid "config.hysteria_obfs_enable.label"
 msgstr "🎛 Hysteria OBFS"
@@ -1729,10 +1729,10 @@ msgid "config.log_level.WARNING"
 msgstr "config.log_level.WARNING"
 
 msgid "config.log_level.description"
-msgstr "config.log_level.description"
+msgstr "Log verbosity for Xray/Sing-box. Defaults to CRITICAL (effectively no logs, to save disk) - set to INFO or WARNING temporarily when you need to see connection attempts in `journalctl -u hiddify-xray` / `journalctl -u hiddify-singbox`, then switch back to CRITICAL once you're done, since verbose logging on a busy server fills disk quickly."
 
 msgid "config.log_level.label"
-msgstr "config.log_level.label"
+msgstr "📋 Log Level"
 
 msgid "config.mieru.description"
 msgstr ""
@@ -2851,6 +2851,15 @@ msgstr "Websocket creates a tunnel over HTTP that is useful to be used in CDN"
 msgid "config.ws_enable.label"
 msgstr "🔰 Websocket"
 
+msgid "config.xdns_enable.description"
+msgstr ""
+"Tunnels traffic inside DNS queries (Xray-core's xdns finalmask). Needs the "
+"same NS-delegation DNS setup as DNSTT - see the domain's Mode field for "
+"details."
+
+msgid "config.xdns_enable.label"
+msgstr "🧬 xDNS"
+
 msgid "config.xhttp_enable.description"
 msgstr ""
 "This Protocol send and receive information in individual channels.<br />\n"
@@ -2858,6 +2867,15 @@ msgstr ""
 
 msgid "config.xhttp_enable.label"
 msgstr "🈁 XHTTP"
+
+msgid "config.xicmp_enable.description"
+msgstr ""
+"Tunnels traffic inside ICMP (ping) packets (Xray-core's xicmp finalmask). "
+"No DNS/NS setup needed, but the server needs CAP_NET_RAW to open a raw "
+"ICMP socket."
+
+msgid "config.xicmp_enable.label"
+msgstr "📡 xICMP"
 
 msgid "config.xtls_enable.description"
 msgstr "Enables XTLS Protocol"

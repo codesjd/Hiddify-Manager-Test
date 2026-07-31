@@ -286,10 +286,17 @@ input::placeholder { color: var(--text-secondary); opacity: 1; }
 
       {% if hconfig(ConfigEnum.first_setup) %}
       <div style="background:oklch(0.85 0.12 55 / 0.18);border:1px solid oklch(0.68 0.15 55 / 0.45);border-radius:10px;padding:12px 14px;font-size:12.5px;color:var(--text-primary);">
-        <strong>{{ _('Default credentials') }}:</strong>
-        {{ _('Username') }}: <code style="background:var(--track);border-radius:4px;padding:1px 5px;">admin</code>
-        &nbsp;/&nbsp;
-        {{ _('Password') }}: <code style="background:var(--track);border-radius:4px;padding:1px 5px;">admin</code>
+        {# init_db.py's _v31() now sets a real username="admin" /
+           password="admin" on the super admin at creation time (see
+           owner.update_password("admin") there), so this is a true
+           statement for any fresh install created after that fix - not a
+           pre-filled form default that only becomes real after Quick
+           Setup. Servers installed BEFORE that fix still have a blank
+           password and must use the secret admin link with password left
+           blank, or run `hiddify-panel-cli reset-owner-password` from the
+           server terminal. #}
+        <strong>{{ _('First time here?') }}</strong>
+        {{ _('Sign in with username "admin" and password "admin", then set a real username/password in Quick Setup. If that fails, use your secret admin link (shown at the end of installation) with the password field left blank instead.') }}
       </div>
       {% endif %}
 
