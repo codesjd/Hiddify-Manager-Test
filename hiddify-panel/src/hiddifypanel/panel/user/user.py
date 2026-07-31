@@ -25,6 +25,9 @@ from hiddifypanel.cache import cache
 class UserView(FlaskView):
 
     def index(self):
+        if getattr(g, 'is_admin', False):
+            from flask import redirect
+            return redirect(hutils.flask.hurl_for("admin.Dashboard:index"))
         return self.auto_sub()
 
     @route('/ua')
@@ -34,6 +37,9 @@ class UserView(FlaskView):
         return ua
 
     def auto_sub(self):
+        if getattr(g, 'is_admin', False):
+            from flask import redirect
+            return redirect(hutils.flask.hurl_for("admin.Dashboard:index"))
         if g.user_agent['is_browser']:
             return self.new()
         return self.get_proper_config() or self.links_imp(base64=True)
@@ -122,6 +128,27 @@ class UserView(FlaskView):
         return add_headers(resp, c)
 
         # return self.singbox_ssh_imp()
+
+    @route("/amneziawg/")
+    @route("/amneziawg")
+    @login_required(roles={Role.user})
+    def amneziawg(self):
+        '''Returns amneziawg client config'''
+        c = get_common_data(g.account.uuid, 'new')
+        amneziawgs = []
+        for pinfo in hutils.proxy.get_valid_proxies(c['domains']):
+            if pinfo['proto'] != ProxyProto.amneziawg:
+                continue
+            amneziawgs.append(pinfo)
+
+        if not len(amneziawgs):
+            abort(404)
+        resp = ""
+        for awg in amneziawgs:
+            resp += f'#========={awg["extra_info"]} {awg["name"]}================\n'
+            resp += hutils.proxy.amneziawg.generate_amneziawg_config(awg)
+            resp += "\n\n"
+        return add_headers(resp, c)
 
     @route("/clash/")
     @route("/clash")
@@ -279,6 +306,15 @@ class UserView(FlaskView):
     def singbox_ssh_imp(self):
         if not hconfig(ConfigEnum.ssh_server_enable):
             return "The SSH server is disabled"
+        # (SSH is a singbox-only inbound; under xray core the singbox service
+        # isn't running so the connection would fail at TCP time. We used to
+        # explicitly block here on core_type != 'singbox', but that had false
+        # positives during core-switch transitions - the DB says singbox but
+        # something in the config-read path returned a stale value - blocking
+        # users who WERE on singbox. get_proxies() still filters SSH from the
+        # main proxy list, so nobody stumbles on this route by accident;
+        # dropping this hard block just means users mid-switch get the real
+        # underlying "connection refused" instead of a scary message.)
         # elif not hconfig(ConfigEnum.sub_singbox_ssh_enable):
         #     return "The Singbox: SSH subscription is disabled"
 

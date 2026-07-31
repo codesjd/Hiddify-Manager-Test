@@ -37,7 +37,7 @@ class AdminUserApi(MethodView):
         admin = AdminUser.add_or_update(True, **data) or abort(502, "Unknown issue: Admin is not patched")
         # the add_or_update doesn't update the uuid of AdminUser, so for now just delete old admin after adding new
 
-        return admins
+        return admin.to_schema()  # type: ignore
 
     @app.output(SuccessfulSchema)  # type: ignore
     def delete(self, uuid):

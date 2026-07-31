@@ -1,5 +1,9 @@
 frontend in-tcpmode
-    {% for port in (["80"] + hconfigs['http_ports'].split(',')) | unique%}
+    {# http_ports = *additional* plain-HTTP ports; 80 is always included
+       because acme.sh's http-01 challenge and the panel's own HTTP->HTTPS
+       redirect ride the same front - excluding 80 would break cert renewal
+       and first-visit redirects. Admin can ADD custom ports, not replace. #}
+    {% for port in (["80"] + hconfigs['http_ports'].split(',')) | select | unique %}
     bind :{{port}},:::{{port}} v4v6 tfo
     {%endfor%}
     bind abns@https_in_ssl tfo accept-proxy ssl crt /opt/hiddify-manager/ssl/ alpn h2,http/1.1,h3 allow-0rtt

@@ -39,9 +39,9 @@ def init_app(app):
     def auto_route(proxy_path=None, user_secret=None):
         return redirect(request.url.replace("http://", "https://") + "/")
 
-    flaskadmin.add_view(UserAdmin(User, db.session))
-    flaskadmin.add_view(DomainAdmin(Domain, db.session))
-    flaskadmin.add_view(AdminstratorAdmin(AdminUser, db.session))
+    flaskadmin.add_view(UserAdmin(User, db.session, name=_("admin.menu.user")))
+    flaskadmin.add_view(DomainAdmin(Domain, db.session, name=_("admin.menu.domain")))
+    flaskadmin.add_view(AdminstratorAdmin(AdminUser, db.session, name=_("Admins")))
     from .NodeAdmin import NodeAdmin
     flaskadmin.add_view(NodeAdmin(Child, db.session))
     from .OutboundAdmin import OutboundAdmin
@@ -64,6 +64,37 @@ def init_app(app):
     CommercialInfo.register(admin_bp)
     QuickSetup.register(admin_bp)
     Backup.register(admin_bp)
+
+    @app.before_request
+    def _admin_csrf_protect():
+        # admin_bp is registered twice (once at its own name "admin", once
+        # as "child_admin" for the /<proxy_path>/<child_id>/admin/ mount) -
+        # a blueprint-level @admin_bp.before_request is keyed by the
+        # blueprint's fixed .name ("admin") and would silently never fire
+        # for requests resolved under the "child_admin" registration, so
+        # this checks request.blueprint (the actual runtime-resolved name)
+        # at the app level instead, covering both mounts.
+        #
+        # Destructive admin actions here (Actions.py's apply_configs/reset/
+        # reinstall/update, Dashboard.remove_child, the language switcher)
+        # are triggered by plain <form method="post"> / link-clicks that
+        # send the browser's session cookie automatically, with nothing
+        # else verifying the request actually originated from this app -
+        # classic CSRF. SettingAdmin/ProxyAdmin/QuickSetup/Backup already
+        # submit a valid csrf_token via their FlaskForm, so this is a
+        # no-op there; it's only new enforcement for the raw-form routes.
+        if request.blueprint not in ('admin', 'child_admin'):
+            return
+        if request.method not in ('POST', 'PUT', 'PATCH', 'DELETE'):
+            return
+        from flask_wtf.csrf import validate_csrf
+        from wtforms.validators import ValidationError
+        token = request.form.get('csrf_token') or request.headers.get('X-CSRFToken')
+        try:
+            validate_csrf(token)
+        except ValidationError:
+            from apiflask import abort
+            abort(400, "The CSRF token is missing or invalid.")
 
     # admin_bp.add_url_rule('/admin/quicksetup/',endpoint="quicksetup",view_func=QuickSetup.index,methods=["GET"])
     # admin_bp.add_url_rule('/admin/quicksetup/',endpoint="quicksetup-save", view_func=QuickSetup.save,methods=["POST"])

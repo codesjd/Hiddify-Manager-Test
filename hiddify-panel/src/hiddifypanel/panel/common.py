@@ -36,6 +36,11 @@ def init_app(app: APIFlask):
         response.headers["Referrer-Policy"] = "same-origin"
         if response.status_code == 401:
             response.headers['WWW-Authenticate'] = 'Basic realm="Hiddify"'
+        # Ask Chromium-based browsers to resend requests with the OS color
+        # scheme as a request header, so a brand-new session (no explicit
+        # darkmode choice yet) can default to it instead of always light.
+        response.headers["Accept-CH"] = "Sec-CH-Prefers-Color-Scheme"
+        response.headers["Vary"] = "Sec-CH-Prefers-Color-Scheme"
         return response
 
     @app.errorhandler(Exception)
@@ -64,10 +69,13 @@ def init_app(app: APIFlask):
                     'message': 'This version of Hiddify Panel is outdated. please update it from admin area.',
                 }), 500
 
-            return jsonify({'message': str(e),
-                            'detail': [f'{filename}:{line} {function}: {text}' for filename, line, function, text in traceback.extract_tb(e.__traceback__)],
-                            'version': hiddifypanel.__version__,
-                            }), 500
+            resp = {'message': str(e), 'version': hiddifypanel.__version__}
+            # Stack traces reveal internal file paths and code structure -
+            # only worth the disclosure risk when a developer is actively
+            # debugging (app.debug), not on every unauthenticated 500.
+            if app.debug:
+                resp['detail'] = [f'{filename}:{line} {function}: {text}' for filename, line, function, text in traceback.extract_tb(e.__traceback__)]
+            return jsonify(resp), 500
 
         trace = traceback.format_exc()
 
@@ -75,7 +83,7 @@ def init_app(app: APIFlask):
         issue_link = hutils.github_issue.generate_github_issue_link_for_500_error(e, trace)
         last_version = hiddify.get_latest_release_version('hiddifypanel')
 
-        return render_template('500.html', error=e, trace=trace, has_update=has_update, last_version=last_version, issue_link=issue_link), 500
+        return render_template('500.html', error=e, trace=trace, debug=app.debug, has_update=has_update, last_version=last_version, issue_link=issue_link), 500
 
     @app.errorhandler(HTTPError)
     def internal_server_error(e):
@@ -92,7 +100,7 @@ def init_app(app: APIFlask):
             has_update = hutils.utils.is_panel_outdated()
             last_version = hiddify.get_latest_release_version('hiddifypanel')
 
-            return render_template('500.html', error=e, trace=trace, has_update=has_update, last_version=last_version, issue_link=issue_link), 500
+            return render_template('500.html', error=e, trace=trace, debug=app.debug, has_update=has_update, last_version=last_version, issue_link=issue_link), 500
 
         # if it's access denied error
         # if e.status_code in [400,401,403]:
@@ -169,6 +177,13 @@ def init_app(app: APIFlask):
         # setup dark mode
         if request.args.get('darkmode') is not None:
             session['darkmode'] = request.args.get('darkmode', '').lower() == 'true'
+        elif 'darkmode' not in session:
+            # No explicit choice yet: fall back to the OS-level preference,
+            # if the browser sent it (Chromium client hint, only available
+            # once it has seen our Accept-CH response header at least once).
+            color_scheme_hint = request.headers.get('Sec-CH-Prefers-Color-Scheme', '').lower()
+            if color_scheme_hint in ('dark', 'light'):
+                session['darkmode'] = color_scheme_hint == 'dark'
         g.darkmode = session.get('darkmode', False)
 
         # setup pwa

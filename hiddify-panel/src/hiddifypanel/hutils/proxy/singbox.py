@@ -1,4 +1,4 @@
-from flask import render_template, request, g
+﻿from flask import render_template, request, g
 import json
 
 from hiddifypanel import hutils
@@ -17,6 +17,19 @@ def configs_as_json(domains: list[Domain], **kwargs) -> dict:
         base_config['dns']['rules'][0]['domain'].append(d.domain)
     endpoints=[]
     for pinfo in hutils.proxy.get_valid_proxies(domains):
+        # xhttp is an Xray-core transport with no sing-box equivalent -
+        # to_singbox()/_add_xhttp_details() below still emitted a
+        # "transport":{"type":"xhttp",...} block for it regardless, which
+        # sing-box's JSON parser rejects outright ("unknown transport type:
+        # xhttp") - a single unparseable outbound made the ENTIRE config
+        # fail to load, not just this one proxy. is_xray_proxy() was meant
+        # to route these through a raw-embedding fallback for Hiddify Next
+        # specifically, but its actual check is commented out (always
+        # False), so nothing currently protects generic sing-box clients
+        # (v2rayN, etc) from this - skip xhttp here the same way the
+        # plain-link subscription already does in make_v2ray_configs().
+        if pinfo.get('transport') == ProxyTransport.xhttp:
+            continue
         sing = to_singbox(pinfo)
         if 'msg' not in sing:
             if hutils.flask.is_client_version(hutils.flask.ClientVersion.hiddify_next, 4, 0, 0) and sing[0]['type']=="wireguard":
@@ -71,7 +84,7 @@ def to_singbox(proxy: dict) -> list[dict] | dict:
     base = {}
     all_base.append(base)
     # vmess ws
-    base["tag"] = f"""{proxy['extra_info']} {proxy["name"]} § {proxy['port']} {proxy["dbdomain"].id}"""
+    base["tag"] = f"""{proxy['extra_info']} {proxy["name"]} Â§ {proxy['port']} {proxy["dbdomain"].id}"""
     if is_xray_proxy(proxy):
         if hutils.flask.is_client_version(hutils.flask.ClientVersion.hiddify_next, 1, 9, 0):
             base['type'] = "xray"
@@ -100,8 +113,14 @@ def to_singbox(proxy: dict) -> list[dict] | dict:
     if proxy["proto"] == ProxyProto.wireguard:
         add_wireguard(base, proxy)
         return all_base
-    
-    
+    if proxy["proto"] == ProxyProto.amneziawg:
+        # sing-box has no native "amneziawg" outbound type; the wireguard
+        # type is the closest real schema it understands.
+        base["type"] = "wireguard"
+        add_amneziawg(base, proxy)
+        return all_base
+
+
     if proxy['proto']==ProxyProto.mieru:
         add_mieru(base, proxy)
         return all_base
@@ -143,6 +162,8 @@ def to_singbox(proxy: dict) -> list[dict] | dict:
 
     if proxy["proto"] == "tuic":
         add_tuic(base, proxy)
+    elif proxy["proto"] == "anytls":
+        add_anytls(base, proxy)
     elif proxy["proto"] == "hysteria2":
         add_hysteria(base, proxy)
     else:
@@ -197,9 +218,10 @@ def add_tls(base: dict, proxy: dict):
     if proxy.get("ech"):
         base["tls"]['ech'] = {
             "enabled": True,
-            "config":f"-----BEGIN ECH CONFIGS-----\\n{proxy.get("ech")}\\n-----END ECH CONFIGS-----"
-        }   
+            "config":f"-----BEGIN ECH CONFIGS-----\n{proxy.get('ech')}\n-----END ECH CONFIGS-----"
+        }
     if proxy['proto']=="naive":
+        base["tls"]['insecure'] = proxy['allow_insecure'] or (proxy["mode"] == "Fake")
         return
     if proxy['proto'] not in ["tuic", "hysteria2"] and proxy['transport']!="xhttp":
         base["tls"]["utls"] = {
@@ -305,12 +327,7 @@ def _add_xhttp_details(base: dict, proxy: dict):
             'host': pdl.get("server"),
             "headers":pdl.get("headers")            
         }
-        dls={
-            'l3':proxy['l3'],
-            'proto':proxy['proto'],
-            "transport":proxy['transport'],
-            **proxy['download']
-        }
+        dls = {**proxy, **proxy['download']}
         add_tls(base['transport']['downloadSettings'],dls)
         
 
@@ -322,7 +339,7 @@ def add_dnstt(all_base:list,proxy:dict):
         if v:= proxy.get(s):
             all_base[0][s.replace("_","-")]=v
     tag=all_base[0]["tag"]
-    all_base[0]["tag"]+="§hide§"
+    all_base[0]["tag"]+="Â§hideÂ§"
     all_base.append({
         "type":"socks",
         "username":proxy['uuid'],
@@ -417,6 +434,70 @@ def add_wireguard(base: dict, proxy: dict):
                 base["fake_packets"] = proxy["wg_noise_trick"]
 
 
+def add_amneziawg(base: dict, proxy: dict):
+    # sing-box's wireguard outbound has no official Jc/Jmin/Jmax
+    # (AmneziaWG obfuscation) fields. This mirrors the wg_noise_trick
+    # precedent above: an undocumented, best-effort extension gated to
+    # Hiddify's own client, since no verified public client is known to
+    # read these fields on a "wireguard"-typed outbound.
+    if hutils.flask.is_client_version(hutils.flask.ClientVersion.singbox, 1, 13, 0):
+        base["private_key"] = proxy["wg_pk"]
+        base["mtu"] = 1380
+        base["address"] = [f'{proxy["wg_ipv4"]}/32']
+        base['peers'] = [{
+            "public_key": proxy["wg_server_pub"],
+            "pre_shared_key": proxy["wg_psk"],
+            "address": base['server'],
+            "port": base['server_port'],
+            "allowed_ips": [
+                "0.0.0.0/0", "::/0"
+            ]
+        }]
+        del base["server_port"]
+        del base["server"]
+        if g.user_agent.get('is_hiddify'):
+            amnezia_params = {}
+            if proxy.get("awg_jc"):
+                amnezia_params["jc"] = int(proxy["awg_jc"])
+            if proxy.get("awg_jmin"):
+                amnezia_params["jmin"] = int(proxy["awg_jmin"])
+            if proxy.get("awg_jmax"):
+                amnezia_params["jmax"] = int(proxy["awg_jmax"])
+            if proxy.get("awg_h1"):
+                amnezia_params["h1"] = int(proxy["awg_h1"])
+            if proxy.get("awg_h2"):
+                amnezia_params["h2"] = int(proxy["awg_h2"])
+            if proxy.get("awg_h3"):
+                amnezia_params["h3"] = int(proxy["awg_h3"])
+            if proxy.get("awg_h4"):
+                amnezia_params["h4"] = int(proxy["awg_h4"])
+            if amnezia_params:
+                base["amnezia"] = amnezia_params
+    else:
+        base["local_address"] = f'{proxy["wg_ipv4"]}/32'
+        base["private_key"] = proxy["wg_pk"]
+        base["peer_public_key"] = proxy["wg_server_pub"]
+
+        base["pre_shared_key"] = proxy["wg_psk"]
+
+        base["mtu"] = 1380
+        if g.user_agent.get('is_hiddify') and hutils.flask.is_client_version(hutils.flask.ClientVersion.hiddify_next, 0, 15, 0):
+            if proxy.get("awg_jc"):
+                base["jc"] = int(proxy["awg_jc"])
+            if proxy.get("awg_jmin"):
+                base["jmin"] = int(proxy["awg_jmin"])
+            if proxy.get("awg_jmax"):
+                base["jmax"] = int(proxy["awg_jmax"])
+            if proxy.get("awg_h1"):
+                base["h1"] = int(proxy["awg_h1"])
+            if proxy.get("awg_h2"):
+                base["h2"] = int(proxy["awg_h2"])
+            if proxy.get("awg_h3"):
+                base["h3"] = int(proxy["awg_h3"])
+            if proxy.get("awg_h4"):
+                base["h4"] = int(proxy["awg_h4"])
+
+
 def add_shadowsocks_base(all_base: list[dict], proxy: dict):
     base = all_base[0]
     base["type"] = "shadowsocks"
@@ -433,7 +514,7 @@ def add_shadowsocks_base(all_base: list[dict], proxy: dict):
         base["plugin_opts"] = f'mode=websocket;path={proxy["path"]};host={proxy["host"]};tls'
 
     if proxy["transport"] == "shadowtls":
-        base['detour'] = base['tag'] + "_shadowtls-out §hide§"
+        base['detour'] = base['tag'] + "_shadowtls-out Â§hideÂ§"
 
         shadowtls_base = {
             "type": "shadowtls",
@@ -468,12 +549,20 @@ def add_ssh(all_base: list[dict], proxy: dict):
 
 
 def add_tuic(base: dict, proxy: dict):
-    base['congestion_control'] = "cubic"
+    base['congestion_control'] = proxy.get('tuic_congestion_control') or "cubic"
     base['udp_relay_mode'] = 'native'
     base['zero_rtt_handshake'] = True
     base['heartbeat'] = "10s"
     base['password'] = proxy['uuid']
     base['uuid'] = proxy['uuid']
+
+
+
+def add_anytls(base: dict, proxy: dict):
+    # AnyTLS inbound uses uuid directly as the password.
+    # Schema: {type: anytls, users:[{name, password}], tls:{...}}
+    # No extra per-proxy fields needed beyond what add_tls() already sets.
+    base['password'] = proxy['uuid']
 
 
 def add_hysteria(base: dict, proxy: dict):

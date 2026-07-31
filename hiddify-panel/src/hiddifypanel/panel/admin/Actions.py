@@ -1,5 +1,6 @@
-import urllib.request
 import json
+import ipaddress
+from urllib.parse import urlparse
 from flask_classful import FlaskView, route
 from flask import render_template, request, redirect, g
 from hiddifypanel.hutils.flask import hurl_for
@@ -20,15 +21,36 @@ class Actions(FlaskView):
     def index(self):
         return render_template('index.html')
 
-    @login_required(roles={Role.super_admin})
-    def viewlogs(self):
-        log_files = hutils.flask.list_dir_files(f"{app.config['HIDDIFY_CONFIG_PATH']}log/system/")
-        return render_template('view_logs.html', log_files=log_files)
+
 
     @login_required(roles={Role.super_admin})
     @route('apply_configs', methods=['POST'])
     def apply_configs(self):
         return self.reinstall(False)
+
+    @login_required(roles={Role.super_admin})
+    @route('set_language', methods=['POST'])
+    def set_language(self):
+        # Admin language used to only be reachable from deep inside Settings
+        # (a whole category for one field) - moved to the topbar since it's
+        # something an admin picks once and rarely needs the rest of that
+        # page for. Same set_hconfig+refresh sequence QuickSetup's own
+        # language step uses.
+        import flask_babel
+        lang = request.form.get('lang', '')
+        if lang in [l.value for l in Lang]:
+            set_hconfig(ConfigEnum.lang, lang)
+            set_hconfig(ConfigEnum.admin_lang, lang)
+            flask_babel.refresh()
+        # request.referrer is attacker-controlled the same way a ?redirect=
+        # query param is (a crafted Referer header on a cross-site POST) -
+        # only redirect back to it if it's actually a local, path-relative
+        # target, otherwise this is an open redirect after a state-changing
+        # admin POST.
+        referrer = request.referrer
+        if referrer and not hutils.flask.is_safe_redirect_target(urlparse(referrer).path):
+            referrer = None
+        return redirect(referrer or hurl_for('admin.Dashboard:index'))
 
     @route('reset', methods=['POST'])
     @login_required(roles={Role.super_admin})
@@ -66,7 +88,13 @@ class Actions(FlaskView):
                 udp_ports.add(p)
         if hconfig(ConfigEnum.ssh_server_enable):
             tcp_ports.add(hconfig(ConfigEnum.ssh_server_port))
-        
+        if hconfig(ConfigEnum.l2tp_enable):
+            # L2TP/IPsec: IKE (500), NAT-T (4500) and the L2TP tunnel (1701),
+            # all UDP. ESP (IP proto 50) rides inside UDP/4500 for the NAT'd
+            # clients this is aimed at, so no extra rule is needed for it.
+            for p in (500, 4500, 1701):
+                udp_ports.add(p)
+
         for p in (hconfig(ConfigEnum.tls_ports)).split(','):
             tcp_ports.add(p)
             udp_ports.add(p)
@@ -77,15 +105,23 @@ class Actions(FlaskView):
             udp_ports.add(d.internal_port_tuic)
             udp_ports.add(d.internal_port_naive)
             udp_ports.add(d.internal_port_hysteria2)
+            # AnyTLS is TCP-based (unlike its QUIC/UDP siblings above).
+            tcp_ports.add(d.internal_port_anytls)
+            # tcp+vision REALITY now binds directly instead of only being
+            # reachable via HAProxy on 443 (see get_port() in
+            # hutils/proxy/shared.py) - needs its own firewall opening too.
+            if d.mode == DomainType.special_reality_tcp:
+                tcp_ports.add(d.internal_port_special)
 
         def to_int(ports):
-            r={}
+            r=set()
             for p in ports:
                 try:
                     if ip:=int(p):
                         r.add(ip)
                 except:
                     pass
+            return list(r)
         return {"tcp":to_int(tcp_ports),"udp":to_int(udp_ports)}
     
 
@@ -104,31 +140,59 @@ class Actions(FlaskView):
 
         domain_changed = request.args.get("domain_changed", str(domain_changed)).lower() == "true"
         complete_install = request.args.get("complete_install", str(complete_install)).lower() == "true"
+        if not complete_install and hiddify.amneziawg_needs_full_install():
+            complete_install = True
+            hutils.flask.flash((_('AmneziaWG needs a one-time setup - running a full install instead of a quick apply.')), 'info')
+        if not complete_install and hiddify.l2tp_needs_full_install():
+            complete_install = True
+            hutils.flask.flash((_('L2TP/IPsec needs a one-time setup - running a full install instead of a quick apply.')), 'info')
+        if not complete_install and hiddify.core_needs_full_install():
+            complete_install = True
+            hutils.flask.flash((_('The selected core needs a one-time setup - running a full install instead of a quick apply.')), 'info')
         if domain_changed:
             hutils.flask.flash((_('domain.changed_in_domain_warning')), 'info')
         # hutils.flask.flash(f'complete_install={complete_install} domain_changed={domain_changed} ', 'info')
         # return render_template("result.html")
         # hiddify.add_temporary_access()
-        file = "install.sh" if complete_install else "apply_configs.sh"
-        try:
-            server_ip = urllib.request.urlopen('https://v4.ident.me/').read().decode('utf8')
-        except BaseException:
-            server_ip = "server_ip"
-
-        admin_links = f"<h5 >{_('Admin Links')}</h5><ul>"
-
-        admin_links += f"<li><span class='badge badge-danger'>{_('Not Secure')}</span>: <a class='badge ltr share-link' href='{hiddify.get_account_panel_link(g.account, server_ip,is_https=False)}'>{hiddify.get_account_panel_link(g.account, server_ip,is_https=False)}</a></li>"
         domains = Domain.get_domains()
-        # domains=[*domains,f'{server_ip}.sslip.io']
+        # Quick Setup stores the user's preferred domain type in session; use it for redirect
+        from flask import session as flask_session
+        preferred_type = flask_session.pop('qs_preferred_domain', None) or request.args.get('preferred_domain', None)
+        
+        def is_ip_or_auto_ip_domain(host):
+            host = (host or '').lower()
+            if host.endswith(('.sslip.io', '.nip.io')):
+                return True
+            try:
+                ipaddress.ip_address(host)
+                return True
+            except ValueError:
+                return False
 
-        for d in domains:
-            link = hiddify.get_account_panel_link(g.account, d)
-            admin_links += f"<li><a target='_blank' class='badge ltr' href='{link}'>{link}</a></li>"
+        redirect_host = hutils.network.get_ip_str(4)
+        
+        if preferred_type == 'cdn':
+            cdn_domains = [d for d in domains if d.mode in ['cdn', 'auto_cdn_ip']]
+            if cdn_domains:
+                redirect_host = cdn_domains[0].domain
+        elif preferred_type == 'direct':
+            direct_domains = [d for d in domains if d.mode == 'direct']
+            direct_domain = next((d for d in direct_domains if not is_ip_or_auto_ip_domain(d.domain)), None)
+            if direct_domain:
+                redirect_host = direct_domain.domain
+        else:
+            # If no preference is specified (e.g. standard Apply Configs button),
+            # stay on the same host the admin is currently using, if valid.
+            current_host = request.host.split(':')[0]
+            if any(d.domain == current_host for d in domains):
+                redirect_host = current_host
+
+        redirect_url = hiddify.get_admin_login_link(redirect_host)
 
         resp = render_template("result.html",
                                out_type="info",
-                               out_msg=_("admin.waiting_for_update") +
-                               admin_links,
+                               out_msg=_("admin.waiting_for_update"),
+                               redirect_url=redirect_url,
                                log_file_url=get_log_api_url(),
                                log_file="0-install.log",
                                show_success=True,
@@ -137,7 +201,17 @@ class Actions(FlaskView):
         # subprocess.Popen(f"sudo {config['HIDDIFY_CONFIG_PATH']}/{file} --no-gui".split(" "), cwd=f"{config['HIDDIFY_CONFIG_PATH']}", start_new_session=True)
 
         # run install.sh or apply_configs.sh
-        commander(Command.install if complete_install else Command.apply)
+        if complete_install:
+            # A full install/reinstall always touches everything, regardless
+            # of any narrower scope tracked since the last apply.
+            commander(Command.install)
+        else:
+            # None (unknown/unmapped change since the last apply) makes
+            # commander() omit --subsystems entirely, which is the exact
+            # same command line as before this feature existed - full width,
+            # not "touch nothing".
+            commander(Command.apply, subsystems=hutils.apply_scope.get_pending_subsystems())
+        hutils.apply_scope.clear_pending_subsystems()
 
         # import time
         # time.sleep(1)
@@ -148,6 +222,7 @@ class Actions(FlaskView):
         key = hutils.crypto.generate_x25519_keys()
         set_hconfig(ConfigEnum.reality_private_key, key['private_key'])
         set_hconfig(ConfigEnum.reality_public_key, key['public_key'])
+        hutils.apply_scope.mark_dirty(hutils.apply_scope.CORE_ONLY_SUBSYSTEMS)
         hutils.flask.flash_config_success(restart_mode=ApplyMode.apply_config, domain_changed=False)
         return redirect(hurl_for('admin.SettingAdmin:index'))
 
@@ -168,6 +243,7 @@ class Actions(FlaskView):
     def update(self):
         return self.update2()
 
+    @login_required(roles={Role.super_admin})
     def update2(self):
         # hiddify.add_temporary_access()
         # run update.sh
@@ -182,6 +258,7 @@ class Actions(FlaskView):
                                log_file="update.log",
                                domains=get_domains())
 
+    @login_required(roles={Role.super_admin})
     def get_some_random_reality_friendly_domain(self):
         test_domain = request.args.get("test_domain")
         import ping3

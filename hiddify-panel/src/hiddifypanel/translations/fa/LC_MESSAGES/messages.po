@@ -1394,7 +1394,7 @@ msgid "config.dnstt.description"
 msgstr ""
 
 msgid "config.dnstt.label"
-msgstr ""
+msgstr "Dnstt"
 
 msgid "config.dnstt_enable.description"
 msgstr ""
@@ -3336,3 +3336,79 @@ msgstr "کلید امضا (اختیاری)"
 
 msgid "config.webhook_signing_key.description"
 msgstr "اختیاری. هر متن دلخواهی. اگه پر کنی، هر درخواست یه هدر X-Hiddify-Signature (HMAC-SHA256 بدنه‌ی JSON با این کلید) داره تا مطمئن بشی از پنل خودته. برای رد شدن از امضا، خالی بذار."
+
+# --- New admin-page labels from the Outbounds/Routing/Inbound-Override features (2026) ---
+msgid "Outbounds"
+msgstr "خروجی‌ها"
+
+msgid "Routing Rules"
+msgstr "قوانین مسیریابی"
+
+msgid "Inbound Overrides"
+msgstr "بازنویسی ورودی‌ها"
+
+msgid "Xray Configs"
+msgstr "تنظیمات Xray"
+
+msgid "Match Inbound(s)"
+msgstr "ورودی‌های منطبق"
+
+msgid "Source IPs"
+msgstr "IPهای مبدأ"
+
+msgid "Source Port"
+msgstr "پورت مبدأ"
+
+msgid "Protocol"
+msgstr "پروتکل"
+
+msgid "User"
+msgstr "کاربر"
+
+msgid "Import Link"
+msgstr "ایمپورت از لینک"
+
+msgid "AmneziaWG"
+msgstr "AmneziaWG"
+
+msgid "Tag"
+msgstr "برچسب"
+
+msgid "Server Address / Endpoint Host"
+msgstr "آدرس سرور / هاست Endpoint"
+
+msgid "Port / Endpoint Port"
+msgstr "پورت / پورت Endpoint"
+
+msgid "UUID / Password / Private Key"
+msgstr "UUID / رمز عبور / کلید خصوصی"
+
+msgid "Network"
+msgstr "شبکه"
+
+msgid "Security"
+msgstr "امنیت"
+
+msgid "SNI"
+msgstr "SNI"
+
+msgid "Comment"
+msgstr "توضیح"
+
+msgid "Priority"
+msgstr "اولویت"
+
+msgid "Outbound Tag"
+msgstr "برچسب خروجی"
+
+msgid "Domains"
+msgstr "دامنه‌ها"
+
+msgid "IPs"
+msgstr "IPها"
+
+msgid "Port"
+msgstr "پورت"
+
+msgid "Enable"
+msgstr "فعال"

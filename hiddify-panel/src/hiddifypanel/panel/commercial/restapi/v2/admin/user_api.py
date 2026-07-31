@@ -38,6 +38,16 @@ class UserApi(MethodView):
                 continue
             # if field in data:
             #     setattr(user, field, data[field])
+
+        if data.get('added_by_uuid'):
+            # Same ownership check as UsersApi.post: a caller-supplied
+            # added_by_uuid must resolve to an admin the caller actually
+            # owns (self or a sub-admin), otherwise a user could be
+            # reassigned outside the caller's subtree.
+            target_admin = AdminUser.by_uuid(data['added_by_uuid'])
+            if not target_admin or target_admin.id not in g.account.recursive_sub_admins_ids():
+                abort(403, "You don't have permission to add a user for this admin")
+
         data['old_uuid'] = uuid
         user_driver.remove_client(user)
         dbuser = User.add_or_update(**data) or abort(502, "Unknown issue! User is not patched")

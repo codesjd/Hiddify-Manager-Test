@@ -1201,7 +1201,7 @@ msgid "config.Invalid_telegram_bot_token"
 msgstr "Invalid Telegram Bot Token"
 
 msgid "config.additional_configs.description"
-msgstr "config.additional_configs.description"
+msgstr "Merge in extra proxy configs from external URLs or share links, in addition to what's configured on this panel."
 
 msgid "config.additional_configs.label"
 msgstr "Additional Configs"
@@ -1275,6 +1275,59 @@ msgstr ""
 
 msgid "config.allow_invalid_sni.label"
 msgstr "🆗 Allow Invalid SNI"
+
+msgid "config.anytls.description"
+msgstr ""
+"AnyTLS is a protocol designed to resist TLS traffic-shape fingerprinting. "
+"Off by default: the Hiddify app doesn't support it yet, only third-party "
+"sing-box clients (NekoBox, v2rayN 7.14.3+) can currently use it."
+
+msgid "config.anytls.label"
+msgstr "AnyTLS"
+
+msgid "config.anytls_enable.description"
+msgstr ""
+"Enable the AnyTLS inbound. Requires a sing-box-compatible client that "
+"supports AnyTLS - the Hiddify app does not yet."
+
+msgid "config.anytls_enable.label"
+msgstr "⚪ AnyTLS"
+
+msgid "config.anytls_port.description"
+msgstr "The port AnyTLS listens on."
+
+msgid "config.anytls_port.label"
+msgstr "AnyTLS Port"
+
+msgid "config.l2tp.description"
+msgstr ""
+"L2TP/IPsec is a legacy VPN every stock OS (Windows/macOS/iOS/Android) can "
+"connect to with its built-in client, no app needed. Off by default - it "
+"runs its own strongSwan+xl2tpd daemons rather than through the proxy core, "
+"so it has no per-user usage tracking. (PPTP is deliberately not offered - "
+"its crypto has been broken since 2012.)"
+
+msgid "config.l2tp.label"
+msgstr "L2TP/IPsec"
+
+msgid "config.l2tp_enable.description"
+msgstr ""
+"Enable the L2TP/IPsec inbound. Each user connects with the server's IP, the "
+"pre-shared key below, and their own UUID as both username and password. "
+"Newly added users get access on the next Apply Configs (not instantly like "
+"proxy protocols)."
+
+msgid "config.l2tp_enable.label"
+msgstr "🔒 L2TP/IPsec"
+
+msgid "config.l2tp_psk.description"
+msgstr ""
+"The IPsec pre-shared key (PSK) every L2TP client must enter alongside their "
+"username/password. Shared by all users - give it out together with their "
+"UUID."
+
+msgid "config.l2tp_psk.label"
+msgstr "🔑 L2TP Pre-Shared Key"
 
 msgid "config.auto_update.description"
 msgstr ""
@@ -1402,31 +1455,31 @@ msgid "config.dns_server.label"
 msgstr "🖥 DNS Server"
 
 msgid "config.dnstt.description"
-msgstr "config.dnstt.description"
+msgstr "DNSTT tunnels traffic over DNS queries, useful when every other port/protocol is blocked but DNS resolution still works."
 
 msgid "config.dnstt.label"
-msgstr "config.dnstt.label"
+msgstr "Dnstt"
 
 msgid "config.dnstt_enable.description"
-msgstr "config.dnstt_enable.description"
+msgstr "Enables the DNSTT (DNS tunneling) proxy."
 
 msgid "config.dnstt_enable.label"
 msgstr "DNSTT Enable"
 
 msgid "config.dnstt_private_key.description"
-msgstr "config.dnstt_private_key.description"
+msgstr "The DNSTT server's private key, generated automatically - clients need the matching public key below to connect."
 
 msgid "config.dnstt_private_key.label"
-msgstr "config.dnstt_private_key.label"
+msgstr "DNSTT Private Key"
 
 msgid "config.dnstt_public_key.description"
-msgstr "config.dnstt_public_key.description"
+msgstr "The DNSTT server's public key - clients use this to verify the server."
 
 msgid "config.dnstt_public_key.label"
-msgstr "config.dnstt_public_key.label"
+msgstr "DNSTT Public Key"
 
 msgid "config.dnstt_resolvers.description"
-msgstr "config.dnstt_resolvers.description"
+msgstr "DNS resolvers (one per line) clients should query through when tunneling over DNSTT."
 
 msgid "config.dnstt_resolvers.label"
 msgstr "DNSTT Resolvers"
@@ -1801,7 +1854,7 @@ msgid "config.mux_min_streams.label"
 msgstr "↘️ MUX Min Streams"
 
 msgid "config.mux_padding_enable.description"
-msgstr "MUX Padding description"
+msgstr "Pads multiplexed streams with junk bytes to hide their real size, making mux traffic harder to fingerprint. Adds a small amount of overhead."
 
 msgid "config.mux_padding_enable.label"
 msgstr "⟹ MUX Padding"
@@ -2236,7 +2289,7 @@ msgid "config.ssh_host_rsa_pub.label"
 msgstr "config.ssh_host_rsa_pub.label"
 
 msgid "config.ssh_server_enable.description"
-msgstr "SSH Proxy is completely different than original SSH Server"
+msgstr "SSH Proxy is completely different than original SSH Server. Only works when Core Type (in Settings) is set to sing-box - xray-core has no SSH inbound support at all, so this toggle does nothing while xray is the active core."
 
 msgid "config.ssh_server_enable.label"
 msgstr "✔️ SSH Proxy"
@@ -2426,6 +2479,14 @@ msgstr "The time delay between Fragments"
 msgid "config.tls_fragment_sleep.label"
 msgstr "⏱ TLS Fragment Sleep"
 
+msgid "config.tls_kernel_offload.description"
+msgstr ""
+"Offloads TLS to the kernel for AnyTLS only. Requires Linux 5.1+ with TLS "
+"1.3. Leave off if unsure."
+
+msgid "config.tls_kernel_offload.label"
+msgstr "🧬 Kernel TLS Offload"
+
 msgid "config.tls_mixed_case.description"
 msgstr "Enables TLS Mixed SNI Case Fragmentation"
 
@@ -2490,6 +2551,17 @@ msgstr ""
 
 msgid "config.tuic.label"
 msgstr "TUIC"
+
+msgid "config.tuic_congestion_control.description"
+msgstr ""
+"The congestion control algorithm TUIC uses. BBR often performs better than "
+"the default Cubic on lossy/high-latency links. Each side paces its own "
+"sends independently (this doesn't need to match to connect), so this is "
+"applied to both the server and the client's own generated config - "
+"otherwise only the download direction would benefit."
+
+msgid "config.tuic_congestion_control.label"
+msgstr "TUIC Congestion Control"
 
 msgid "config.tuic_enable.description"
 msgstr "It is a UDP based protocol similar to QUIC"
@@ -2609,6 +2681,123 @@ msgstr ""
 
 msgid "config.wireguard.label"
 msgstr "WireGuard"
+
+msgid "config.amneziawg.description"
+msgstr ""
+"AmneziaWG is a WireGuard-compatible protocol with extra traffic "
+"obfuscation (junk packets), designed to resist DPI-based blocking that "
+"plain WireGuard is vulnerable to."
+
+msgid "config.amneziawg.label"
+msgstr "AmneziaWG"
+
+msgid "config.amneziawg_client_enable.description"
+msgstr "Enables a client-facing AmneziaWG interface, so users can connect directly with an AmneziaWG-capable client."
+
+msgid "config.amneziawg_client_enable.label"
+msgstr "🐉 AmneziaWG"
+
+msgid "config.amneziawg_port.description"
+msgstr "Defines the port for the AmneziaWG interface"
+
+msgid "config.amneziawg_port.label"
+msgstr "↔️ AmneziaWG Port"
+
+msgid "config.amneziawg_jc.description"
+msgstr "Junk packet count - number of junk packets sent before the handshake. Must match on the client."
+
+msgid "config.amneziawg_jc.label"
+msgstr "Jc (Junk Packet Count)"
+
+msgid "config.amneziawg_jmin.description"
+msgstr "Minimum junk packet size in bytes. Must match on the client."
+
+msgid "config.amneziawg_jmin.label"
+msgstr "Jmin (Junk Packet Min Size)"
+
+msgid "config.amneziawg_jmax.description"
+msgstr "Maximum junk packet size in bytes. Must match on the client."
+
+msgid "config.amneziawg_jmax.label"
+msgstr "Jmax (Junk Packet Max Size)"
+
+msgid "config.amneziawg_h1.description"
+msgstr "Magic header value replacing WireGuard's handshake-initiation message type. Must match on the client."
+
+msgid "config.amneziawg_h1.label"
+msgstr "H1 (Header Type 1)"
+
+msgid "config.amneziawg_h2.description"
+msgstr "Magic header value replacing WireGuard's handshake-response message type. Must match on the client."
+
+msgid "config.amneziawg_h2.label"
+msgstr "H2 (Header Type 2)"
+
+msgid "config.amneziawg_h3.description"
+msgstr "Magic header value replacing WireGuard's cookie-reply message type. Must match on the client."
+
+msgid "config.amneziawg_h3.label"
+msgstr "H3 (Header Type 3)"
+
+msgid "config.amneziawg_h4.description"
+msgstr "Magic header value replacing WireGuard's transport-data message type. Must match on the client."
+
+msgid "config.amneziawg_h4.label"
+msgstr "H4 (Header Type 4)"
+
+msgid "config.amneziawg_s1.description"
+msgstr "Padding size (bytes) added to the handshake-initiation message, on top of Jc/Jmin/Jmax's junk packets. Must match on the client."
+
+msgid "config.amneziawg_s1.label"
+msgstr "S1 (Init Padding Size)"
+
+msgid "config.amneziawg_s2.description"
+msgstr "Padding size (bytes) added to the handshake-response message. Must match on the client."
+
+msgid "config.amneziawg_s2.label"
+msgstr "S2 (Response Padding Size)"
+
+msgid "config.amneziawg_s3.description"
+msgstr "Padding size (bytes) added to the cookie-reply message. Must match on the client."
+
+msgid "config.amneziawg_s3.label"
+msgstr "S3 (Cookie-Reply Padding Size)"
+
+msgid "config.amneziawg_s4.description"
+msgstr "Padding size (bytes) added to the transport-data message. Must match on the client."
+
+msgid "config.amneziawg_s4.label"
+msgstr "S4 (Transport-Data Padding Size)"
+
+msgid "config.amneziawg_i1.description"
+msgstr "Optional custom junk/mimicry packet (hex+tag template, e.g. \"&lt;b 0xAABB&gt;&lt;r 16&gt;\") sent during the handshake to disguise traffic as another protocol. Must match on the client - leave blank to skip. See the AmneziaWG docs for the tag syntax."
+
+msgid "config.amneziawg_i1.label"
+msgstr "I1 (Junk Packet 1)"
+
+msgid "config.amneziawg_i2.description"
+msgstr "Optional custom junk/mimicry packet 2, same format as I1. Must match on the client - leave blank to skip."
+
+msgid "config.amneziawg_i2.label"
+msgstr "I2 (Junk Packet 2)"
+
+msgid "config.amneziawg_i3.description"
+msgstr "Optional custom junk/mimicry packet 3, same format as I1. Must match on the client - leave blank to skip."
+
+msgid "config.amneziawg_i3.label"
+msgstr "I3 (Junk Packet 3)"
+
+msgid "config.amneziawg_i4.description"
+msgstr "Optional custom junk/mimicry packet 4, same format as I1. Must match on the client - leave blank to skip."
+
+msgid "config.amneziawg_i4.label"
+msgstr "I4 (Junk Packet 4)"
+
+msgid "config.amneziawg_i5.description"
+msgstr "Optional custom junk/mimicry packet 5, same format as I1. Must match on the client - leave blank to skip."
+
+msgid "config.amneziawg_i5.label"
+msgstr "I5 (Junk Packet 5)"
 
 msgid "config.wireguard_enable.description"
 msgstr ""
@@ -3344,3 +3533,19 @@ msgstr "Signing Key (optional)"
 
 msgid "config.webhook_signing_key.description"
 msgstr "Optional. Any text you choose. If set, requests include an X-Hiddify-Signature header (HMAC-SHA256 of the JSON body with this key) so your receiver can verify the request came from this panel. Leave empty to skip signing."
+
+msgid "quicksetup.preferred_domain.label"
+msgstr "Preferred Domain for Panel Access"
+
+msgid "quicksetup.preferred_domain.description"
+msgstr "After setup, the panel will redirect to this domain type."
+
+msgid "quicksetup.preferred_domain.direct"
+msgstr "Direct Domain"
+
+msgid "quicksetup.preferred_domain.cdn"
+msgstr "CDN Domain"
+
+msgid "Default credentials"
+msgstr "Default credentials"
+

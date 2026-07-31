@@ -132,9 +132,23 @@ class AdminUser(BaseAccount):
             else:
                 parent_admin = cls.by_uuid(parent, create=True)
             dbuser.parent_admin_id = parent_admin.id  # type: ignore
+
+        caller = cls.current_admin_or_owner()
+        caller_is_super = bool(caller) and caller.mode == AdminMode.super_admin
+
         if data.get('mode') is not None:
-            dbuser.mode = data.get('mode', AdminMode.agent)
+            requested_mode = data.get('mode', AdminMode.agent)
+            if dbuser.id != 1 and not caller_is_super:
+                from apiflask import abort
+                if requested_mode == AdminMode.super_admin:
+                    abort(403, "Sub-admin can not have more power than its creator")
+                if caller.mode == AdminMode.agent and requested_mode != AdminMode.agent:
+                    abort(403, "Sub-admin can not have more power than its creator")
+            dbuser.mode = requested_mode
         if data.get('can_add_admin') is not None:
+            if data['can_add_admin'] and dbuser.id != 1 and not caller_is_super:
+                from apiflask import abort
+                abort(403, "Only a super admin can grant the ability to add admins")
             dbuser.can_add_admin = data['can_add_admin']
         if data.get('max_users') is not None:
             dbuser.max_users = data['max_users']
@@ -153,13 +167,13 @@ class AdminUser(BaseAccount):
         if self.mode == AdminMode.super_admin:
             return True
         users_count = self.recursive_users_query().count()
-        if self.max_users < users_count:
+        if users_count >= self.max_users:
             return False
-        if users_count <= self.max_active_users:
+        if users_count < self.max_active_users:
             return True
 
         actives = [u for u in self.recursive_users_query().all() if u.is_active]
-        return len(actives) <= self.max_active_users
+        return len(actives) < self.max_active_users
 
     def recursive_sub_admins_ids(self, depth=20, seen=None):
         if seen is None:
@@ -195,9 +209,10 @@ class AdminUser(BaseAccount):
     def get_super_admin() -> "AdminUser":
         admin = AdminUser.by_id(1)
         if not admin:
-            db.session.add(AdminUser(id=1, uuid=str(uuid4()), name="Owner", mode=AdminMode.super_admin, comment=""))
+            from uuid import uuid4
+            from werkzeug.security import generate_password_hash
+            db.session.add(AdminUser(id=1, uuid=str(uuid4()), username="admin", password=generate_password_hash("admin"), name="Owner", mode=AdminMode.super_admin, comment=""))
             db.session.commit()
-
             db_execute("update admin_user set id=1 where name='Owner'", commit=True)
             admin = AdminUser.by_id(1)
 

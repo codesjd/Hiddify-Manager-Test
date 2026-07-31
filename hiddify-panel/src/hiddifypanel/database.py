@@ -69,20 +69,40 @@ def init_no_flask():
     db.session = sessionmaker(bind=engine)()
 
 def init_app(app):
-    
+
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = True
     db.init_app(app)
+
+    @app.teardown_request
+    def _rollback_on_exception(exception=None):
+        # A failed db.session.commit() (integrity error, etc.) leaves the
+        # session's transaction in a state where any further query in the
+        # same request raises PendingRollbackError, even though the DBAPI
+        # transaction itself was already rolled back - SQLAlchemy requires
+        # an explicit session.rollback() to reset the Session object's own
+        # state before it's usable again. Several mutation call sites across
+        # the codebase commit without a try/except around it, so this is a
+        # safety net at the request boundary (guarantees the *next* request
+        # never inherits a poisoned session) rather than a fix at every
+        # individual call site within the same request.
+        if exception is not None:
+            db.session.rollback()
+
     with app.app_context():
         from hiddifypanel.panel.init_db import init_db
         init_db()
-        
+
 
 
 def db_execute(query: str, return_val: bool = False, commit: bool = False, **params):
     # print(params)
     q = db.session.execute(text(query), params)
     if commit:
-        db.session.commit()
+        try:
+            db.session.commit()
+        except Exception:
+            db.session.rollback()
+            raise
     if return_val:
         return q.fetchall()
 

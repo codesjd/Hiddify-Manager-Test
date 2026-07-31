@@ -19,6 +19,11 @@ jq -r '
     "\($domain_name),hysteria,\(.internal_port_hysteria2)"
   else
     empty
+  end,
+  if .internal_port_anytls != 0 then
+    "\($domain_name),anytls,\(.internal_port_anytls)"
+  else
+    empty
   end
 ' ${DIR_PATH}${INPUT_FILE} >> ${DIR_PATH}${OUTPUT_FILE}
 
@@ -54,4 +59,3 @@ jq -r '
 ' ${DIR_PATH}${INPUT_FILE} >> ${DIR_PATH}${OUTPUT_FILE}
 
 rm ${DIR_PATH}${INPUT_FILE}
-

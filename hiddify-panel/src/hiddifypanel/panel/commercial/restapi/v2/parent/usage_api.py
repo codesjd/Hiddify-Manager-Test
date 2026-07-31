@@ -44,6 +44,15 @@ class UsageApi(MethodView):
         return hutils.node.get_users_usage_data_for_api()
 
     def __calculate_parent_increased_usages(self, child_usages_data: dict, parent_usages_data: dict) -> dict:
+        # Iterating parent_usages_data means any uuid the child sent that
+        # the parent doesn't recognize is never visited at all - previously
+        # silently dropped with no trace, which can hide real node
+        # data-corruption or child/parent sync drift. Surface it instead of
+        # rejecting the whole batch (a child a few users ahead of a sync is
+        # a normal transient state, not necessarily corruption).
+        unknown_uuids = set(child_usages_data) - set(parent_usages_data)
+        if unknown_uuids:
+            logger.warning(f"Child sent usage for {len(unknown_uuids)} uuid(s) unknown to parent (ignored): {unknown_uuids}")
         res = {}
         for p_uuid, p_usage in parent_usages_data.items():
             if child_usage := child_usages_data.get(p_uuid):

@@ -53,7 +53,7 @@
             {% if hconfig(ConfigEnum.branding_title) %}
             <h3>{{hconfig(ConfigEnum.branding_title) or _('user.home.branding.title')}}</h3>
             {% endif %}
-            <p>{{hconfig(ConfigEnum.branding_freetext)|safe}}</p>
+            <p>{{hconfig(ConfigEnum.branding_freetext)|sanitize_html|safe}}</p>
         </div>
         <div class="icon">
             <i class="fa-solid fa-question fa-margin"></i>

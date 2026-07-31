@@ -2786,3 +2786,79 @@ msgstr "📅 အပတ်စဉ်"
 
 msgid "worker"
 msgstr "✴️ Cloudflare Worker"
+
+# --- New admin-page labels from the Outbounds/Routing/Inbound-Override features (2026) ---
+msgid "Outbounds"
+msgstr "အထွက်များ"
+
+msgid "Routing Rules"
+msgstr "လမ်းကြောင်းသတ်မှတ်ချက်များ"
+
+msgid "Inbound Overrides"
+msgstr "အဝင်ကျော်လွှားမှုများ"
+
+msgid "Xray Configs"
+msgstr "Xray ဆက်တင်များ"
+
+msgid "Match Inbound(s)"
+msgstr "အဝင်နှင့်ကိုက်ညီမှု"
+
+msgid "Source IPs"
+msgstr "မူရင်း IP"
+
+msgid "Source Port"
+msgstr "မူရင်းပေါက်"
+
+msgid "Protocol"
+msgstr "ပရိုတိုကော"
+
+msgid "User"
+msgstr "အသုံးပြုသူ"
+
+msgid "Import Link"
+msgstr "လင့်ခ်မှတင်သွင်းရန်"
+
+msgid "AmneziaWG"
+msgstr "AmneziaWG"
+
+msgid "Tag"
+msgstr "တဂ်"
+
+msgid "Server Address / Endpoint Host"
+msgstr "ဆာဗာလိပ်စာ / Endpoint Host"
+
+msgid "Port / Endpoint Port"
+msgstr "ပေါက် / Endpoint ပေါက်"
+
+msgid "UUID / Password / Private Key"
+msgstr "UUID / စကားဝှက် / သီးသန့်သော့"
+
+msgid "Network"
+msgstr "ကွန်ရက်"
+
+msgid "Security"
+msgstr "လုံခြုံရေး"
+
+msgid "SNI"
+msgstr "SNI"
+
+msgid "Comment"
+msgstr "မှတ်ချက်"
+
+msgid "Priority"
+msgstr "ဦးစားပေးမှု"
+
+msgid "Outbound Tag"
+msgstr "အထွက်တဂ်"
+
+msgid "Domains"
+msgstr "ဒိုမိန်းများ"
+
+msgid "IPs"
+msgstr "IP များ"
+
+msgid "Port"
+msgstr "ပေါက်"
+
+msgid "Enable"
+msgstr "ဖွင့်ရန်"

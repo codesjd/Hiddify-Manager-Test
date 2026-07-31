@@ -1,0 +1,56 @@
+# strongSwan IPsec config for L2TP/IPsec (transport mode, PSK auth).
+# Rendered by common/jinja.py -> ipsec.conf, then run.sh copies it to
+# /etc/ipsec.conf. Now covers both roles - inbound (conn L2TP-PSK, gated on
+# l2tp_enable so a purely-outbound install never accepts unsolicited
+# incoming IKE negotiations) and outbound chaining (one "conn {{interface}}"
+# per enabled Outbound row with Protocol=l2tp AND a preshared_key set - a
+# blank PSK means that row dials bare L2TP with no IPsec, so no conn block
+# is needed for it at all).
+config setup
+    uniqueids=no
+    charondebug="ike 1, knl 1, cfg 0"
+
+{% if hconfigs['l2tp_enable'] %}
+conn L2TP-PSK
+    keyexchange=ikev1
+    authby=secret
+    type=transport
+    # L2TP rides UDP/1701 inside the IPsec transport - left is this server,
+    # right is any client (they're behind NAT with dynamic addresses).
+    left=%any
+    leftprotoport=17/1701
+    right=%any
+    rightprotoport=17/%any
+    auto=add
+    # Broad proposal set so the built-in L2TP/IPsec clients on Windows,
+    # macOS, iOS and Android all find a match. modp1024 is kept because
+    # Windows' native client still requires it; sha256/modp2048 are offered
+    # first so a modern client negotiates the stronger option.
+    ike=aes256-sha256-modp2048,aes256-sha1-modp1024,aes128-sha1-modp1024,3des-sha1-modp1024!
+    esp=aes256-sha256,aes256-sha1,aes128-sha1,3des-sha1!
+    dpddelay=30
+    dpdtimeout=120
+    dpdaction=clear
+    rekey=no
+{% endif %}
+{% for ob in l2tp_outbounds %}
+{% if ob.psk %}
+conn {{ ob.interface }}
+    keyexchange=ikev1
+    authby=secret
+    type=transport
+    # We're the client here - left is this server (dynamic/whatever route
+    # we dial out on), right is the specific remote LNS this row points at.
+    left=%defaultroute
+    leftprotoport=17/%any
+    right={{ ob.address }}
+    rightprotoport=17/1701
+    auto=start
+    ike=aes256-sha256-modp2048,aes256-sha1-modp1024,aes128-sha1-modp1024,3des-sha1-modp1024!
+    esp=aes256-sha256,aes256-sha1,aes128-sha1,3des-sha1!
+    dpddelay=30
+    dpdtimeout=120
+    dpdaction=restart
+    rekey=yes
+{% endif %}
+{% endfor %}

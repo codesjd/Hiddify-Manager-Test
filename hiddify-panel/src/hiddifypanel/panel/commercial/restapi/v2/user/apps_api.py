@@ -155,7 +155,7 @@ class AppAPI(MethodView):
             return Platform.mac
         elif os == 'iOS':
             return Platform.ios
-        elif 'Linux' in request.user_agent.string and 'X11' or 'Wayland' in request.user_agent.string:
+        elif 'Linux' in request.user_agent.string and ('X11' in request.user_agent.string or 'Wayland' in request.user_agent.string):
             return Platform.linux
 
         return None

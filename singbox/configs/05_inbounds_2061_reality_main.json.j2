@@ -39,9 +39,9 @@
 						},
 						"private_key": "{{hconfigs['reality_private_key']}}",
 						"short_id": [
-							"", 
+							"" 
 							{%for sid in hconfigs['reality_short_ids'].split(',') %}
-							"{{sid}}",
+							,"{{sid}}"
 							{%endfor%}
 						],
 						"max_time_difference": "2h"

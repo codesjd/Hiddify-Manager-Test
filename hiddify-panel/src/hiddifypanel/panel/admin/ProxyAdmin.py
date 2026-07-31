@@ -52,14 +52,25 @@ class ProxyAdmin(FlaskView):
                     for proxy_id, enable in v.items():
                         if not proxy_id.startswith("p_"):
                             continue
-                        id = int(proxy_id.split('_')[-1])
-                        Proxy.query.filter(Proxy.id == id).first().enable = enable
+                        try:
+                            id = int(proxy_id.split('_')[-1])
+                        except ValueError:
+                            continue
+                        # id can be stale (proxy deleted by another request
+                        # since this form was rendered) - .first() then
+                        # returns None, and dereferencing .enable on it
+                        # crashed the whole submit with an AttributeError.
+                        proxy = Proxy.query.filter(Proxy.id == id).first()
+                        if proxy is None:
+                            continue
+                        proxy.enable = enable
 
                 # print(cat,vs)
             db.session.commit()
             hutils.proxy.get_proxies.invalidate_all()
             if hutils.node.is_child():
                 hutils.node.run_node_op_in_bg(hutils.node.child.sync_with_parent, *[hutils.node.child.SyncFields.proxies])
+            hutils.apply_scope.mark_dirty(hutils.apply_scope.CORE_ONLY_SUBSYSTEMS)
             hutils.flask.flash_config_success(restart_mode=ApplyMode.apply_config, domain_changed=False)
             global_config_form = get_global_config_form(True)
         else:
@@ -77,7 +88,10 @@ def get_global_config_form(empty=False):
     for cf in boolconfigs:
         if cf.key.category == 'hidden':
             continue
-        if not cf.key.endswith("_enable") or cf.key in [ConfigEnum.mux_brutal_enable, ConfigEnum.mux_padding_enable, ConfigEnum.hysteria_obfs_enable]:
+        # wireguard_enable: retired in favor of AmneziaWG - forced off by
+        # migration _v127, excluded here so there's no toggle to turn it
+        # back on.
+        if not cf.key.endswith("_enable") or cf.key in [ConfigEnum.mux_brutal_enable, ConfigEnum.mux_padding_enable, ConfigEnum.hysteria_obfs_enable, ConfigEnum.wireguard_enable]:
             continue
         
         field = SwitchField(_(f'config.{cf.key}.label'), default=cf.value, description=_(f'config.{cf.key}.description'))

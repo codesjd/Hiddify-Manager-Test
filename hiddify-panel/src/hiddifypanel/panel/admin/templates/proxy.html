@@ -2,34 +2,25 @@
 
 {% extends 'admin-layout.html' %}
 
+{% block title %}{{ _('admin.menu.proxy') }}{% endblock %}
+
 {% block body %}
 {{super()}}
 
-
-
 <div class="card">
-    <div class="card-header">{{_("admin.proxy.global_config")}}</div>
+    <div class="card-header">
+        {{_("admin.proxy.global_config")}}
+    </div>
     <div class="card-body">
-        {% if 1 or hconfig(ConfigEnum.license) %}
-        <a class="btn btn-info" href="{{hurl_for('flask.proxy.index_view')}}">{{_("Edit Proxy Names")}}</a>
-        {% endif %}
-        <div class="row">
-            <div class="col-12 global-form">
-                {{render_form(global_config_form,extra_classes="card-columns")}}
-            </div>
+        <div class="global-form">
+            {{render_form(global_config_form,extra_classes="toggle-grid")}}
+        </div>
+        <div class="apply-configs-row">
+            <a href="{{ hurl_for('admin.Actions:apply_configs') }}" class="apply-configs-btn form_post">⚡ {{ _('Apply Configs') }}</a>
         </div>
     </div>
 </div>
-<div class="card">
-    <div class="card-header">{{_("admin.proxy.detailed_config")}}</div>
-    <div class="card-body">
-        <div class="row">
-            <div class="col-12">
-                {{render_form(detailed_config_form,extra_classes="card-columns")}}
-            </div>
-        </div>
-    </div>
-</div>
+
 
 <style>
     fieldset {
@@ -49,10 +40,6 @@
         margin: 0px;
     }
 
-    /* legend+div>label {
-        display: none;
-    } */
-
     @media (min-width: 576px) {
         .card-columns {
             column-count: 1;
@@ -65,12 +52,88 @@
         }
     }
 
-    .global-form .custom-switch {
-        display: inline-block;
+    /* Global config toggles as a 2-col grid of toggle-row cards, matching
+       the new design's Proxies page - the switches themselves are still
+       plain WTForms SwitchField output (.custom-control-input/-label),
+       just re-laid-out via the shared .toggle-grid/.toggle-row CSS in
+       admin-layout.html instead of a hand-rolled markup rebuild. */
+    .global-form .toggle-grid {
+        display: grid;
+    }
+    .global-form .form-group.custom-switch {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 14px !important;
+        margin-bottom: 0 !important;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+    }
+    .global-form .form-text.text-muted {
+        text-align: center;
+    }
+    [dir="rtl"] .global-form .form-group.custom-switch {
+        padding: 14px 44px 14px 16px !important;
     }
 
-    #submit_global {
-        display: block;
+    /* SubmitField renders as a bare <input>, no .form-group wrapper, in
+       render_form()'s default "basic" form_type - so it's a direct grid
+       child of .toggle-grid and needs the column-span itself. #submit_global
+       itself no longer carries the grid-column span once the "move Apply
+       Configs into the same row" script below wraps it in .submit-row -
+       the wrapper takes over that job. */
+    .submit-row {
+        grid-column: 1 / -1;
+        display: flex;
+        gap: 10px;
+        margin-top: 12px;
+    }
+    .submit-row #submit_global {
+        flex: 1;
+        width: auto;
+        margin-top: 0;
+    }
+    /* Matches the dashboard's .dash-secondary-btn (Update/Reinstall) look
+       instead of Bootstrap's default gray box, which clashed with the rest
+       of the redesigned UI. */
+    .apply-configs-btn {
+        font-family: 'Manrope', sans-serif;
+        font-size: 13px;
+        font-weight: 700;
+        padding: 9px 20px;
+        border-radius: 9px;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        white-space: nowrap;
+        border: none;
+        text-decoration: none !important;
+        background: var(--track);
+        color: var(--text-primary) !important;
+        flex: 0 0 auto;
+    }
+    .apply-configs-btn:hover {
+        background: var(--border);
     }
 </style>
+{% endblock %}
+
+{% block tail %}
+{{ super() }}
+<script>
+    // #submit_global is a bare WTForms <input>, rendered as the last grid
+    // child of .toggle-grid with no wrapper of its own to place a sibling
+    // button next to - move it into a shared flex row with Apply Configs
+    // instead of fighting render_form()'s markup. Lives in the tail block
+    // (not body) since jQuery loads after body, not before it.
+    $(function () {
+        var $submitRow = $('<div class="submit-row"></div>');
+        $('#submit_global').before($submitRow);
+        $submitRow.append($('#submit_global'), $('.apply-configs-btn'));
+        $('.apply-configs-row').remove();
+    });
+</script>
 {% endblock %}

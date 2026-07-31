@@ -18,31 +18,46 @@ def get_folder_size(folder_path: str) -> int:
 
 
 def top_processes() -> dict:
-    # Get the process information
-    processes = [p for p in psutil.process_iter(['pid', 'name', 'username', 'cpu_percent', 'memory_info']) if p.info['name'] != '']
-    num_cores = psutil.cpu_count()
-    # Calculate memory usage, RAM usage, and CPU usage for each process
+    # Prime the system-wide sample in the same window as the per-process
+    # ones below, so system_stats()'s cpu_percent (passed in from here) and
+    # this function's per-process breakdown reflect the same ~0.1s of
+    # measurement instead of two independent, differently-timed samples -
+    # which is what made e.g. a single process show non-zero cpu% while the
+    # overall gauge showed 0%.
+    psutil.cpu_percent(interval=None)
+    processes = [p for p in psutil.process_iter(['name', 'username', 'memory_info']) if p.info['name'] != '']
+    for p in processes:
+        try:
+            p.cpu_percent(interval=None)
+        except psutil.Error:
+            pass
+
+    import time
+    time.sleep(0.1)
+    system_cpu_percent = psutil.cpu_percent(interval=None)
+
+    num_cores = psutil.cpu_count() or 1
     memory_usage = {}
     ram_usage = {}
     cpu_usage = {}
     for p in processes:
-        name = p.info['name']
-        if p.info['username']=="hiddify-panel":
-            name = "Hiddify"
-        # mem_info = p.info['memory_full_info']
-        # if mem_info is None:
-        #     continue
-        # mem_usage = mem_info.uss
-        mem_usage = p.info['memory_info'].rss
-        cpu_percent = p.info['cpu_percent'] / num_cores
-        if name in memory_usage:
-            memory_usage[name] += mem_usage / (1024 ** 3)
-            ram_usage[name] += mem_usage / (1024 ** 3)
-            cpu_usage[name] += cpu_percent
-        else:
-            memory_usage[name] = mem_usage / (1024 ** 3)
-            ram_usage[name] = mem_usage / (1024 ** 3)
-            cpu_usage[name] = cpu_percent
+        try:
+            name = p.info['name']
+            if p.info['username'] == "hiddify-panel":
+                name = "Hiddify"
+            mem_usage = p.info['memory_info'].rss
+            cpu_percent = p.cpu_percent(interval=None) / num_cores
+            
+            if name in memory_usage:
+                memory_usage[name] += mem_usage / (1024 ** 3)
+                ram_usage[name] += mem_usage / (1024 ** 3)
+                cpu_usage[name] += cpu_percent
+            else:
+                memory_usage[name] = mem_usage / (1024 ** 3)
+                ram_usage[name] = mem_usage / (1024 ** 3)
+                cpu_usage[name] = cpu_percent
+        except psutil.Error:
+            pass
 
     while len(cpu_usage) < 5:
         cpu_usage[" " * len(cpu_usage)] = 0
@@ -50,6 +65,7 @@ def top_processes() -> dict:
         ram_usage[" " * len(ram_usage)] = 0
     while len(memory_usage) < 5:
         memory_usage[" " * len(memory_usage)] = 0
+        
     # Sort the processes by memory usage, RAM usage, and CPU usage
     top_memory = sorted(memory_usage.items(), key=lambda x: x[1], reverse=True)[:5]
     top_ram = sorted(ram_usage.items(), key=lambda x: x[1], reverse=True)[:5]
@@ -59,13 +75,18 @@ def top_processes() -> dict:
     return {
         "memory": top_memory,
         "ram": top_ram,
-        "cpu": top_cpu
+        "cpu": top_cpu,
+        "system_cpu_percent": system_cpu_percent
     }
 
 
-def system_stats() -> dict:
-    # CPU usage
-    cpu_percent = psutil.cpu_percent(interval=1)
+def system_stats(cpu_percent: float | None = None) -> dict:
+    # CPU usage - pass in top_processes()'s system_cpu_percent (sampled from
+    # the exact same window as its per-process breakdown) when available, so
+    # the two never drift apart; falls back to sampling independently if
+    # called on its own.
+    if cpu_percent is None:
+        cpu_percent = psutil.cpu_percent(interval=0.1)
 
     # RAM usage
     ram_stats = psutil.virtual_memory()
@@ -99,7 +120,7 @@ def system_stats() -> dict:
     load_avg = [avg / num_cpus for avg in os.getloadavg()]
     # Return the system information
     return {
-        "cpu_percent": cpu_percent / num_cpus,
+        "cpu_percent": cpu_percent,
         "ram_used": ram_used,
         "ram_total": ram_total,
         "disk_used": disk_used,

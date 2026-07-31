@@ -2,7 +2,7 @@
 <!-- {% from 'macros.html' import render_toast %} -->
 {% from 'macros.html' import modal %}
 <!DOCTYPE html>
-<html>
+<html lang="{{ get_locale() }}">
 
 <head>
   <title>{% block title %}{% endblock %} | {{_("master.page-title")}} | {{version}}</title>
@@ -73,7 +73,7 @@
   <link rel="stylesheet" type="text/css"
     href="https://cdn.datatables.net/responsive/2.4.0/css/responsive.bootstrap4.min.css">
 
-  <link rel="stylesheet" href="{{ static_url_for( filename='css/custom.css',version=5.23 ) }}">
+  <link rel="stylesheet" href="{{ static_url_for( filename='css/custom.css',version=5.27 ) }}">
   {% if get_locale()=='fa' %}
   <link rel="stylesheet" href="{{static_url_for(filename='css/bootstrap4-rtl.min.css')}}">
   <link rel="stylesheet" href="{{static_url_for(filename='css/adminlte.fa.css')}}">
@@ -90,18 +90,6 @@
 
 <body class="hold-transition layout-fixed {{" dark-mode" if g.darkmode else "" }} {% block bodyclass
   %}sidebar-collapse{%endblock%}">
-  <div id="splash_screen">
-    <center>
-
-      <img src="{{static_url_for( filename='images/hiddify.png' )}}" />
-
-
-      <a href="https://github.com/hiddify/hiddify-manager/wiki">
-        <h1 class="title">{{_('user.home.title')}}</h1><br>Powered by hiddify.com
-      </a>
-    </center>
-  </div>
-
   {% block page_body %}
   <div class="wrapper">
     {% block nav_bar %}
@@ -217,17 +205,6 @@
 
   {% block tail_js %}
   <script type="text/javascript">
-
-    setTimeout(function () {
-      var wrappers = document.getElementsByClassName("wrapper");
-      var splash_screen = document.getElementById("splash_screen");
-      document.body.removeChild(splash_screen);
-      for (var i = 0; i < wrappers.length; i++) {
-        wrappers[i].style.display = 'initial';
-      }
-
-    }, document.URL.indexOf("pwa") > 0 ? 0 : 500);
-
   </script>
   <!-- jQuery -->
   <script src="{{ static_url_for( filename='plugins/jquery/jquery.min.js' ) }}"></script>
@@ -293,7 +270,17 @@
     }
 
     w = Math.min(window.innerWidth, window.innerHeight) * .5;
-    qrcode = new QRCode(document.getElementById("qrcode"), { width: w, height: w, correctLevel: 1 });
+    // admin-layout.html's page_body override (the modern admin shell) doesn't
+    // include master.html's default page body content, so this #qrcode div
+    // (part of master.html's share-link modal) never renders on any admin
+    // page. new QRCode(null, ..)
+    // used to throw here uncaught, which - since this is one shared <script>
+    // block - silently skipped every statement after it, including the
+    // $(document).ready(...) below that renders flashed messages as toasts.
+    var qrcodeEl = document.getElementById("qrcode");
+    if (qrcodeEl) {
+      qrcode = new QRCode(qrcodeEl, { width: w, height: w, correctLevel: 1 });
+    }
     function share_click(e) {
       e.preventDefault();
 
@@ -326,7 +313,7 @@
         position: "{{'topLeft' if get_locale()=='fa' else 'topRight'}}",
 
 
-        body: `{{msg|safe}}`
+        body: {{msg|tojson|safe}}
       })
       {% endfor %}
 
@@ -372,7 +359,8 @@
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker
         .register("{{static_url_for(filename='js/pwa-sw.js')}}")
-        .then(() => { console.log('Service Worker Registered'); });
+        .then(() => { console.log('Service Worker Registered'); })
+        .catch((err) => { console.warn('Service Worker registration skipped:', err); });
     }
 
     let deferredPrompt = null;
@@ -450,59 +438,16 @@
       if (v.webkitEnterFullscreen)
         v.webkitEnterFullscreen();
     }
-    function show_prompt() {
-      toast = $(document).Toasts('create', {
-        class: 'bg-',
-        position: "{{'bottomRight' if get_locale()=='fa' else 'bottomLeft'}}",
-        image: "{{static_url_for( filename='images/pwa-icon.png')}}",
-        title: `{{_('Install Hiddify Application')}} <button class='btn btn-xs btn-default' onclick='show_video(is_ios?"webapp-ios":"webapp-android")'><i class='fa-solid fa-question'></i></button>`,
-        class: "toast-full",
-        body: `{{_("Please click on %(install)s to save the user page.",install=pwa_install_btn()|safe)}}`
-      })
-    }
     is_ios = false
     {% if g.install_pwa %}
-
     {% if g.user_agent['os'] == "iOS" %}
     is_ios = true
-    {%  if not g.pwa and request.endpoint and("client.UserView" in request.endpoint or "admin.Dashboard" in request.endpoint) %}
-    show_prompt()
     {% endif %}
     {% endif %}
-    window.addEventListener('beforeinstallprompt', (event) => {
-      console.log("On before install")
-      if (deferredPrompt == null) show_prompt()
-      // Prevent Chrome 67 and earlier from automatically showing the prompt
-      event.preventDefault();
-      // Stash the event so it can be triggered later
-      deferredPrompt = event;
-      // Update UI notify the user they can add to home screen
-      $('#install-pwa-btn').fadeIn();
-    });
-
-
-
-    install_pwa = () => {
-      // Show the prompt
-      deferredPrompt.prompt();
-      // Wait for the user to respond to the prompt
-      deferredPrompt.userChoice.then((choiceResult) => {
-        if (choiceResult.outcome === 'accepted') {
-          console.log('User accepted the install prompt');
-          // Hide the installation button
-          $('#install-pwa-btn').fadeOut();
-          toast.fadeOut();
-
-        }
-        // deferredPrompt = null;
-      });
-    };
-    $('#install-pwa-btn').click(install_pwa)
     {% if session.get('darkmode', "notset") == "notset" %}
     if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
       document.location += "?darkmode=true"
     }
-    {% endif %}
     {% endif %}
 
 

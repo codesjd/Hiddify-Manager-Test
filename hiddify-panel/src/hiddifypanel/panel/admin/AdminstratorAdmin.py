@@ -56,8 +56,8 @@ class PermissionsField(SelectMultipleField):
 
 class AdminstratorAdmin(AdminLTEModelView):
     column_hide_backrefs = False
-    column_list = ["name", 'UserLinks', 'mode', 'can_add_admin', 'max_active_users', 'max_users', 'online_users', 'comment',]
-    form_columns = ["name", 'mode', 'can_add_admin', 'permissions', 'max_active_users', 'max_users', 'comment', "uuid", "new_password"]
+    column_list = ["name", 'UserLinks', 'mode', 'can_add_admin', 'max_users', 'online_users', 'comment',]
+    form_columns = ["name", 'mode', 'can_add_admin', 'permissions', 'max_users', 'max_active_users', 'comment', "username", "new_password"]
     list_template = 'model/admin_list.html'
     # column_editable_list = ['name']
     # edit_modal = True
@@ -73,12 +73,11 @@ class AdminstratorAdmin(AdminLTEModelView):
     }
     column_labels = {
         "Actions": _("actions"),
-        "UserLinks": _("user.user_links"),
+        "UserLinks": _("Admin Links"),
         "name": _("user.name"),
         "mode": _("Mode"),
-        "uuid": _("user.UUID"),
+        "username": _("Username"),
         "comment": _("Note"),
-        'max_active_users': _("Max Active Users"),
         'max_users': _('Max Users'),
         "password":_("user.password.title"),
         "online_users": _("Online Users"),
@@ -86,12 +85,7 @@ class AdminstratorAdmin(AdminLTEModelView):
         'permissions': _("Restricted Permissions"),
 
     }
-    form_args = {
-        'uuid': {
-            'validators': [Regexp(r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$', message=__("Should be a valid uuid"))]
-            #     'label': 'First Name',
-            #     'validators': [required()]
-        }}
+    form_args = {}
 
     column_descriptions = dict(
         comment=_("Add some text that is only visible to super_admin."),
@@ -106,7 +100,7 @@ class AdminstratorAdmin(AdminLTEModelView):
     # column_editable_list=["domain"]
     # column_filters=["domain","mode"]
 
-    column_searchable_list = ["name", "uuid"]
+    column_searchable_list = ["name", "username"]
 
     # form_columns=['domain','sub_link_only','alias','mode','cdn_ip','show_domains']
 
@@ -124,9 +118,7 @@ class AdminstratorAdmin(AdminLTEModelView):
         if d:
 
             href = hiddify.get_account_panel_link(model, d) + f'#{hutils.encode.url_encode(model.name)}'
-            link = f"<a target='_blank' class='share-link' data-copy='{href}' href='{href}'>{model.name} <i class='fa-solid fa-arrow-up-right-from-square'></i></a>"
-            if model.parent_admin:
-                return Markup(model.parent_admin.name + "&rlm;&lrm; / &rlm;&lrm;" + link)
+            link = f"<a target='_blank' data-copy='{href}' href='{href}' style='margin: 2px;'>{model.name} <i class='fa-solid fa-arrow-up-right-from-square'></i></a>"
             return Markup(link)
         else:
             return model.name
@@ -135,66 +127,47 @@ class AdminstratorAdmin(AdminLTEModelView):
         last_day = datetime.datetime.now() - datetime.timedelta(days=1)
         u = model.recursive_users_query().filter(User.last_online > last_day).count()
         t = model.recursive_users_query().count()
-        # actives=[u for u in model.recursive_users_query().all() if u.is_active]
-        # allusers=model.recursive_users_query().count()
-        # onlines=[p for p in  users  if p.last_online and p.last_online>last_day]
-        # return Markup(f"<a class='btn btn-xs btn-default' href='{hurl_for('flask.user.index_view',admin_id=model.id)}'> {_('Online')}: {onlines}</a>")
         rate = round(u * 100 / (t + 0.000001))
-        state = "danger" if u >= t else ('warning' if rate > 80 else 'success')
-        color = "#ff7e7e" if u >= t else ('#ffc107' if rate > 80 else '#9ee150')
-        return Markup(f"""
-        <div class="progress progress-lg position-relative" style="min-width: 100px;">
-          <div class="progress-bar progress-bar-striped" role="progressbar" style="width: {rate}%;background-color: {color};" aria-valuenow="{rate}" aria-valuemin="0" aria-valuemax="100"></div>
-              <span class='badge position-absolute' style="left:auto;right:auto;width: 100%;font-size:1em">{u} {_('user.home.usage.from')} {t}</span>
-
-        </div>
-        """)
+        return Markup(hutils.flask.hf_usage_bar(str(u), f"/ {t}", rate))
 
     def _max_users_formatter(view, context, model, name):
         u = model.recursive_users_query().count()
         if model.mode == AdminMode.super_admin:
-            return f"{u} / ∞"
+            return Markup(hutils.flask.hf_usage_bar(str(u), "/ ∞", 0))
         t = model.max_users
         rate = round(u * 100 / (t + 0.000001))
-        state = "danger" if u >= t else ('warning' if rate > 80 else 'success')
-        color = "#ff7e7e" if u >= t else ('#ffc107' if rate > 80 else '#9ee150')
-        return Markup(f"""
-        <div class="progress progress-lg position-relative" style="min-width: 100px;">
-          <div class="progress-bar progress-bar-striped" role="progressbar" style="width: {rate}%;background-color: {color};" aria-valuenow="{rate}" aria-valuemin="0" aria-valuemax="100"></div>
-              <span class='badge position-absolute' style="left:auto;right:auto;width: 100%;font-size:1em">{u} {_('user.home.usage.from')} {t}</span>
-
-        </div>
-        """)
+        return Markup(hutils.flask.hf_usage_bar(str(u), f"/ {t}", rate))
 
     def _max_active_users_formatter(view, context, model, name):
         # `User.is_active` is a python property, not a SQL column.
         # So we must evaluate it on model instances instead of using query.filter.
         active_count = sum(1 for user in model.recursive_users_query().all() if user.is_active)
         if model.mode == AdminMode.super_admin:
-            return f"{active_count} / ∞"
+            return Markup(hutils.flask.hf_usage_bar(str(active_count), "/ ∞", 0))
         t = model.max_active_users
         rate = round(active_count * 100 / (t + 0.000001))
-        color = "#ff7e7e" if active_count >= t else ('#ffc107' if rate > 80 else '#9ee150')
-        
-        return Markup(f"""
-        <div class="progress progress-lg position-relative" style="min-width: 100px;">
-          <div class="progress-bar progress-bar-striped" role="progressbar" style="width: {rate}%;background-color: {color};" aria-valuenow="{rate}" aria-valuemin="0" aria-valuemax="100"></div>
-              <span class='badge position-absolute' style="left:auto;right:auto;width: 100%;font-size:1em">{active_count} {_('user.home.usage.from')} {t}</span>
+        return Markup(hutils.flask.hf_usage_bar(str(active_count), f"/ {t}", rate))
 
-        </div>
-        """)
+    def _mode_formatter(view, context, model, name):
+        color_var = {'super_admin': '--accent-purple', 'admin': '--accent-blue'}.get(model.mode, '--text-secondary')
+        return Markup(hutils.flask.hf_pill(model.mode, color_var))
+
+    def _can_add_admin_formatter(view, context, model, name):
+        return Markup(hutils.flask.hf_status_circle(bool(model.can_add_admin)))
 
     column_formatters = {
         'name': _name_formatter,
         'online_users': _online_users_formatter,
         'max_users': _max_users_formatter,
         'max_active_users': _max_active_users_formatter,
-        'UserLinks': _ul_formatter
+        'UserLinks': _ul_formatter,
+        'mode': _mode_formatter,
+        'can_add_admin': _can_add_admin_formatter,
 
     }
 
     def search_placeholder(self):
-        return f"{_('search')} {_('user.UUID')} {_('user.name')}"
+        return f"{_('search')} {_('Username')} / {_('user.name')}"
 
     # @login_required(roles={Role.super_admin, Role.admin})
     def is_accessible(self):
@@ -239,10 +212,14 @@ class AdminstratorAdmin(AdminLTEModelView):
         if g.account.mode == AdminMode.agent and model.mode != AdminMode.agent:
             raise ValidationError("Sub-Admin can not have more power!!!!")
         
+        if model.username and not model.is_username_unique():
+            raise ValidationError(__("An admin with this username already exists."))
+
         if not model.new_password and is_created:
             raise ValidationError("Password for new admin is needed.")
         if model.new_password:
-            model.password=model.new_password
+            from werkzeug.security import generate_password_hash
+            model.password = generate_password_hash(model.new_password)
 
 
     def on_model_delete(self, model):

@@ -2,6 +2,8 @@
 
 {% extends 'admin-layout.html' %}
 
+{% block title %}{{ _('admin.menu.config') }}{% endblock %}
+
 {% block body %}
 {{super()}}
 <style>
@@ -17,6 +19,9 @@
         animation: blink 1s;
         animation-iteration-count: 3;
         transition: border-width 0.6s linear;
+        width: 100%;
+        max-width: 100%;
+        flex: 1;
     }
 
     #search_settings:hover {
@@ -26,55 +31,88 @@
 
 
 <div class="card">
-    <div class="card-header"><input id="search_settings" type="text" class="form-control" placeholder="{{_(" Search
-            Settings")}}">
+    <div class="card-header">
+        <input id="search_settings" class="form-control settings-search" type="text" placeholder="{{_(' Search Settings')}}">
     </div>
     <div class="card-body">
-        <div class="row">
-            <div class="col-12 global-form">
-                {{render_form(form,form_type="",extra_classes="card-columns")}}
-            </div>
+        <div class="global-form">
+            {{render_form(form,form_type="",extra_classes="settings-grid")}}
+        </div>
+        <div class="apply-configs-row">
+            <a href="{{ hurl_for('admin.Actions:apply_configs') }}" class="apply-configs-btn form_post">⚡ {{ _('Apply Configs') }}</a>
         </div>
     </div>
 </div>
 
 <style>
+    /* Each ConfigCategory renders as <fieldset><legend>+ Label</legend>
+       fields...</fieldset> (see SettingAdmin.get_config_form()) - restyled
+       here as a clickable card in a 2-col grid, matching the new design's
+       Settings index card grid. The existing search/expand JS below still
+       targets fieldset/legend/.form-group directly and needs no changes. */
+    .global-form .settings-grid {
+        display: grid;
+        align-items: start;
+    }
     fieldset {
-        background-color: initial;
-        background-clip: border-box;
-        border: 1 solid rgba(0, 0, 0, 0.125);
-        border-radius: 0.25rem;
-        box-shadow: 0 0 1px rgb(0 0 0 / 13%), 0 1px 3px rgb(0 0 0 / 20%);
-        margin-bottom: 1rem;
-        padding: 10px;
-        display: inline-block;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 16px;
+        box-shadow: var(--card-shadow);
+        margin-bottom: 0;
+        padding: 16px;
+        min-width: 0;
+    }
+    legend {
+        background: transparent;
+        margin: 0;
+        font-weight: 700;
+        font-size: 13.5px;
+        color: var(--text-primary);
+        cursor: pointer;
         width: 100%;
     }
-
-    legend {
-        background-color: initial;
-        margin: 0px;
+    legend .fa-plus {
+        color: var(--accent);
+        margin-{{ 'left' if get_locale()=='fa' else 'right' }}: 8px;
     }
-
-    legend+div>label {
+    legend + div > label {
         display: none;
     }
-
-    @media (min-width: 576px) {
-        .card-columns {
-            column-count: 1;
-        }
+    /* #submit no longer carries the grid-column span itself once the "move
+       Apply Configs into the same row" script in the tail block wraps it
+       in .submit-row - the wrapper takes over that job. */
+    .submit-row {
+        grid-column: 1 / -1;
+        display: flex;
+        gap: 10px;
+        margin-top: 12px;
     }
-
-    @media (min-width: 768px) {
-        .card-columns {
-            column-count: 2;
-        }
+    .submit-row #submit {
+        flex: 1;
     }
-
-    fieldset {
-        box-shadow: none;
-        margin-bottom: 0px;
+    /* Matches the dashboard's .dash-secondary-btn (Update/Reinstall) look
+       instead of Bootstrap's default gray box, which clashed with the rest
+       of the redesigned UI. */
+    .apply-configs-btn {
+        font-family: 'Manrope', sans-serif;
+        font-size: 13px;
+        font-weight: 700;
+        padding: 9px 20px;
+        border-radius: 9px;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        white-space: nowrap;
+        border: none;
+        text-decoration: none !important;
+        background: var(--track);
+        color: var(--text-primary) !important;
+        flex: 0 0 auto;
+    }
+    .apply-configs-btn:hover {
+        background: var(--border);
     }
 </style>
 
@@ -88,7 +126,6 @@
         color: black !important;
     }
 </style>
-<script src="https://cdn.ckeditor.com/ckeditor5/42.0.2/ckeditor5.js"></script>
 
 <script type="importmap">
     {
@@ -224,6 +261,35 @@
 
 
     })
+
+    // Every category's fields live in one giant <form>, and a field inside
+    // a collapsed (hidden) fieldset stays fully subject to native HTML5
+    // constraint validation even though it isn't visible - display:none
+    // doesn't exempt it. If such a field's stored value fails its own
+    // required/pattern check (e.g. a stale value from before the field was
+    // edited), the browser silently refuses to submit the *entire* form and
+    // logs "invalid form control is not focusable" - clicking Submit does
+    // nothing, with zero visible feedback, even for changes made in a
+    // completely different category. The 'invalid' event still fires on a
+    // hidden field (unlike 'submit', which never fires at all here), so
+    // catch it in the capture phase and reveal its fieldset synchronously -
+    // by the time the browser moves on to focusing the first invalid
+    // control, it's now visible and focusable.
+    document.addEventListener('invalid', function (e) {
+        var fieldset = e.target.closest && e.target.closest('fieldset')
+        if (fieldset) $(fieldset).find('.form-group').show()
+    }, true)
+
+    // #submit is a bare WTForms <input>, rendered as the last grid child of
+    // .settings-grid with no wrapper of its own to place a sibling button
+    // next to - move it into a shared flex row with Apply Configs instead
+    // of fighting render_form()'s markup.
+    $(function () {
+        var $submitRow = $('<div class="submit-row"></div>');
+        $('#submit').before($submitRow);
+        $submitRow.append($('#submit'), $('.apply-configs-btn'));
+        $('.apply-configs-row').remove();
+    });
 
     $(document).ready(function () {
         $('#search_settings').on('input', function () {

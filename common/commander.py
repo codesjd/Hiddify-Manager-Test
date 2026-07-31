@@ -27,8 +27,8 @@ class Command(StrEnum):
     id = 'id'
 
 
-def run(cmd: list[str]):
-    subprocess.run(cmd, shell=False, check=True)
+def run(cmd: list[str], env: dict | None = None):
+    subprocess.run(cmd, shell=False, check=True, env=env)
 
 
 @click.group(chain=True)
@@ -43,9 +43,18 @@ def id():
 
 
 @cli.command('apply')
-def apply():
+@click.option('--subsystems', type=str, default='', required=False,
+              help='Comma-separated subsystem names (matching install.sh\'s '
+                   'install_run first argument, e.g. xray,singbox,other/ssh) '
+                   'to selectively touch on this apply. Empty (default) '
+                   'touches everything, same as before this option existed.')
+def apply(subsystems: str):
     cmd = [Command.apply.value, '--no-gui']
-    run(cmd)
+    env = None
+    if subsystems:
+        env = os.environ.copy()
+        env['HIDDIFY_APPLY_SUBSYSTEMS'] = subsystems
+    run(cmd, env=env)
 
 
 @cli.command('install')
@@ -163,6 +172,14 @@ def apply_users():
 def update_wg_usage():
     wg_raw_output = subprocess.check_output(['wg', 'show', 'hiddifywg', 'transfer'])
     print(wg_raw_output.decode())
+
+
+@cli.command('update-awg-usage')
+def update_awg_usage():
+    # amneziawg-tools' `awg` is a fork of `wg` with an identical CLI, so
+    # `transfer` output is the same "<pubkey> <received> <sent>" per line.
+    awg_raw_output = subprocess.check_output(['awg', 'show', 'hiddifyawg', 'transfer'])
+    print(awg_raw_output.decode())
 
 
 if __name__ == "__main__":

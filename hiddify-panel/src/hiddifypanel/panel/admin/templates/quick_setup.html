@@ -2,6 +2,8 @@
 {% from 'macros.html' import modal %}
 {% extends 'admin-layout.html' %}
 
+{% block title %}{{ _('Quick Setup') }}{% endblock %}
+
 {% block tail %}
 {{super()}}
 
@@ -11,6 +13,21 @@
     disable_notif = false
     $(document).on('submit', 'form', function () {
         disable_notif = true
+        // Quick Setup has no loading indicator, and each step writes to the
+        // DB (adds the domain, sets the password, etc.) - a slow response
+        // plus an impatient second click fires a second POST before the
+        // first one's result comes back. The first request succeeds and
+        // commits (e.g. the domain gets added); the second then correctly,
+        // but confusingly, fails its own uniqueness check against what the
+        // first just committed, showing "already exists" even though the
+        // single action the admin took did succeed. Disabling the submit
+        // button (deferred so this same click's own submission still goes
+        // through with its value included) stops the second request from
+        // ever being sent.
+        var $form = $(this);
+        setTimeout(function () {
+            $form.find('input[type="submit"], button[type="submit"]').prop('disabled', true);
+        }, 0);
     });
     window.addEventListener('beforeunload', function (e) {
         if (disable_notif) return
@@ -49,12 +66,15 @@
         <div class="card-header">{{_("admin.quicksetup.title")}}</div>
         <div class="card-body">
 
+            {% if form.step.data == "4" %}
+            <p class="quicksetup-step-note">{{ _('quicksetup.proxy_cat.description') }}</p>
+            {% endif %}
             <div class="row">
-                <div class="card-columns">
+                <div class="card-columns{% if form.step.data in ('3', '4') %} quicksetup-domain-outer{% endif %}">
                     {% if ipv4 or ipv6 %}
-                    {{_('admin.quicksetup_intro',ipv4=ip_btn(ipv4),ipv6=ip_btn(ipv6))}}
+                    <div class="quicksetup-ip-intro">{{_('admin.quicksetup_intro',ipv4=ip_btn(ipv4),ipv6=ip_btn(ipv6))}}</div>
                     {%endif%}
-                    {{render_form(form,form_type="",extra_classes="card-columns1")}}
+                    {{render_form(form,form_type="",extra_classes="card-columns1 quicksetup-domain-form" if form.step.data in ('3', '4') else "card-columns1")}}
                 </div>
             </div>
         </div>
@@ -62,6 +82,11 @@
 </div>
 
 <style>
+    .quicksetup-step-note {
+        color: var(--text-secondary, #6c757d);
+        margin-bottom: 16px;
+    }
+
     .form-group {
         display: inline-block;
         width: 100%;
@@ -87,6 +112,68 @@
         .card-columns {
             column-count: 2;
         }
+    }
+
+    /* The domain step's field count isn't stable (it can gain/lose a stray
+       row whenever anything nearby changes), and CSS multi-column layout
+       rebalances across all columns whenever the item count changes - which
+       is why the CDN field's position kept moving. Pin it explicitly instead
+       of relying on column-balancing: two real grid columns, domain first
+       row left, CDN first row right, regardless of what else is on the
+       page. Also used for the final proxy-toggle step: CSS multi-column
+       flows items down one column then the next with no row relationship
+       between the two columns at all, so a left field with a longer
+       description (e.g. SSH Proxy) pushed everything below it in that
+       column down without the right column's paired field moving in step -
+       an actual grid auto-sizes each row to its tallest cell, keeping
+       left/right pairs (SSH Proxy/TCP, Trojan/VLess, ...) on the same row. */
+    .card-columns.quicksetup-domain-outer {
+        column-count: 1;
+    }
+
+    .quicksetup-domain-form {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        column-gap: 16px;
+    }
+
+    @media (max-width: 575px) {
+        .quicksetup-domain-form {
+            grid-template-columns: 1fr;
+        }
+    }
+
+    /* Wider gap between the IPv4/IPv6 lines than a bare <br> gives. */
+    .quicksetup-ip-intro {
+        line-height: 2.4;
+        margin-bottom: 12px;
+    }
+
+    /* The submit button is just the last field in the form, so under both
+       the multi-column and grid layouts above it landed wherever the
+       column/row flow happened to put it (usually pinned to one side)
+       instead of being centered on its own full-width row. column-span
+       breaks it out of column-count flow; grid-column spans it across the
+       grid layout; either way it's then centered within that full width.
+
+       SubmitField renders as a bare <input type="submit"> with NO
+       .form-group wrapper (unlike every other field), so it's a direct
+       child of the .card-columns1 form itself - the .form-group:has(...)
+       selector alone never matched it. Without a rule, it fell into
+       whatever grid cell auto-placement gave it and, being a grid item,
+       stretched to fill both that cell's full row height (grid's default
+       align-items: stretch) and width, rendering as an oversized rectangle
+       instead of a normal button (most visible on the step-3 domain form,
+       next to the tall Decoy Site help text). */
+    .card-columns1 > input[type="submit"],
+    .card-columns1 > button[type="submit"],
+    .card-columns1 .form-group:has(> input[type="submit"]),
+    .card-columns1 .form-group:has(> button[type="submit"]) {
+        column-span: all;
+        grid-column: 1 / -1;
+        align-self: start;
+        justify-self: center;
+        text-align: center;
     }
 </style>
 {% endblock %}

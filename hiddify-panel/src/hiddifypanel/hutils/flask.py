@@ -39,6 +39,49 @@ def static_url_for(**values):
     return orig.split("user_secret")[0]
 
 
+def is_safe_redirect_target(url: str | None) -> bool:
+    """Only same-origin, path-relative targets are safe to hand to
+    redirect() for an already-authenticated request. A value like
+    'https://evil.test', the protocol-relative '//evil.test', or the
+    backslash variant '/\\evil.test' (some browsers treat '\\' like '/' in
+    URLs) would otherwise be a phishing/token-bounce open redirect. Used
+    both for explicit ?redirect=/?next= query params and for
+    request.referrer, which is attacker-controlled the same way."""
+    return bool(url) and url.startswith('/') and not url.startswith('//') and '\\' not in url
+
+
+# Small reusable cell-content components for the modern table design system
+# (see .hf-chip/.hf-pill/.hf-status-circle/.hf-usage/.hf-track in
+# admin-layout.html) - shared across UserAdmin/AdminstratorAdmin/DomainAdmin/
+# InboundOverrideAdmin's column_formatters instead of each hand-rolling its
+# own badge/button markup.
+def hf_chip(text: str, href: str | None = None, extra_attrs: str = "") -> str:
+    tag = "a" if href else "span"
+    href_attr = f'href="{href}" target="_blank"' if href else ""
+    return f'<{tag} class="hf-chip" {href_attr} {extra_attrs}>{text}</{tag}>'
+
+
+def hf_pill(text: str, color_var: str, filled: bool = True) -> str:
+    cls = "hf-pill hf-pill-filled" if filled else "hf-pill"
+    style = f"background:var({color_var});" if filled else f"color:var({color_var});"
+    return f'<span class="{cls}" style="{style}">{text}</span>'
+
+
+def hf_status_circle(on: bool, title: str = "") -> str:
+    state = "on" if on else "off"
+    icon = "fa-check" if on else "fa-minus"
+    title_attr = f'title="{title}"' if title else ""
+    return f'<span class="hf-status-circle {state}" {title_attr}><i class="fa-solid {icon}" style="font-size:9px;"></i></span>'
+
+
+def hf_usage_bar(value_label: str, max_label: str, pct: float) -> str:
+    pct = max(0, min(100, pct))
+    return f"""<div class="hf-usage">
+        <div class="hf-usage-labels"><span class="value">{value_label}</span><span>{max_label}</span></div>
+        <div class="hf-track"><div class="hf-track-fill" style="width:{pct}%;"></div></div>
+    </div>"""
+
+
 def hurl_for(endpoint, **values):
     if Child.current().id != 0:
 

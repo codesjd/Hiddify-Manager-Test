@@ -1,5 +1,6 @@
 {% extends 'admin-layout.html' %}
 
+{% block title %}{{ admin_view.name }}{% endblock %}
 
 {% block styles %}
 {{super()}}
@@ -36,12 +37,15 @@
 <script src1="{{ js_url }}" type="text/javascript"></script>
 {% endfor %}
 {% endif %}
-<!-- Include the default stylesheet -->
-<link rel="stylesheet" href="https://unpkg.com/multiple-select@2.1.1/dist/multiple-select.min.css">
-
-<!-- Latest compiled and minified JavaScript -->
-<script src="https://unpkg.com/multiple-select@2.1.1/dist/multiple-select.min.js"></script>
-<link href="https://unpkg.com/multiple-select@2.1.1/dist/themes/bootstrap.min.css" rel="stylesheet">
+<!-- multiple-select 2.1.1, vendored locally (was loaded from unpkg.com) - an
+     ad-blocker/tracking-protection extension or an outage on that CDN
+     silently breaks every multipleSelect() widget on this page (Match
+     Inbounds, show_domains, download_domain), which reads as "works in
+     incognito, broken in my normal browser" since extensions are disabled
+     by default in incognito/private windows. -->
+<link rel="stylesheet" href="{{ static_url_for(filename='plugins/multiple-select/multiple-select.min.css') }}">
+<script src="{{ static_url_for(filename='plugins/multiple-select/multiple-select.min.js') }}"></script>
+<link href="{{ static_url_for(filename='plugins/multiple-select/themes/bootstrap.min.css') }}" rel="stylesheet">
 <!-- <link href="https://cdn.jsdelivr.net/npm/select2@4.0.0/dist/css/select2.min.css" rel="stylesheet" /> -->
 <!-- <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" /> -->
 <!-- <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@ttskch/select2-bootstrap4-theme@x.x.x/dist/select2-bootstrap4.min.css">
@@ -52,11 +56,32 @@
 <script src="{{ static_url_for( filename='plugins/bootstrap4-editable/js/bootstrap-editable.min.js' ) }}"></script>
 <script>
     
+    function initMultipleSelect($el, placeholder) {
+        // update_hiddify_ui() can run more than once for the same modal open
+        // (flask-admin's own bs4_modal.js binds its own, non-deduped
+        // "click.modal.data-api" handler on top of the one below each time a
+        // modal loads) - re-initializing multipleSelect() on an already-
+        // initialized <select> stacks a second .ms-parent widget instead of
+        // replacing the first, which is why the dropdown would render once
+        // then stop responding to clicks. Destroying any previous instance
+        // first keeps repeated calls idempotent.
+        if ($el.data('multipleSelect')) {
+            $el.multipleSelect('destroy');
+        }
+        // multipleSelect's own placeholder option defaults to '' - with
+        // nothing selected (or, for download_domain, the blank "__None"
+        // option selected, whose label is itself empty text) the closed
+        // box renders completely blank, which reads as "the widget is
+        // broken / showing nothing" even though the dropdown itself works
+        // fine once opened.
+        $el.multipleSelect({ width: '100%', filter: true, placeholder: placeholder || '{{ _("Select...") }}' });
+    }
+
     function update_hiddify_ui() {
-        
-        $("#show_domains").multipleSelect({ width: '100%',      filter: true });
-        // $("#download_domain").select2()
-        $("#download_domain").multipleSelect({ width: '100%',      filter: true });
+
+        initMultipleSelect($("#show_domains"), '{{ _("All domains") }}');
+        initMultipleSelect($("#download_domain"), '{{ _("None") }}');
+        initMultipleSelect($("#inbound_tags"), '{{ _("All inbounds") }}');
 
         if ($("#domain").length > 0) {
             var selectElement = document.getElementById("mode");
@@ -169,8 +194,10 @@
 
             }
         }
-        $("#sub_link_only").on('change', hide_domain_elements)
-        $("#mode").on('change', hide_domain_elements)
+        // namespaced so repeated update_hiddify_ui() runs (see the observer
+        // below) rebind rather than stack a fresh handler each time.
+        $("#sub_link_only").off('change.hiddifyui').on('change.hiddifyui', hide_domain_elements)
+        $("#mode").off('change.hiddifyui').on('change.hiddifyui', hide_domain_elements)
         hide_domain_elements()
         ConvertNumberToPersion(document.getElementById('fa_modal_window'));
         
@@ -179,19 +206,28 @@
     update_hiddify_ui()
 
     
-      $('body').off('click.modal.data-api')//remove flaskadminlte
-      $('body').on('click.modal.data-api', '[data-toggle="modal"]', function () {
-        
-        $($(this).data("target") + ' .modal-content').load($(this).attr('href'),function(){
-            setTimeout(update_hiddify_ui,100)
+      // bs4_modal.js (loaded as *part of* the modal's own AJAX content) binds
+      // its own click.modal.data-api handler on 'body' every time a modal
+      // opens, without ever calling .off() first - so by the 2nd+ Edit/
+      // Create click, both handlers fire and race two concurrent $.load()
+      // calls into the same .modal-content, and whichever response lands
+      // second silently overwrites the first (can blow away the just-
+      // upgraded multipleSelect widgets or leave the <select> without its
+      // real options). bindModalOpenHandler() re-does the .off()+.on() at
+      // the end of *our own* load callback too - by then bs4_modal.js's
+      // script (embedded in the content we just loaded) has already
+      // executed and added its duplicate, so re-running .off() here clears
+      // it before the next click, instead of letting it accumulate one
+      // more duplicate per modal open.
+      function bindModalOpenHandler() {
+        $('body').off('click.modal.data-api').on('click.modal.data-api', '[data-toggle="modal"]', function () {
+          $($(this).data("target") + ' .modal-content').load($(this).attr('href'), function () {
+            bindModalOpenHandler();
+            setTimeout(update_hiddify_ui, 100);
+          });
         });
-      });
-    
-    // Initialize the observer with the callback function
-    
-
-    // Observe changes in the container element and its descendants
-    
+      }
+      bindModalOpenHandler();
 </script>
 
 {% endblock %}

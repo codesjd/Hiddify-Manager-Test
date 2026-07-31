@@ -1,0 +1,5 @@
+{% extends 'hiddify-flask-admin/modern_list.html' %}
+
+{% block modern_toolbar_extra %}
+<a href="{{ hurl_for('admin.Actions:apply_configs') }}" class="btn btn-secondary btn-sm form_post">⚡ {{ _('Apply Configs') }}</a>
+{% endblock %}

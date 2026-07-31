@@ -96,10 +96,22 @@ def get_port(proxy: Proxy, hconfigs: dict, domain_db: Domain, ptls: int, phttp: 
         port = hconfigs[ConfigEnum.kcp_ports].split(",")[0]
     elif proxy.proto == ProxyProto.wireguard:
         port = hconfigs[ConfigEnum.wireguard_port]
+    elif proxy.proto == ProxyProto.amneziawg:
+        port = hconfigs[ConfigEnum.amneziawg_port]
     elif proxy.proto == "tuic":
         port = domain_db.internal_port_tuic
     elif proxy.proto == "hysteria2":
         port = domain_db.internal_port_hysteria2
+    elif proxy.proto == "anytls":
+        port = domain_db.internal_port_anytls
+    elif domain_db.mode == DomainType.special_reality_tcp:
+        # tcp+vision REALITY binds directly (see xray/configs/
+        # 05_inbounds_02_reality_main.json.j2) instead of routing through
+        # HAProxy's SNI frontend on ptls (443) - the extra hop widened
+        # REALITY's own validation-vs-decoy-response race closely enough to
+        # cause "received real certificate" failures. grpc/xhttp reality
+        # still shares ptls via HAProxy, so this only applies to the tcp mode.
+        port = domain_db.internal_port_special
     elif l3 == 'ssh':
         port = hconfigs[ConfigEnum.ssh_server_port]
     elif proxy.proto==ProxyProto.naive and proxy.l3==ProxyL3.h3_quic:
@@ -116,10 +128,15 @@ def get_port(proxy: Proxy, hconfigs: dict, domain_db: Domain, ptls: int, phttp: 
 
 
 def ports_to_ranges(csv_ports: str) -> list[str]:
-    if not csv_ports.strip():
+    if not (csv_ports or '').strip():
         return []
 
     ports = sorted(set(int(p.strip()) for p in csv_ports.split(",") if p.strip()))
+    if not ports:
+        return []
+    for port in ports:
+        if not (1 <= port <= 65535):
+            raise ValueError(f"Invalid port {port}: must be between 1 and 65535")
 
     ranges = []
     start = prev = ports[0]
@@ -164,10 +181,20 @@ def get_proxies(child_id: int = 0, only_enabled=False) -> list['Proxy']:
 
     if not hconfig(ConfigEnum.wireguard_enable, child_id):
         proxies = [c for c in proxies if c.proto != ProxyProto.wireguard]
+    if not hconfig(ConfigEnum.amneziawg_client_enable, child_id):
+        proxies = [c for c in proxies if c.proto != ProxyProto.amneziawg]
+    # SSH is only ever a singbox inbound (05_inbounds_ssh.json.j2) - xray-core
+    # has no SSH inbound support at all (there's no ssh entry anywhere under
+    # xray/configs/). sing-box now always runs alongside xray regardless of
+    # core_type (see install.sh), so it's actually listening either way;
+    # ssh just has no standard URI scheme plain-link clients recognize,
+    # which is filtered downstream in make_v2ray_configs instead of here.
     if not hconfig(ConfigEnum.ssh_server_enable, child_id):
         proxies = [c for c in proxies if c.proto != ProxyProto.ssh]
     if not hconfig(ConfigEnum.hysteria_enable, child_id):
         proxies = [c for c in proxies if c.proto != ProxyProto.hysteria2]
+    if not hconfig(ConfigEnum.anytls_enable, child_id):
+        proxies = [c for c in proxies if c.proto != ProxyProto.anytls]
     if not hconfig(ConfigEnum.shadowsocks2022_enable, child_id):
         proxies = [c for c in proxies if 'shadowsocks' != c.transport]
 
@@ -177,8 +204,6 @@ def get_proxies(child_id: int = 0, only_enabled=False) -> list['Proxy']:
         proxies = [c for c in proxies if 'v2ray' != c.proto]
     if not hconfig(ConfigEnum.shadowtls_enable, child_id):
         proxies = [c for c in proxies if c.transport != 'shadowtls']
-    if not hconfig(ConfigEnum.ssr_enable, child_id):
-        proxies = [c for c in proxies if 'ssr' != c.proto]
     if not hconfig(ConfigEnum.vmess_enable, child_id):
         proxies = [c for c in proxies if 'vmess' not in c.proto]
     if not hconfig(ConfigEnum.vless_enable, child_id):
@@ -242,14 +267,14 @@ def get_valid_proxies(domains: list[Domain]) -> list[dict]:
             ips = hutils.network.get_domain_ips_cached(domain.domain)
         for proxy in proxeismap[domain.child_id]:
             noDomainProxies = False
-            if proxy.proto in [ProxyProto.ssh, ProxyProto.wireguard,ProxyProto.mieru]:
+            if proxy.proto in [ProxyProto.ssh, ProxyProto.wireguard, ProxyProto.amneziawg, ProxyProto.mieru]:
                 noDomainProxies = True
             if proxy.proto in [ProxyProto.ss] and proxy.transport not in [ProxyTransport.grpc, ProxyTransport.h2, ProxyTransport.WS, ProxyTransport.httpupgrade, ProxyTransport.xhttp]:
                 noDomainProxies = True
             options = []
             key = f'{proxy.proto}{proxy.transport}{proxy.cdn}{proxy.l3}'
 
-            if proxy.proto in [ProxyProto.dnstt,ProxyProto.ssh, ProxyProto.tuic, ProxyProto.hysteria2, ProxyProto.wireguard, ProxyProto.ss,ProxyProto.mieru] \
+            if proxy.proto in [ProxyProto.dnstt,ProxyProto.ssh, ProxyProto.tuic, ProxyProto.hysteria2, ProxyProto.anytls, ProxyProto.wireguard, ProxyProto.amneziawg, ProxyProto.ss,ProxyProto.mieru] \
                 or (proxy.proto==ProxyProto.naive and proxy.l3==ProxyL3.h3_quic) :
                 if noDomainProxies and all([x in added_ip[key] for x in ips]):
                     continue
@@ -257,13 +282,15 @@ def get_valid_proxies(domains: list[Domain]) -> list[dict]:
                 for x in ips:
                     added_ip[key].add(x)
 
-                if proxy.proto in [ProxyProto.ssh, ProxyProto.wireguard, ProxyProto.ss]:
+                if proxy.proto in [ProxyProto.ssh, ProxyProto.wireguard, ProxyProto.amneziawg, ProxyProto.ss]:
                     # if domain.mode == 'fake':
                     #     continue
                     if proxy.proto in [ProxyProto.ssh]:
                         options = [{'pport': hconfigs[ConfigEnum.ssh_server_port]}]
                     elif proxy.proto in [ProxyProto.wireguard]:
                         options = [{'pport': hconfigs[ConfigEnum.wireguard_port]}]
+                    elif proxy.proto in [ProxyProto.amneziawg]:
+                        options = [{'pport': hconfigs[ConfigEnum.amneziawg_port]}]
                     elif proxy.transport in [ProxyTransport.shadowsocks]:
                         options = [{'pport': hconfigs[ConfigEnum.shadowsocks2022_port]}]
                     elif proxy.proto in [ProxyProto.ss]:
@@ -278,6 +305,8 @@ def get_valid_proxies(domains: list[Domain]) -> list[dict]:
                     options = [{'pport': hconfigs[ConfigEnum.naive_port]}]
                 elif proxy.proto == ProxyProto.hysteria2:
                     options = [{'pport': hconfigs[ConfigEnum.hysteria_port]}]
+                elif proxy.proto == ProxyProto.anytls:
+                    options = [{'pport': hconfigs[ConfigEnum.anytls_port]}]
             else:
                 protos = ['http', 'tls'] if hconfigs.get(ConfigEnum.http_proxy_enable) else ['tls']
                 for t in protos:
@@ -342,7 +371,19 @@ def sni_host_server_extractor(domain_db: Domain, hconfigs):
         # Xray-core >= 26.2.6 removed allowInsecure; pinnedPeerCertSha256 is
         # the replacement. We only bother fetching it when we would have set
         # allow_insecure=True, since valid-CA domains don't need pinning.
-        'pinned_cert_sha256': hutils.network.get_pinned_cert_sha256(server) if allow_insecure else None,
+        #
+        # Deliberately pins against `sni`, not `server`: when resolve_ip is
+        # on, `server` above got overwritten with a resolved IP for the
+        # connection target, but get_pinned_cert_sha256() sends whatever
+        # host it's given as BOTH the dial target and the TLS SNI
+        # (server_hostname). Fetching with the IP sends that IP as SNI too,
+        # which doesn't match haproxy's `req.ssl_sni -i <domain>` routing
+        # rule at all - it falls through to the panel's own default
+        # backend/cert, so the pin ends up describing a completely
+        # different certificate than what real client connections (which
+        # correctly send the domain as SNI) actually get. sni matches what
+        # clients present, so pin against that instead.
+        'pinned_cert_sha256': hutils.network.get_pinned_cert_sha256(sni) if allow_insecure else None,
         'cdn': is_cdn,
     }
     if 'reality' in domain_db.mode:
@@ -437,12 +478,19 @@ def make_proxy(hconfigs: dict, proxy: Proxy, domain_db: Domain, phttp=80, ptls=4
     if 'reality' in proxy.l3:
         alpn = "h2" if proxy.transport in ['h2', "grpc"] else 'http/1.1'
     else:
-        alpn="http/1.1"
-        if proxy.l3 in ['tls_h2'] or proxy.transport in ["grpc", 'h2']:
-            alpn = "h2"    
+        # alpn must be derived from l3 alone - it's the field that names the
+        # config variant to the user (see ProxyL3), so a config labeled
+        # "tls" must always negotiate h1 and one labeled "tls_h2" must
+        # always negotiate h2, regardless of transport. get_proxy_rows_v1()
+        # deliberately seeds both "tls grpc ..." and "tls_h2 grpc ..." as
+        # distinct rows; overriding alpn by transport collapsed that
+        # distinction and made the "tls" (h1) variant silently emit h2.
+        alpn = "http/1.1"
+        if proxy.l3 in ['tls_h2']:
+            alpn = "h2"
         if proxy.l3 == 'tls_h2_h1':
-            alpn='h2,http/1.1' 
-        
+            alpn='h2,http/1.1'
+
         if proxy.l3 in [ProxyL3.h3_quic]:
             alpn = "h3"
 
@@ -526,6 +574,12 @@ def make_proxy(hconfigs: dict, proxy: Proxy, domain_db: Domain, phttp=80, ptls=4
             base['hysteria_down_mbps'] = hconfigs.get(ConfigEnum.hysteria_down_mbps)
             base['hysteria_obfs_enable'] = hconfigs.get(ConfigEnum.hysteria_obfs_enable)
             base['hysteria_obfs_password'] = hconfigs.get(ConfigEnum.proxy_path)  # TODO: it should not be correct
+        elif proxy.proto == 'tuic':
+            # Was missing entirely - add_tuic() in singbox.py hardcoded
+            # "cubic" regardless of the admin's Settings choice, so the
+            # client's own config never matched what the server inbound
+            # actually used.
+            base['tuic_congestion_control'] = hconfigs.get(ConfigEnum.tuic_congestion_control)
         return base
     if proxy.proto in ['wireguard']:
         base['wg_pub'] = g.account.wg_pub
@@ -535,6 +589,36 @@ def make_proxy(hconfigs: dict, proxy: Proxy, domain_db: Domain, phttp=80, ptls=4
         base['wg_ipv6'] = hutils.network.add_number_to_ipv6(hconfigs[ConfigEnum.wireguard_ipv6], g.account.id)
         base['wg_server_pub'] = hconfigs[ConfigEnum.wireguard_public_key]
         base['wg_noise_trick'] = hconfigs[ConfigEnum.wireguard_noise_trick]
+        return base
+    if proxy.proto in ['amneziawg']:
+        # Same per-user WireGuard-format keypair as the 'wireguard' branch
+        # above (protocol/key-compatible, and amneziawg is replacing
+        # wireguard as the client-facing protocol) - just against the
+        # amneziawg_* server/subnet settings and with the extra Jc/Jmin/Jmax
+        # obfuscation params real AmneziaWG clients need to match the
+        # server's [Interface] section.
+        base['wg_pub'] = g.account.wg_pub
+        base['wg_pk'] = g.account.wg_pk
+        base['wg_psk'] = g.account.wg_psk
+        base['wg_ipv4'] = hutils.network.add_number_to_ipv4(hconfigs[ConfigEnum.amneziawg_ipv4], g.account.id)
+        base['wg_ipv6'] = hutils.network.add_number_to_ipv6(hconfigs[ConfigEnum.amneziawg_ipv6], g.account.id)
+        base['wg_server_pub'] = hconfigs[ConfigEnum.amneziawg_public_key]
+        base['awg_jc'] = hconfigs.get(ConfigEnum.amneziawg_jc)
+        base['awg_jmin'] = hconfigs.get(ConfigEnum.amneziawg_jmin)
+        base['awg_jmax'] = hconfigs.get(ConfigEnum.amneziawg_jmax)
+        base['awg_h1'] = hconfigs.get(ConfigEnum.amneziawg_h1)
+        base['awg_h2'] = hconfigs.get(ConfigEnum.amneziawg_h2)
+        base['awg_h3'] = hconfigs.get(ConfigEnum.amneziawg_h3)
+        base['awg_h4'] = hconfigs.get(ConfigEnum.amneziawg_h4)
+        base['awg_s1'] = hconfigs.get(ConfigEnum.amneziawg_s1)
+        base['awg_s2'] = hconfigs.get(ConfigEnum.amneziawg_s2)
+        base['awg_s3'] = hconfigs.get(ConfigEnum.amneziawg_s3)
+        base['awg_s4'] = hconfigs.get(ConfigEnum.amneziawg_s4)
+        base['awg_i1'] = hconfigs.get(ConfigEnum.amneziawg_i1)
+        base['awg_i2'] = hconfigs.get(ConfigEnum.amneziawg_i2)
+        base['awg_i3'] = hconfigs.get(ConfigEnum.amneziawg_i3)
+        base['awg_i4'] = hconfigs.get(ConfigEnum.amneziawg_i4)
+        base['awg_i5'] = hconfigs.get(ConfigEnum.amneziawg_i5)
         return base
 
     if proxy.proto in [ProxyProto.vmess]:
@@ -552,19 +636,13 @@ def make_proxy(hconfigs: dict, proxy: Proxy, domain_db: Domain, phttp=80, ptls=4
         'v2ray': f'{hconfigs[ConfigEnum.path_ss]}'
     }
 
-    if base["proto"] in ['v2ray', 'ss', 'ssr']:
+    if base["proto"] in ['v2ray', 'ss']:
         base['cipher'] = hconfigs[ConfigEnum.shadowsocks2022_method]
         base['password'] = f'{hutils.encode.do_base_64(hconfigs[ConfigEnum.shared_secret].replace("-",""))}:{hutils.encode.do_base_64(g.account.uuid.replace("-",""))}'
 
     if base['proto'] == 'trojan':
         base['password'] = base['uuid']
-    if base["proto"] == "ssr":
-        base["ssr-obfs"] = "tls1.2_ticket_auth"
-        base["ssr-protocol"] = "auth_sha1_v4"
-        base["fakedomain"] = hconfigs[ConfigEnum.ssr_fakedomain]
-        base["mode"] = "FakeTLS"
-        return base
-    elif "faketls" in proxy.transport:
+    if "faketls" in proxy.transport:
         base['fakedomain'] = hconfigs[ConfigEnum.ssfaketls_fakedomain]
         base['mode'] = 'FakeTLS'
         return base
@@ -679,5 +757,8 @@ class ProxyJsonEncoder(json.JSONEncoder):
         if isinstance(obj, IPv4Address) or isinstance(obj, IPv6Address):
             return str(obj)
         return super().default(obj)
+
+
+
 
 

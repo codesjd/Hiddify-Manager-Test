@@ -29,7 +29,7 @@ class UserAdmin(AdminLTEModelView):
 
     column_sortable_list = ["is_active", "name", "current_usage", 'mode', "remaining_days", "max_ips", "comment", 'last_online', "uuid"]
     column_searchable_list = ["uuid", "name"]
-    column_list = ["is_active", "name", "UserLinks", "current_usage", "remaining_days", "comment", 'last_online', 'mode', 'admin', "uuid"]
+    column_list = ["is_active", "name", "UserLinks", "current_usage", "remaining_days", 'last_online', 'mode', 'admin', "uuid"]
     column_editable_list = ["comment", "name", "uuid"]
     form_extra_fields = {
         'reset_days': SwitchField(_("Reset package days"), default=False),
@@ -104,7 +104,7 @@ class UserAdmin(AdminLTEModelView):
     # can_set_page_size=True
 
     def search_placeholder(self):
-        return f"{_('search')} {_('user.UUID')} {_('user.name')}"
+        return f"{_('search')} {_('user.UUID')} / {_('user.name')}"
     # def get_column_name(self,field):
     #         return "x"
     #  return column_labels[field]
@@ -129,17 +129,17 @@ class UserAdmin(AdminLTEModelView):
     #     model.password = generate_password_hash(model.password)
     def _enable_formatter(view, context, model, name):
         if model.is_active:
-            link = '<i class="fa-solid fa-circle-check text-success"></i> '
+            link = hutils.flask.hf_status_circle(True)
         elif len(model.devices):
-            link = f'<i class="fa-solid fa-users-slash text-danger" title="{_("Too many Connected IPs")}"></i>'
+            link = f'<span class="hf-status-circle" style="background:var(--accent-orange);" title="{_("Too many Connected IPs")}"><i class="fa-solid fa-users-slash" style="font-size:8px;"></i></span>'
         else:
-            link = '<i class="fa-solid fa-circle-xmark text-danger"></i> '
+            link = hutils.flask.hf_status_circle(False)
 
         if hconfig(ConfigEnum.telegram_bot_token):
             if model.telegram_id:
-                link += f'<button class="btn hbtn bg-h-blue btn-xs " onclick="show_send_message({model.id})" ><i class="fa-solid fa-paper-plane"></i></button> '
+                link += f' <button class="btn hbtn bg-h-blue btn-xs " onclick="show_send_message({model.id})" ><i class="fa-solid fa-paper-plane"></i></button>'
             else:
-                link += f'<button class="btn hbtn bg-h-grey btn-xs disabled"><i class="fa-solid fa-paper-plane"></i></button> '
+                link += ' <button class="btn hbtn bg-h-grey btn-xs disabled"><i class="fa-solid fa-paper-plane"></i></button>'
 
         return Markup(link)
 
@@ -149,12 +149,10 @@ class UserAdmin(AdminLTEModelView):
     def _ul_formatter(view, context, model, name):
         href = f'{hiddify.get_account_panel_link(model, request.host, is_https=True)}#{hutils.encode.unicode_slug(model.name)}'
 
-        link = f"""<a target='_blank' class='share-link btn btn-xs btn-primary' data-copy='{href}' href='{href}'>
-        <i class='fa-solid fa-arrow-up-right-from-square'></i>
-        {_("Current Domain")} </a>"""
+        link = hutils.flask.hf_chip(_("Current Domain"), href=href, extra_attrs=f"class='share-link' data-copy='{href}'")
 
         domains = [d for d in Domain.get_domains() if d.domain != request.host]
-        return Markup(link + " ".join([hiddify.get_html_user_link(model, d) for d in domains]))
+        return Markup(link + " " + " ".join([hiddify.get_html_user_link(model, d) for d in domains]))
 
     # def _usage_formatter(view, context, model, name):
     #     return round(model.current_usage_GB,3)
@@ -163,25 +161,16 @@ class UserAdmin(AdminLTEModelView):
         u = round(model.current_usage_GB, 3)
         t = max(round(model.usage_limit_GB, 3), 0.001)  # Prevent division by zero
         rate = min(round(u * 100 / t), 100)  # Cap at 100%
-        state = "danger" if u >= t else ('warning' if rate > 80 else 'success')
-        color = "#ff7e7e" if u >= t else ('#ffc107' if rate > 80 else '#9ee150')
-        return Markup(f"""
-        <div class="progress progress-lg position-relative" style="min-width: 100px;">
-          <div class="progress-bar progress-bar-striped" role="progressbar" style="width: {rate}%;background-color: {color};" aria-valuenow="{rate}" aria-valuemin="0" aria-valuemax="100"></div>
-              <span class='badge position-absolute' style="left:auto;right:auto;width: 100%;font-size:1em">{u} {_('user.home.usage.from')} {t} GB</span>
-
-        </div>
-        """)
+        return Markup(hutils.flask.hf_usage_bar(f"{u} GB", f"{_('user.home.usage.from')} {t} GB", rate))
 
     def _expire_formatter(view, context, model: User, name):
         remaining = model.remaining_days
 
         diff = datetime.timedelta(days=remaining)
 
-        state = 'success' if diff.days > 7 else ('warning' if diff.days > 0 else 'danger')
+        color_var = '--accent-green' if diff.days > 7 else ('--accent-orange' if diff.days > 0 else '--accent-red')
         formated = hutils.convert.format_timedelta(diff)
-        return Markup(f"<span class='badge badge-{state}'>{'*' if not model.start_date else ''} {formated} </span>")
-        # return Markup(f"<span class='badge ltr badge-}'>{days}</span> "+_('days'))
+        return Markup(hutils.flask.hf_pill(f"{'* ' if not model.start_date else ''}{formated}", color_var))
 
     def _admin_formatter(view, context, model, name):
         return Markup(f"<a href='{hurl_for('flask.user.index_view',admin_id=model.added_by)}' class='btn btn-xs btn-default'>{model.admin.name}</a>")
@@ -396,7 +385,10 @@ class UserAdmin(AdminLTEModelView):
         # Get the base query
         query = super().get_query()
 
-        admin_id = int(request.args.get("admin_id") or g.account.id)
+        try:
+            admin_id = int(request.args.get("admin_id") or g.account.id)
+        except (TypeError, ValueError):
+            abort(403)
         if admin_id not in g.account.recursive_sub_admins_ids():
             abort(403)
         admin = AdminUser.query.filter(AdminUser.id == admin_id).first()
@@ -415,7 +407,10 @@ class UserAdmin(AdminLTEModelView):
 
         query = super().get_count_query()
 
-        admin_id = int(request.args.get("admin_id") or g.account.id)
+        try:
+            admin_id = int(request.args.get("admin_id") or g.account.id)
+        except (TypeError, ValueError):
+            abort(403)
         if admin_id not in g.account.recursive_sub_admins_ids():
             abort(403)
         admin = AdminUser.query.filter(AdminUser.id == admin_id).first()

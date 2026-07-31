@@ -1,7 +1,12 @@
 frontend https-in
     
-    {% for port in (["443"] + hconfigs['tls_ports'].split(',')) | unique %}
-    bind :{{port}},:::{{port}} v4v6 tfo 
+    {# tls_ports = *additional* TLS ports the admin wants haproxy to bind
+       (proxy front). 443 is ALWAYS included because the panel itself is
+       served over the same TLS front - excluding 443 would take the panel
+       offline. The Settings field is optional (blank = only 443), so the
+       admin can still ADD custom ports, they just can't remove 443. #}
+    {% for port in (["443"] + hconfigs['tls_ports'].split(',')) | select | unique %}
+    bind :{{port}},:::{{port}} v4v6 tfo
     {%endfor%}
     # option tcplog
     # option dontlognull

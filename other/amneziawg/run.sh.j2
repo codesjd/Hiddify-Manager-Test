@@ -1,10 +1,15 @@
 source /opt/hiddify-manager/common/utils.sh
+source ./awg_utils.sh
 
 # Jinja-rendered (like other/wireguard/run.sh.j2) so it can loop over every
 # Outbound with Protocol=amneziawg from the panel - one .conf + one
 # awg-quick@{interface} systemd instance per row, interface name is
 # "awg{row id}" (CustomOutbound.amneziawg_interface). This is what actually
 # brings the tunnel(s) up; the Outbounds form itself only stores the config.
+#
+# It also syncs the client-facing hiddifyawg interface's [Peer] list
+# (install.sh.j2 only writes the [Interface] section) - mirroring
+# other/wireguard/run.sh.j2 exactly, one [Peer] block per active user.
 
 mkdir -p /etc/amnezia/amneziawg
 
@@ -24,9 +29,11 @@ for f in /etc/amnezia/amneziawg/awg*.conf; do
 done
 
 {% for ob in amneziawg_outbounds %}
-cat >/etc/amnezia/amneziawg/{{ ob.interface }}.conf <<'HIDDIFY_AWG_EOF'
-{{ ob.conf }}
-HIDDIFY_AWG_EOF
+# base64 round-trip instead of a heredoc: ob.conf is admin-supplied text, and
+# a fixed heredoc delimiter could be truncated early (and the remainder
+# interpreted as shell commands) if that text ever contained a line matching
+# the delimiter. base64's output alphabet has no shell-significant characters.
+echo {{ ob.conf | b64encode }} | base64 -d >/etc/amnezia/amneziawg/{{ ob.interface }}.conf
 chmod 600 /etc/amnezia/amneziawg/{{ ob.interface }}.conf
 
 systemctl enable awg-quick@{{ ob.interface }} >/dev/null 2>&1
@@ -41,4 +48,27 @@ fi
 
 {% if amneziawg_outbounds|length == 0 %}
 echo "No AmneziaWG outbounds configured (Outbounds page, Protocol=amneziawg) - nothing to bring up."
+{% endif %}
+
+{% if hconfigs["amneziawg_client_enable"] %}
+if [ -f "/etc/amnezia/amneziawg/${SERVER_AWG_NIC}.conf" ]; then
+    sed -i '/\[Peer\]/,$d' "/etc/amnezia/amneziawg/${SERVER_AWG_NIC}.conf"
+    chmod 600 "/etc/amnezia/amneziawg/${SERVER_AWG_NIC}.conf"
+
+    {% for u in users %}
+    CLIENT_AWG_IPV4=$(add_number_to_ipv4 {{hconfigs["amneziawg_ipv4"]}} {{u.id}})
+    CLIENT_AWG_IPV6=$(add_number_to_ipv6 {{hconfigs["amneziawg_ipv6"]}} {{u.id}})
+    echo -e "\n
+[Peer]
+PublicKey = {{u.wg_pub}}
+PresharedKey = {{u.wg_psk}}
+AllowedIPs = ${CLIENT_AWG_IPV4}/32,${CLIENT_AWG_IPV6}/128\n" >>"/etc/amnezia/amneziawg/${SERVER_AWG_NIC}.conf"
+
+    {% endfor %}
+
+    awg syncconf "${SERVER_AWG_NIC}" <(awg-quick strip "${SERVER_AWG_NIC}")
+    systemctl restart "awg-quick@${SERVER_AWG_NIC}"
+else
+    warning "hiddifyawg client interface config missing - install.sh for other/amneziawg may not have run yet."
+fi
 {% endif %}

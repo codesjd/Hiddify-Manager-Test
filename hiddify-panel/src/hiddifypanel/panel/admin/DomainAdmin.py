@@ -91,7 +91,16 @@ class DomainAdmin(AdminLTEModelView):
     )
     # create_modal = True
     can_export = False
-    form_widget_args = {'show_domains': {'class': 'form-control ltr'},'download_domain': {'class': 'form-control ltr'}}
+    form_widget_args = {
+        # data-role is intentionally left blank here: show_domains/download_domain
+        # are upgraded client-side by update_hiddify_ui() in flaskadmin-layout.html
+        # (a $.multipleSelect() call keyed on these exact element ids). Setting
+        # data-role="select2" makes flask-admin's own form.js *also* initialize
+        # select2 on the same <select>, and the two widgets fighting over one
+        # element is what breaks the dropdown (empty/blank results on open).
+        'show_domains': {'class': 'form-control ltr', 'data-role': u''},
+        'download_domain': {'class': 'form-control ltr', 'data-role': u''}
+    }
 
     form_args = {
         'mode': {'enum': DomainType},
@@ -131,15 +140,12 @@ class DomainAdmin(AdminLTEModelView):
     
     def _domain_admin_link(view, context, model, name):
         if hiddify.is_fake_domain(model):
-            return Markup(f"<span class='badge'>{model.domain}</span>")
-        d = model.domain
-        if "*" in d:
-            d = d.replace("*", hutils.random.get_random_string(5, 15))
-        admin_link = hiddify.get_account_panel_link(g.account, d)
+            return Markup(hutils.flask.hf_chip(model.domain))
+        resolve_url = hurl_for('admin.Actions:get_domain_ip', domain=model.domain)
+        resolve_title = _("Resolve IP")
         return Markup(
-            f'<div class="btn-group"><a href="{admin_link}" class="btn btn-xs btn-secondary">' + _("admin link") +
-            f'</a><a href="{admin_link}" class="btn btn-xs btn-info ltr" target="_blank">{model.domain}</a></div>'+
-            f'<a href="{hurl_for('admin.Actions:get_domain_ip',domain=model.domain)}"><i class="fa-solid fa-dharmachakra"></i></a>')
+            hutils.flask.hf_chip(model.domain) +
+            f' <a href="{resolve_url}" title="{resolve_title}"><i class="fa-solid fa-dharmachakra"></i></a>')
 
     def _domain_ip(view, context, model, name):
         dips = hutils.network.get_domain_ips_cached(model.domain)
@@ -189,6 +195,13 @@ class DomainAdmin(AdminLTEModelView):
     def on_model_change(self, form, model, is_created):
         # Sanitize domain input
         model.domain = (model.domain or '').lower().strip()
+        # A domain's cert can be mid-issuance right when it's added/edited
+        # (ACME runs async, after this request). Busting any stale pin here
+        # means the next subscription request re-fetches instead of serving
+        # whatever cert happened to be live at the moment this domain was
+        # first touched for up to 300s afterward - see get_pinned_cert_sha256.
+        if model.domain:
+            hutils.network.invalidate_pinned_cert_cache(model.domain)
         if model.download_domain and model.domain==model.download_domain.domain:
             model.download_domain_id=None
             model.download_domain=None
@@ -242,6 +255,7 @@ class DomainAdmin(AdminLTEModelView):
         old_db_domain = Domain.by_domain(model.domain)
         if is_created or not old_db_domain or old_db_domain.mode != model.mode:
             # return hiddify.reinstall_action(complete_install=False, domain_changed=True)
+            hutils.apply_scope.mark_dirty(hutils.apply_scope.DOMAIN_CHANGE_SUBSYSTEMS)
             hutils.flask.flash_config_success(restart_mode=ApplyMode.apply_config, domain_changed=True)
 
             
@@ -362,6 +376,7 @@ class DomainAdmin(AdminLTEModelView):
                 hutils.flask.flash(_('cf-delete.failed'), 'warning')  # type: ignore
         model.showed_by_domains = []
         # db.session.commit()
+        hutils.apply_scope.mark_dirty(hutils.apply_scope.DOMAIN_CHANGE_SUBSYSTEMS)
         hutils.flask.flash_config_success(restart_mode=ApplyMode.apply_config, domain_changed=True)
 
     def after_model_delete(self, model):

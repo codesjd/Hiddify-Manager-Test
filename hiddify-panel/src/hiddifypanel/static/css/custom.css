@@ -87,31 +87,8 @@ fieldset fieldset legend {
   max-width: 550px;
 }
 
-.wrapper {
-  display: none;
-}
 
-#splash_screen {
-  display: flex;
-  /* Displays the element as a flex container */
-  justify-content: center;
-  /* Centers child elements horizontally */
-  align-items: center;
-  /* Centers child elements vertically */
-  height: 100vh;
-  /* Sets the height of the element to 100% of the viewport height */
-  margin: 0;
-  /* Removes margin */
-}
 
-#splash_screen img {
-  max-height: 30%;
-  /* Sets the maximum height of the image to 30% of the container */
-  max-width: 30%;
-  /* Sets the maximum width of the image to 30% of the container */
-  display: block;
-  /* Makes the element a block-level element */
-  margin: 0 auto;
   /* Centers the element horizontally */
 }
 
@@ -222,6 +199,24 @@ fieldset fieldset legend {
 .dark-mode .ms-choice {
   background-color: #343a40;
   color: white;
+}
+
+/* multiple-select.js's own base CSS pins this span to `top:0` (no
+   vertical centering at all); the vendored bootstrap theme
+   (plugins/multiple-select/themes/bootstrap.min.css) overrides that with
+   `top:50%; transform:translateY(-50%)`, but only IF that theme file
+   actually loads after the base one on a given page. Setting `top` here
+   too makes the fix work even if that ordering / file ever changes -
+   don't rely on the theme alone for something this visible. Applies to
+   every multipleSelect widget on the page (Match Inbound(s) in the
+   Create/Edit Rule modal, show_domains, download_domain).
+   !important because this must beat the vendored library CSS is loaded
+   after custom.css in the page (multiple-select.min.css/bootstrap theme
+   are included in flaskadmin-layout.html's tail_js block, i.e. later in
+   the document than custom.css in master.html's <head>). */
+.ms-parent .ms-choice > span {
+  top: 50% !important;
+  transform: translate(1%, -50%) !important;
 }
 
 .dark-mode pre {
@@ -553,9 +548,7 @@ td.col-uuid a {
   display: inline-block;
 }
 
-.select2-container {
-  display: none;
-}
+
 
 
 #main-sidebar .nav-sidebar>.nav-item>.nav-link {
@@ -572,4 +565,39 @@ td.col-uuid a {
 
 #qrcode img {
   max-width: 100%;
+}
+
+/* #10, #12, #16, #18, #20 Table top and bottom borders */
+table.table {
+    border-top: 1px solid var(--border) !important;
+    border-bottom: 1px solid var(--border) !important;
+}
+
+/* #11, #13, #17, #19 Center buttons in modal footer */
+.modal-footer {
+    justify-content: center !important;
+}
+
+/* #28 Current Domain chip text color */
+a.hf-chip {
+    color: white !important;
+}
+
+/* #26, #29 Gap for search bar with button */
+form[role="search"] .input-group,
+.modern-list-toolbar .input-group {
+    gap: 8px;
+}
+form[role="search"] .input-group-append,
+.modern-list-toolbar .input-group-append {
+    margin-left: 0;
+}
+form[role="search"] .input-group > .form-control,
+.modern-list-toolbar .input-group > .form-control {
+    border-top-right-radius: 4px !important;
+    border-bottom-right-radius: 4px !important;
+}
+form[role="search"] .input-group .btn,
+.modern-list-toolbar .input-group .btn {
+    border-radius: 4px !important;
 }

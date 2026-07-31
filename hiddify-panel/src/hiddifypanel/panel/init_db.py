@@ -1,4 +1,4 @@
-import datetime
+﻿import datetime
 import json
 import os
 import random
@@ -14,7 +14,283 @@ from hiddifypanel.database import db, db_execute
 
 
 from loguru import logger
-MAX_DB_VERSION = 130
+MAX_DB_VERSION = 141
+
+
+def _v140(child_id):
+    """L2TP/IPsec inbound (other/l2tp subsystem).
+
+    l2tp_enable: default False - it's a standalone strongSwan+xl2tpd
+        subsystem that installs its own packages, so opt-in only.
+    l2tp_psk: a strong random IPsec pre-shared key, generated once here so
+        every install ships a unique one rather than a shared default the
+        admin might never rotate."""
+    add_config_if_not_exist(ConfigEnum.l2tp_enable, False)
+    add_config_if_not_exist(ConfigEnum.l2tp_psk, hutils.random.get_random_password(24))
+
+
+def _v139(child_id):
+    """make_proxy_rows() used to seed an xhttp Proxy row's download-channel
+    alpn (params.download.alpn) crossed against every l3 - e.g. a "tls"
+    (h1) row also got dl=h2/dl=h3 variants, "tls_h2" got a dl=h3 variant,
+    and h3_quic got dl=h1/dl=h2 variants - so the download channel could
+    silently negotiate a different protocol than the row's own l3 label
+    promised (confirmed live: a "tls_h2 xhttp direct vless dl=h3" row).
+    Delete the mismatched rows; the one correctly-matching variant for
+    each l3 (already seeded alongside them, e.g. "... dl=h1" for tls) is
+    left untouched, as is every non-xhttp row."""
+    expected_dl = {ProxyL3.h3_quic: 'h3', ProxyL3.tls_h2: 'h2', ProxyL3.tls: 'http/1.1'}
+    for p in Proxy.query.filter_by(transport=ProxyTransport.xhttp, child_id=child_id).all():
+        if p.l3 not in expected_dl:
+            continue
+        dl = (p.params or {}).get('download', {}).get('alpn')
+        if dl and dl != expected_dl[p.l3]:
+            db.session.delete(p)
+    db.session.commit()
+
+
+def _v138(child_id):
+    """Phases A+B+C+D: kernel TLS offload flag, AnyTLS inbound, TUIC
+    congestion-control setting, and Hysteria2 description seeds.
+
+    tls_kernel_offload: default False (needs Linux 5.1+ CONFIG_TLS).
+    anytls_enable: default False (Hiddify app doesn't support AnyTLS yet;
+        only NekoBox/v2rayN >=7.14.3 can use it via singbox subscription).
+    anytls_port: random unused port (same pattern as tuic_port).
+    tuic_congestion_control: "cubic" (TUIC's own documented default).
+    Hysteria2 mbps: no schema change -- defaults already seeded by _v111.
+    AnyTLS Proxy rows: one direct + one relay, mirroring the tuic rows."""
+    add_config_if_not_exist(ConfigEnum.tls_kernel_offload, False)
+    add_config_if_not_exist(ConfigEnum.anytls_enable, False)
+    add_config_if_not_exist(ConfigEnum.anytls_port, hutils.random.get_random_unused_port())
+    add_config_if_not_exist(ConfigEnum.tuic_congestion_control, "cubic")
+    # Seed default Proxy rows for AnyTLS (direct + relay), mirroring tuic
+    for cdn in [ProxyCDN.direct, ProxyCDN.relay]:
+        if not Proxy.query.filter_by(
+            proto=ProxyProto.anytls, l3=ProxyL3.tls, cdn=cdn, child_id=child_id
+        ).first():
+            db.session.add(Proxy(
+                name=f"AnyTLS{'Relay' if cdn == ProxyCDN.relay else ''}",
+                proto=ProxyProto.anytls,
+                l3=ProxyL3.tls,
+                transport=ProxyTransport.custom,
+                cdn=cdn,
+                enable=True,
+                child_id=child_id,
+            ))
+    db.session.commit()
+
+def _v137(child_id):
+    """KCP (the vless-over-kcp transport option) is retired - its whole
+    value proposition (surviving high packet loss) has been superseded by
+    Hysteria2/QUIC-family transports this panel already offers, and it
+    never had an admin-facing toggle to begin with (kcp_enable has been
+    ConfigCategory.hidden all along). Force it off for every install
+    regardless of previous value, mirroring exactly how _v127 retired
+    WireGuard - force the flag, leave the (now permanently unreachable)
+    xray template/serialization code alone rather than sweeping every
+    reference, same as _v127 did for wireguard's own branches."""
+    set_hconfig(ConfigEnum.kcp_enable, False, child_id=child_id)
+
+
+def _v136(child_id):
+    """New CustomOutbound columns for TUIC and Mieru outbound support -
+    xray-core has no native dialer for either (same situation as
+    hysteria2/naive), so these only take effect when core_type=singbox;
+    to_xray_dict() blackholes them. tuic_congestion_control defaults to
+    "cubic" (TUIC's own documented default); mieru_transport/multiplexing
+    default to sing-box's own "tcp"/"MULTIPLEXING_LOW" defaults so an
+    existing row that never touches these fields still serializes to a
+    complete, working outbound rather than an empty/invalid one."""
+    add_column(CustomOutbound.tuic_congestion_control)
+    add_column(CustomOutbound.mieru_transport)
+    add_column(CustomOutbound.mieru_multiplexing)
+
+
+def _v135(child_id):
+    """AmneziaWG 2.0 completion, part 2: H1-H4 range/header-obfuscation
+    columns for the Outbounds page's per-row amneziawg tunnels
+    (CustomOutbound) - _v133 added S1-S4/I1-I5 there but missed H1-H4,
+    the same oversight _v129 already fixed once for the client-facing
+    side. Existing rows get NULL, which render_amneziawg_conf() treats
+    as "omit the line", so nothing changes for outbounds that don't set
+    them."""
+    add_column(CustomOutbound.awg_h1)
+    add_column(CustomOutbound.awg_h2)
+    add_column(CustomOutbound.awg_h3)
+    add_column(CustomOutbound.awg_h4)
+
+
+def _v134(child_id):
+    """AmneziaWG 2.0 completion, part 1: S1-S4/I1-I5 obfuscation params for
+    the client-facing hiddifyawg interface - _v133 added these same
+    parameters for the Outbounds page's per-row amneziawg tunnels but
+    missed the client-facing side entirely. Seeded blank (not a shared
+    default like Jc/Jmin/Jmax below) - a canned mimicry template shipped
+    identically on every install would itself become a fingerprint, so
+    this is opt-in; an empty StrConfig row just makes the field show up
+    in Settings for an admin to fill in."""
+    add_config_if_not_exist(ConfigEnum.amneziawg_s1, "")
+    add_config_if_not_exist(ConfigEnum.amneziawg_s2, "")
+    add_config_if_not_exist(ConfigEnum.amneziawg_s3, "")
+    add_config_if_not_exist(ConfigEnum.amneziawg_s4, "")
+    add_config_if_not_exist(ConfigEnum.amneziawg_i1, "")
+    add_config_if_not_exist(ConfigEnum.amneziawg_i2, "")
+    add_config_if_not_exist(ConfigEnum.amneziawg_i3, "")
+    add_config_if_not_exist(ConfigEnum.amneziawg_i4, "")
+    add_config_if_not_exist(ConfigEnum.amneziawg_i5, "")
+
+
+def _v133(child_id):
+    """New AmneziaWG outbound fields: raw .conf paste plus S1-S4 and I1-I5
+    obfuscation parameters. All optional/blank on existing rows."""
+    add_column(CustomOutbound.awg_conf)
+    add_column(CustomOutbound.awg_s1)
+    add_column(CustomOutbound.awg_s2)
+    add_column(CustomOutbound.awg_s3)
+    add_column(CustomOutbound.awg_s4)
+    add_column(CustomOutbound.awg_i1)
+    add_column(CustomOutbound.awg_i2)
+    add_column(CustomOutbound.awg_i3)
+    add_column(CustomOutbound.awg_i4)
+    add_column(CustomOutbound.awg_i5)
+
+
+def _v132(child_id):
+    """Extra CustomRoutingRule match conditions to complete the routing form
+    against the reference (source IP/CIDR, source port, sniffed protocol,
+    inbound user email). Existing rules get NULL = "not part of the match",
+    so behavior is unchanged for rules that don't set them."""
+    add_column(CustomRoutingRule.source_ips)
+    add_column(CustomRoutingRule.source_port)
+    add_column(CustomRoutingRule.protocols)
+    add_column(CustomRoutingRule.user_emails)
+
+
+def _v131(child_id):
+    """hysteria2 outbound support on the Outbounds page - three new
+    CustomOutbound columns (Salamander obfs password + optional up/down
+    bandwidth hints); server/port/password/sni reuse the existing shared
+    columns. Existing rows get NULL, which to_singbox_dict() treats as
+    "omit", so nothing changes for non-hysteria outbounds."""
+    add_column(CustomOutbound.hysteria_obfs_password)
+    add_column(CustomOutbound.hysteria_up_mbps)
+    add_column(CustomOutbound.hysteria_down_mbps)
+
+
+def _v130(child_id):
+    """New CustomOutbound columns for the expanded Outbounds form: vless
+    encryption, shadowsocks cipher method, REALITY public_key/short_id (a
+    real, confirmed bug - to_xray_dict()/to_singbox_dict() never sent these
+    at all, so every "reality" security outbound could never actually
+    complete a handshake regardless of what else was configured), and
+    xray-core's real sockopt/happyEyeballs/mux fields, none of which had
+    dedicated columns before (extra_json was the only way to set them)."""
+    add_column(CustomOutbound.encryption)
+    add_column(CustomOutbound.reality_public_key)
+    add_column(CustomOutbound.reality_short_id)
+    add_column(CustomOutbound.ss_method)
+    add_column(CustomOutbound.sockopt_mark)
+    add_column(CustomOutbound.sockopt_tcp_fast_open)
+    add_column(CustomOutbound.sockopt_tproxy)
+    add_column(CustomOutbound.sockopt_domain_strategy)
+    add_column(CustomOutbound.sockopt_dialer_proxy)
+    add_column(CustomOutbound.sockopt_interface)
+    add_column(CustomOutbound.sockopt_tcp_keep_alive_interval)
+    add_column(CustomOutbound.sockopt_tcp_keep_alive_idle)
+    add_column(CustomOutbound.sockopt_tcp_user_timeout)
+    add_column(CustomOutbound.sockopt_tcp_max_seg)
+    add_column(CustomOutbound.sockopt_tcp_window_clamp)
+    add_column(CustomOutbound.sockopt_tcp_mptcp)
+    add_column(CustomOutbound.sockopt_penetrate)
+    add_column(CustomOutbound.sockopt_address_port_strategy)
+    add_column(CustomOutbound.he_try_delay_ms)
+    add_column(CustomOutbound.he_prioritize_ipv6)
+    add_column(CustomOutbound.he_interleave)
+    add_column(CustomOutbound.he_max_concurrent_try)
+    add_column(CustomOutbound.mux_enabled)
+    add_column(CustomOutbound.mux_concurrency)
+    add_column(CustomOutbound.mux_xudp_concurrency)
+    add_column(CustomOutbound.mux_xudp_proxy_udp_443)
+
+
+def _v129(child_id):
+    """H1-H4 (the AmneziaWG header-obfuscation magic values) were missed in
+    _v128 - they're part of the same Jc/Jmin/Jmax obfuscation scheme, and
+    leaving them unset relies on the client and server both falling back to
+    the same implicit default, which isn't guaranteed across every client
+    implementation. 1/2/3/4 are the documented AmneziaWG defaults (== real
+    WireGuard's own message-type bytes, i.e. no header obfuscation) - a
+    safe, working baseline an admin can later tune for stronger DPI
+    resistance."""
+    add_config_if_not_exist(ConfigEnum.amneziawg_h1, "1")
+    add_config_if_not_exist(ConfigEnum.amneziawg_h2, "2")
+    add_config_if_not_exist(ConfigEnum.amneziawg_h3, "3")
+    add_config_if_not_exist(ConfigEnum.amneziawg_h4, "4")
+
+
+def _v128(child_id):
+    """One-time setup for AmneziaWG as the client-facing protocol replacing
+    WireGuard (_v127) - mirrors _v69's wireguard bootstrap: generate the
+    server's own interface keypair once, set default subnet/port/
+    obfuscation values, and add the default Proxy rows users connect
+    through. amneziawg_client_enable itself defaults to False - turning
+    the whole thing on is a deliberate admin action, matching how a fresh
+    install's wireguard_enable used to default to True but this one
+    doesn't (avoids silently opening a new UDP port on upgrade)."""
+    add_config_if_not_exist(ConfigEnum.amneziawg_client_enable, False)
+    add_config_if_not_exist(ConfigEnum.amneziawg_port, hutils.random.get_random_unused_port())
+    add_config_if_not_exist(ConfigEnum.amneziawg_ipv4, "10.91.0.1")
+    add_config_if_not_exist(ConfigEnum.amneziawg_ipv6, "fd42:42:91::1")
+    awg_pk, awg_pub, _ = hutils.crypto.get_wg_private_public_psk_pair()
+    add_config_if_not_exist(ConfigEnum.amneziawg_private_key, awg_pk)
+    add_config_if_not_exist(ConfigEnum.amneziawg_public_key, awg_pub)
+    add_config_if_not_exist(ConfigEnum.amneziawg_jc, "4")
+    add_config_if_not_exist(ConfigEnum.amneziawg_jmin, "40")
+    add_config_if_not_exist(ConfigEnum.amneziawg_jmax, "70")
+
+    default_rows = [
+        Proxy(l3=ProxyL3.udp, transport=ProxyTransport.custom, cdn=ProxyCDN.direct, proto=ProxyProto.amneziawg, enable=True, name="AmneziaWG", child_id=child_id),
+        Proxy(l3=ProxyL3.udp, transport=ProxyTransport.custom, cdn=ProxyCDN.relay, proto=ProxyProto.amneziawg, enable=True, name="AmneziaWG Relay", child_id=child_id),
+    ]
+    for p in default_rows:
+        is_exist = Proxy.query.filter(Proxy.name == p.name, Proxy.child_id == child_id).first() or Proxy.query.filter(
+            Proxy.l3 == p.l3, Proxy.transport == p.transport, Proxy.cdn == p.cdn, Proxy.proto == p.proto, Proxy.child_id == child_id).first()
+        if not is_exist:
+            db.session.add(p)
+    db.session.commit()
+
+
+def _v127(child_id):
+    """WireGuard (the client-facing proxy protocol toggle) is being retired
+    in favor of AmneziaWG - force it off for every install regardless of
+    its previous value, since the toggle itself is being removed from the
+    Proxies/Quick Setup UI and would otherwise be stuck on with no way to
+    turn it off."""
+    set_hconfig(ConfigEnum.wireguard_enable, False, child_id=child_id)
+
+
+def _v126(child_id):
+    """Backfill default admin/admin credentials onto the existing Owner
+    account for installs that predate username/password login. Only
+    touches fields that are genuinely unset - never overwrites a
+    username or password an admin has actually chosen."""
+    if child_id != 0:
+        return
+    admin = AdminUser.by_id(1)
+    if not admin:
+        return
+    from werkzeug.security import generate_password_hash
+    changed = False
+    if not admin.username:
+        if not AdminUser.query.filter(AdminUser.username == "admin", AdminUser.id != 1).first():
+            admin.username = "admin"
+            changed = True
+    if not admin.password:
+        admin.password = generate_password_hash("admin")
+        changed = True
+    if changed:
+        db.session.commit()
 
 
 def _v125(child_id):
@@ -282,6 +558,16 @@ def _v82(child_id):
     set_hconfig(ConfigEnum.quic_enable, False)
     set_hconfig(ConfigEnum.xtls_enable, False)
     set_hconfig(ConfigEnum.h2_enable, True)
+
+
+def _v81(child_id):
+    # password now stores a werkzeug scrypt hash (a fixed 162 chars), not a
+    # plaintext password - the old VARCHAR(100) truncated/rejected every
+    # hash, which made it impossible to ever log into an account after its
+    # password was hashed (including a fresh install's first password set
+    # through Quick Setup).
+    execute("ALTER TABLE user MODIFY COLUMN password VARCHAR(255);")
+    execute("ALTER TABLE admin_user MODIFY COLUMN password VARCHAR(255);")
 
 
 def _v80(child_id):
@@ -595,7 +881,7 @@ def _v1():
         StrConfig(key=ConfigEnum.db_version, value=1), User(name="default", usage_limit_GB=3000, package_days=3650, mode=UserMode.weekly),
         Domain(domain=external_ip, mode=DomainType.direct), 
         Domain(domain=external_ip + ".sslip.io", mode=DomainType.direct), 
-        StrConfig(key=ConfigEnum.admin_secret, value=uuid.uuid4()), StrConfig(key=ConfigEnum.http_ports, value="80"), StrConfig(key=ConfigEnum.tls_ports, value="443"), BoolConfig(key=ConfigEnum.first_setup, value=True), StrConfig(key=ConfigEnum.decoy_domain, value=hutils.network.get_random_decoy_domain()), StrConfig(key=ConfigEnum.proxy_path, value=hutils.random.get_random_string()), BoolConfig(key=ConfigEnum.firewall, value=False), BoolConfig(key=ConfigEnum.netdata, value=True), StrConfig(key=ConfigEnum.lang, value='en'), BoolConfig(key=ConfigEnum.block_iran_sites, value=True), BoolConfig(key=ConfigEnum.allow_invalid_sni, value=True), BoolConfig(key=ConfigEnum.kcp_enable, value=False), StrConfig(key=ConfigEnum.kcp_ports, value="88"), BoolConfig(key=ConfigEnum.auto_update, value=os.environ.get('HIDDIFY_DISABLE_UPDATE',"").lower() not in {'1','true'}), BoolConfig(key=ConfigEnum.speed_test, value=True), BoolConfig(key=ConfigEnum.only_ipv4, value=False), BoolConfig(key=ConfigEnum.vmess_enable, value=True), BoolConfig(key=ConfigEnum.http_proxy_enable, value=True), StrConfig(key=ConfigEnum.shared_secret, value=str(uuid.uuid4())), BoolConfig(key=ConfigEnum.telegram_enable, value=False), # StrConfig(key=ConfigEnum.telegram_secret,value=uuid.uuid4().hex), StrConfig(key=ConfigEnum.telegram_adtag, value=""), StrConfig(key=ConfigEnum.telegram_fakedomain, value=rnd_domains[1]), BoolConfig(key=ConfigEnum.ssfaketls_enable, value=False), # StrConfig(key=ConfigEnum.ssfaketls_secret,value=str(uuid.uuid4())), StrConfig(key=ConfigEnum.ssfaketls_fakedomain, value=rnd_domains[2]), BoolConfig(key=ConfigEnum.shadowtls_enable, value=False), # StrConfig(key=ConfigEnum.shadowtls_secret,value=str(uuid.uuid4())), StrConfig(key=ConfigEnum.shadowtls_fakedomain, value=rnd_domains[3]), 
+        StrConfig(key=ConfigEnum.admin_secret, value=uuid.uuid4()), StrConfig(key=ConfigEnum.http_ports, value="80"), StrConfig(key=ConfigEnum.tls_ports, value="443"), BoolConfig(key=ConfigEnum.first_setup, value=True), StrConfig(key=ConfigEnum.decoy_domain, value=hutils.network.get_random_decoy_domain()), StrConfig(key=ConfigEnum.proxy_path, value=hutils.random.get_random_string()), BoolConfig(key=ConfigEnum.firewall, value=False), BoolConfig(key=ConfigEnum.netdata, value=True), StrConfig(key=ConfigEnum.lang, value='en'), BoolConfig(key=ConfigEnum.block_iran_sites, value=True), BoolConfig(key=ConfigEnum.allow_invalid_sni, value=True), BoolConfig(key=ConfigEnum.kcp_enable, value=False), StrConfig(key=ConfigEnum.kcp_ports, value="88"), BoolConfig(key=ConfigEnum.auto_update, value=os.environ.get('HIDDIFY_DISABLE_UPDATE',"").lower() not in {'1','true'}), BoolConfig(key=ConfigEnum.only_ipv4, value=False), BoolConfig(key=ConfigEnum.vmess_enable, value=True), BoolConfig(key=ConfigEnum.http_proxy_enable, value=True), StrConfig(key=ConfigEnum.shared_secret, value=str(uuid.uuid4())), BoolConfig(key=ConfigEnum.telegram_enable, value=False), # StrConfig(key=ConfigEnum.telegram_secret,value=uuid.uuid4().hex), StrConfig(key=ConfigEnum.telegram_adtag, value=""), StrConfig(key=ConfigEnum.telegram_fakedomain, value=rnd_domains[1]), BoolConfig(key=ConfigEnum.ssfaketls_enable, value=False), # StrConfig(key=ConfigEnum.ssfaketls_secret,value=str(uuid.uuid4())), StrConfig(key=ConfigEnum.ssfaketls_fakedomain, value=rnd_domains[2]), BoolConfig(key=ConfigEnum.shadowtls_enable, value=False), # StrConfig(key=ConfigEnum.shadowtls_secret,value=str(uuid.uuid4())), StrConfig(key=ConfigEnum.shadowtls_fakedomain, value=rnd_domains[3]), 
         BoolConfig(key=ConfigEnum.ssr_enable, value=False), # StrConfig(key=ConfigEnum.ssr_secret,value=str(uuid.uuid4())), StrConfig(key=ConfigEnum.ssr_fakedomain, value=rnd_domains[4]), 
         # BoolConfig(key=ConfigEnum.tuic_enable, value=False), # StrConfig(key=ConfigEnum.tuic_port, value=3048), 
         BoolConfig(key=ConfigEnum.domain_fronting_tls_enable, value=False), BoolConfig(key=ConfigEnum.domain_fronting_http_enable, value=False), StrConfig(key=ConfigEnum.domain_fronting_domain, value=""), 
@@ -766,23 +1052,19 @@ def make_proxy_rows(cfgs):
             # is_exist = Proxy.query.filter(Proxy.name == name).first() or Proxy.query.filter(            #     Proxy.l3 == l3, Proxy.transport == transport, Proxy.cdn == cdn, Proxy.proto == proto).first()
             # if not is_exist:
             params_list=[('',{})]
-            
+
             if transport=="xhttp" and l3 not in [ProxyL3.reality,ProxyL3.http]:
-                params_list=[]
-                # for up in ['http/1.1"','h2','h3']:
-                if l3=="http":
-                    alpn=['http/1.1']
-                else:
-                    alpns=['http/1.1','h2','h3']
-                for dl in alpns:
-                    name_postfix=f' dl={dl}'.replace("http/1.1",'h1')
-                    params={
-                            'download':{
-                                'alpn':f'{dl}'
-                            }                    
-                        }
-                    params_list.append((name_postfix,params))
-                        
+                # The download-channel alpn must match this row's own l3,
+                # not every possible alpn - seeding all three (h1/h2/h3) for
+                # every l3 produced e.g. a "tls" (h1) row whose download
+                # channel negotiated h2/h3, and a "tls_h2" row that
+                # negotiated h3, silently contradicting the row's own l3
+                # label. Only the one variant that actually matches this
+                # row's l3 is generated.
+                dl = 'h3' if l3 == ProxyL3.h3_quic else ('h2' if l3 == 'tls_h2' else 'http/1.1')
+                name_postfix = f' dl={dl}'.replace("http/1.1", 'h1')
+                params_list = [(name_postfix, {'download': {'alpn': dl}})]
+
             for name_postfix,params in params_list:
                 yield Proxy(l3=l3, transport=transport, cdn=cdn, proto=proto, enable=enable, name=name+name_postfix, params=params)
 
@@ -838,8 +1120,8 @@ def add_new_enum_values():
         # Get the values in the enum column in the database
         # result = db.engine.execute(f"SELECT DISTINCT `{column_name}` FROM {table_name}")
         # db_values = {row[0] for row in result}
-
-        result = db.session.execute(text(f"SHOW COLUMNS FROM {table_name} LIKE '{column_name}';")).fetchall()
+        
+        result = db.session.execute(text(f"SHOW COLUMNS FROM {table_name} LIKE :col;"), {"col": column_name}).fetchall()
         db_values = []
 
         for row in result:
@@ -997,7 +1279,7 @@ def init_db():
         tmp_uuid = str(uuid.uuid4())
         db.session.add(Child(id=0, unique_id=tmp_uuid, name="Root"))
         db.session.commit()
-        db_execute(f"update child set id=0 where unique_id='{tmp_uuid}'", commit=True)
+        db_execute("update child set id=0 where unique_id=:u", u=tmp_uuid, commit=True)
         child = Child.by_id(0)  
 
     child.mode = ChildMode.virtual
@@ -1150,3 +1432,4 @@ def migrate(db_version):
 
     upgrade_database()
     db.session.commit()
+

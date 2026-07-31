@@ -1,44 +1,361 @@
-{% from 'bootstrap4/form.html' import render_form %}
 {% extends "master.html" %}
 {% block title %}{{hconfig(ConfigEnum.branding_title) or _('user.home.title')}}{% endblock %}
 
-{% block body_header %}
+{% block styles %}
+{{ super() }}
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root {
+  {% if g.darkmode %}
+  --bg: oklch(0.19 0.018 265);
+  --surface: oklch(0.245 0.02 265);
+  --border: oklch(0.33 0.02 265);
+  --text-primary: oklch(0.96 0.005 265);
+  --text-secondary: oklch(0.68 0.015 265);
+  --track: oklch(0.32 0.02 265);
+  --input-bg: oklch(0.22 0.02 265);
+  --card-shadow: 0 1px 0 rgba(255,255,255,0.02);
+  {% else %}
+  --bg: oklch(0.965 0.006 265);
+  --surface: oklch(0.995 0.003 265);
+  --border: oklch(0.91 0.006 265);
+  --text-primary: oklch(0.22 0.02 265);
+  --text-secondary: oklch(0.52 0.015 265);
+  --track: oklch(0.93 0.006 265);
+  --input-bg: oklch(0.985 0.003 265);
+  --card-shadow: 0 4px 24px rgba(20,20,40,0.06);
+  {% endif %}
+  --accent: oklch(0.56 0.16 250);
+  --accent-blue: oklch(0.6 0.15 250);
+  --accent-orange: oklch(0.68 0.15 55);
+}
+* { box-sizing: border-box; }
+/* .dark-mode is a single-class selector (specificity beats a bare `body`
+   element selector regardless of !important on both sides) that
+   adminlte.css sets on <body> whenever g.darkmode is true, with its own
+   `!important` background - include it here explicitly so this rule wins
+   the tie instead of silently losing to adminlte's dark gray fallback. */
+body, .dark-mode, .content-wrapper, .wrapper {
+  background: var(--bg) !important;
+  font-family: 'Manrope', sans-serif !important;
+  color: var(--text-primary);
+}
+input::placeholder { color: var(--text-secondary); opacity: 1; }
 
+.login-page {
+  min-height: 100vh;
+  width: 100%;
+  {% if g.darkmode %}
+  background: var(--surface);
+  {% endif %}
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 20px;
+  position: relative;
+}
+.login-theme-toggle {
+  position: absolute;
+  top: 28px;
+  right: 28px;
+  width: 44px;
+  height: 26px;
+  border-radius: 14px;
+  background: var(--track);
+  display: flex;
+  align-items: center;
+  padding: 3px;
+  cursor: pointer;
+  justify-content: {{ 'flex-end' if g.darkmode else 'flex-start' }};
+}
+[dir="rtl"] .login-theme-toggle { right: auto; left: 28px; }
+.login-theme-knob {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--surface);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.25);
+}
 
+.login-card {
+  width: 100%;
+  max-width: 400px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 36px 32px;
+  box-shadow: var(--card-shadow);
+}
+.login-header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-bottom: 30px;
+}
+.login-logo-mark {
+  width: 52px;
+  height: 52px;
+  border-radius: 14px;
+  background: var(--accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.login-wordmark {
+  font-weight: 800;
+  font-size: 20px;
+  letter-spacing: -0.01em;
+  color: var(--text-primary);
+  margin-top: 14px;
+}
+.login-wordmark span { color: var(--accent); }
+.login-subtitle {
+  font-size: 12.5px;
+  color: var(--text-secondary);
+  margin-top: 4px;
+}
 
-{%endblock%}
+.login-fields { display: flex; flex-direction: column; gap: 18px; }
+.login-field-label {
+  display: block;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: 7px;
+}
+.login-input-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--input-bg);
+  padding: 0 12px;
+}
+.login-input-wrap:focus-within {
+  border-color: var(--accent-blue);
+  box-shadow: 0 0 0 3px oklch(0.6 0.15 250 / 0.15);
+}
+.login-input-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-secondary);
+  flex-shrink: 0;
+}
+.login-input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  outline: none;
+  background: transparent;
+  padding: 11px 0;
+  font-family: 'Manrope', sans-serif;
+  font-size: 13.5px;
+  color: var(--text-primary);
+}
+.login-eye-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-secondary);
+  cursor: pointer;
+  flex-shrink: 0;
+  padding: 4px;
+}
+.login-eye-btn svg:last-child { display: none; }
+.login-eye-btn.showing svg:first-child { display: none; }
+.login-eye-btn.showing svg:last-child { display: block; }
+.login-field-help {
+  font-size: 11.5px;
+  color: var(--text-secondary);
+  margin-top: 8px;
+}
+.login-field-error {
+  font-size: 11.5px;
+  color: var(--accent-orange);
+  margin-top: 8px;
+}
 
-{% block body %}
+.login-remember-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  margin-top: 2px;
+}
+.login-remember-box-wrap {
+  position: relative;
+  width: 17px;
+  height: 17px;
+  flex-shrink: 0;
+}
+.login-remember-input {
+  position: absolute;
+  inset: 0;
+  width: 17px;
+  height: 17px;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+  z-index: 1;
+}
+.login-remember-box {
+  position: absolute;
+  inset: 0;
+  width: 17px;
+  height: 17px;
+  border-radius: 5px;
+  border: 1.5px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+}
+.login-remember-check { opacity: 0; }
+.login-remember-input:checked ~ .login-remember-box {
+  background: var(--accent-blue);
+  border-color: var(--accent-blue);
+}
+.login-remember-input:checked ~ .login-remember-box .login-remember-check { opacity: 1; }
+.login-remember-label {
+  font-size: 12.5px;
+  color: var(--text-secondary);
+}
 
+.login-submit-btn {
+  margin-top: 6px;
+  width: 100%;
+  text-align: center;
+  background: var(--accent-blue) !important;
+  color: white !important;
+  font-family: 'Manrope', sans-serif !important;
+  font-size: 14.5px !important;
+  font-weight: 700 !important;
+  padding: 13px 18px !important;
+  border-radius: 10px !important;
+  border: none !important;
+  cursor: pointer;
+}
+.login-submit-btn:hover { filter: brightness(1.06); }
 
+.login-footer {
+  font-size: 11.5px;
+  color: var(--text-secondary);
+  margin-top: 24px;
+}
+</style>
+{% endblock %}
 
-<div class="container col-12 col-md-6 offset-md-3">
-    <h1>{{hconfig(ConfigEnum.branding_title) or _('user.home.title')}}</h1>
-    <div class="card-group login-container">
-        <!-- Left Card: Login Form -->
-        <div class="card card-outline card-primary ">
-            <div class="card-header text-center">
-                Login
-            </div>
-            <div class="card-body">
-                {{render_form(form)}}
-            </div>
-        </div>
-        {%if 0 and hconfig(ConfigEnum.proxy_path_client)==g.proxy_path %}
-        <!-- Right Card: Free Test Account -->
-        <div class="card card-outline card-secondary">
-            <div class="card-header text-center">
-                
-Free Test Account
-            </div>
-            <div class="card-body">
-                
-                <p class="card-text">Get a free test account with 200 MB and 7 days.</p>
-                <button type="button" class="btn btn-success btn-block">Get Free Test Account</button>
-            </div>
-        </div>
-        {%endif%}
+{% block bodyclass %}{% endblock %}
+{% block page_body %}
+<div class="login-page">
+  <a class="login-theme-toggle" href="?darkmode={{ 'false' if g.darkmode else 'true' }}" title="{{ _('Toggle dark mode') }}">
+    <div class="login-theme-knob">
+      {% if g.darkmode %}
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none"><path d="M21 12.8A9 9 0 1111.2 3 7 7 0 0021 12.8z" fill="var(--accent)"/></svg>
+      {% else %}
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="5" fill="var(--accent-orange)"/><path d="M12 2v3M12 19v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2 12h3M19 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1" stroke="var(--accent-orange)" stroke-width="1.8" stroke-linecap="round"/></svg>
+      {% endif %}
     </div>
-</div>
+  </a>
 
+  <div class="login-card">
+    <div class="login-header">
+      <div class="login-logo-mark">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" fill="white"/></svg>
+      </div>
+      <div class="login-wordmark">Hiddify<span>V2</span></div>
+      <div class="login-subtitle">
+        {% if hutils.flask.is_admin_proxy_path() %}
+        {{ _('Sign in to your admin dashboard') }}
+        {% else %}
+        {{ _('Sign in to your account') }}
+        {% endif %}
+      </div>
+    </div>
+
+    <form method="POST" action="" class="login-fields">
+      {{ form.hidden_tag() }}
+
+      {% if hconfig(ConfigEnum.first_setup) %}
+      <div style="background:oklch(0.85 0.12 55 / 0.18);border:1px solid oklch(0.68 0.15 55 / 0.45);border-radius:10px;padding:12px 14px;font-size:12.5px;color:var(--text-primary);">
+        <strong>{{ _('Default credentials') }}:</strong>
+        {{ _('Username') }}: <code style="background:var(--track);border-radius:4px;padding:1px 5px;">admin</code>
+        &nbsp;/&nbsp;
+        {{ _('Password') }}: <code style="background:var(--track);border-radius:4px;padding:1px 5px;">admin</code>
+      </div>
+      {% endif %}
+
+      <div>
+        <label class="login-field-label" for="secret_textbox">{{ _('Username') }}</label>
+        <div class="login-input-wrap">
+          <div class="login-input-icon">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="8" r="3.6" stroke="currentColor" stroke-width="2"/><path d="M4.5 20c0-4 3.4-6.8 7.5-6.8s7.5 2.8 7.5 6.8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+          </div>
+          {{ form.secret_textbox(class="login-input", placeholder=_("Enter your username"), autocomplete="username") }}
+        </div>
+        {% if form.secret_textbox.errors %}
+        <div class="login-field-error">{{ form.secret_textbox.errors[0] }}</div>
+        {% endif %}
+      </div>
+
+      <div>
+        <label class="login-field-label" for="password_textbox">{{ _('login.password.label') }}</label>
+        <div class="login-input-wrap">
+          <div class="login-input-icon">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><rect x="5" y="11" width="14" height="9" rx="2" stroke="currentColor" stroke-width="2"/><path d="M8 11V7.5a4 4 0 018 0V11" stroke="currentColor" stroke-width="2"/></svg>
+          </div>
+          {{ form.password_textbox(class="login-input", placeholder=_("Enter your password"), autocomplete="current-password") }}
+          <div class="login-eye-btn" id="password-eye-btn" onclick="toggleLoginPasswordVisibility()">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7z" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="2"/></svg>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M3 3l18 18M9.9 5.2A10.7 10.7 0 0112 5c6.4 0 10 7 10 7a17.9 17.9 0 01-4 4.7M6.5 6.9C3.7 8.8 2 12 2 12s3.6 7 10 7c1.3 0 2.5-.2 3.6-.6M9.5 9.6a3 3 0 004.2 4.2" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+          </div>
+        </div>
+        {% if form.password_textbox.errors %}
+        <div class="login-field-error">{{ form.password_textbox.errors[0] }}</div>
+        {% elif form.password_textbox.description %}
+        <div class="login-field-help">{{ form.password_textbox.description }}</div>
+        {% endif %}
+      </div>
+
+      <label class="login-remember-row">
+        <span class="login-remember-box-wrap">
+          {{ form.remember_me(class="login-remember-input") }}
+          <span class="login-remember-box">
+            <svg class="login-remember-check" width="11" height="11" viewBox="0 0 24 24" fill="none"><path d="M5 12.5l4.5 4.5L19 7" stroke="white" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </span>
+        </span>
+        <span class="login-remember-label">{{ _('Remember me') }}</span>
+      </label>
+
+      {{ form.submit(class="login-submit-btn") }}
+    </form>
+  </div>
+
+  <div class="login-footer">&copy; {{ now_year }} HiddifyV2 <span style="opacity:0.7;">&middot; {{ version }}</span></div>
+</div>
+{% endblock %}
+
+{% block tail_js %}
+{{ super() }}
+<script>
+function toggleLoginPasswordVisibility() {
+  var input = document.getElementById('password_textbox');
+  var btn = document.getElementById('password-eye-btn');
+  if (input.type === 'password') {
+    input.type = 'text';
+    btn.classList.add('showing');
+  } else {
+    input.type = 'password';
+    btn.classList.remove('showing');
+  }
+}
+</script>
 {% endblock %}

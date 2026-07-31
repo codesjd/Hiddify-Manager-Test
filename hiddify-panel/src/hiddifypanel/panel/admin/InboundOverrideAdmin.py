@@ -1,11 +1,97 @@
 import json
 from flask_babel import lazy_gettext as _
 import wtforms as wtf
+from markupsafe import Markup
 from wtforms.validators import ValidationError
 from .adminlte import AdminLTEModelView
 from hiddifypanel.auth import login_required
 from hiddifypanel.models import *
 from hiddifypanel import hutils
+
+
+# Same pattern as OutboundAdmin.py's _ScriptField/_PROTOCOL_FIELD_SCRIPT:
+# a fieldless form entry that just renders a <script> tag to show/hide the
+# override fields that actually apply to *this row's* proto/transport/l3
+# (all read-only/disabled selects already on the form). Every field here is
+# read unconditionally by apply_proxy_overrides() regardless of protocol -
+# it's a generic dict merge - so setting e.g. hysteria_obfs_password on a
+# vless row is harmless at generation time but confusing to look at, since
+# every field showed for every row before this.
+class _ScriptField(wtf.Field):
+    widget = None
+
+    def process_formdata(self, valuelist):
+        pass
+
+    def _value(self):
+        return ''
+
+    def __call__(self, **kwargs):
+        return Markup(_OVERRIDE_FIELD_SCRIPT)
+
+
+_OVERRIDE_FIELD_SCRIPT = """
+<script>
+(function() {
+  function byName(n) { return document.querySelector('[name="' + n + '"]'); }
+  function wrapper(el) { return el ? (el.closest('.form-group') || el.parentElement) : null; }
+
+  var ALL = ['sni', 'host', 'path', 'fingerprint', 'alpn', 'mode', 'hysteria_obfs_password'];
+  var HOST_PATH_TRANSPORTS = ['ws', 'httpupgrade', 'xhttp', 'grpc'];
+
+  function apply() {
+    var l3 = (byName('l3') || {}).value || '';
+    var transport = ((byName('transport') || {}).value || '').toLowerCase();
+    var proto = (byName('proto') || {}).value;
+
+    // Mirrors add_tls()'s own gate in hutils/proxy/singbox.py: sni/alpn
+    // apply whenever l3 contains tls/reality/quic (hysteria2 and tuic are
+    // l3="tls" too, so they get sni/alpn - just not the utls fingerprint,
+    // which that same function explicitly skips for tuic/hysteria2).
+    var isTlsLike = l3.indexOf('tls') !== -1 || l3.indexOf('reality') !== -1 || l3.indexOf('quic') !== -1;
+    var show = {
+      sni: isTlsLike,
+      alpn: isTlsLike,
+      fingerprint: isTlsLike && proto !== 'tuic' && proto !== 'hysteria2',
+      host: HOST_PATH_TRANSPORTS.indexOf(transport) !== -1,
+      path: HOST_PATH_TRANSPORTS.indexOf(transport) !== -1,
+      mode: transport === 'xhttp',
+      hysteria_obfs_password: proto === 'hysteria2'
+    };
+    ALL.forEach(function(n) {
+      var w = wrapper(byName(n));
+      if (w) w.style.display = show[n] ? '' : 'none';
+    });
+  }
+
+  // proto/transport/l3 are disabled selects (context only, never edited),
+  // so there's nothing to bind a change listener to - just apply once per
+  // (re)load, same retry-for-modal-content dance as OutboundAdmin's script.
+  apply();
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', apply);
+  }
+  var tries = 0;
+  var retry = setInterval(function() {
+    apply();
+    if (byName('proto') || ++tries > 20) clearInterval(retry);
+  }, 150);
+})();
+</script>
+"""
+
+# Color-code each space-separated segment of Proxy.name (e.g. "tls_h2 xhttp
+# direct vless dl=h1") by what kind of setting it is, matching the design's
+# layer3=blue / transport=green / mode=purple / protocol=orange convention -
+# same categories DomainAdmin/OutboundAdmin/RoutingRuleAdmin already color
+# their own chips/pills with.
+_NAME_CHIP_COLORS = {
+    'tls_h2': '--accent-blue', 'tls_h1': '--accent-blue', 'http': '--accent-blue', 'h3_quic': '--accent-blue', 'quic': '--accent-blue',
+    'xhttp': '--accent-green', 'tcp': '--accent-green', 'grpc': '--accent-green', 'ws': '--accent-green', 'httpupgrade': '--accent-green',
+    'direct': '--accent-purple', 'reality': '--accent-purple', 'relay': '--accent-purple',
+    'vless': '--accent-orange', 'vmess': '--accent-orange', 'trojan': '--accent-orange', 'shadowsocks': '--accent-orange',
+    'hysteria2': '--accent-orange', 'tuic': '--accent-orange',
+}
 
 
 # Keys managed by the explicit form fields below. Anything else already
@@ -47,8 +133,18 @@ class InboundOverrideAdmin(AdminLTEModelView):
     wasn't actually applied anywhere until now.
     """
     column_hide_backrefs = False
+    list_template = 'model/inboundoverride_list.html'
     column_list = ["name", "proto", "transport", "cdn", "l3", "enable"]
-    form_columns = ["name", "enable"]
+    # Must list every field that should actually render on the edit form,
+    # including the form_extra_fields below and the disabled context
+    # fields in form_widget_args - flask-admin silently drops any field
+    # not named here, which previously made on_form_prefill() reference
+    # form fields (form.sni, form.mode, ...) that didn't exist on the
+    # generated form at all, 500ing the edit-modal AJAX load so the pencil
+    # button appeared to do nothing.
+    form_columns = ["name", "proto", "transport", "cdn", "l3", "enable",
+                     "sni", "host", "path", "fingerprint", "alpn", "mode", "hysteria_obfs_password", "advanced_json",
+                     "override_field_script"]
     column_editable_list = ["enable"]
 
     column_labels = {
@@ -71,17 +167,41 @@ class InboundOverrideAdmin(AdminLTEModelView):
         "path": wtf.StringField(_("Path"), description=_("Override the transport path (WS/httpupgrade/xhttp) or gRPC service name. Leave blank for the auto-generated one.")),
         "fingerprint": wtf.SelectField(_("uTLS Fingerprint"), choices=_FINGERPRINT_CHOICES, default=""),
         "alpn": wtf.SelectField(_("ALPN"), choices=_ALPN_CHOICES, default=""),
-        "mode": wtf.SelectField(_("XHTTP Mode"), choices=_XHTTP_MODE_CHOICES, default=""),
+        # render_kw id override: flaskadmin-layout.html's shared modal JS
+        # runs a Domain-page-specific handler on any field literally named
+        # #mode (hide_domain_elements, keyed off Domain.mode's enum
+        # values) after every modal load. This field means something
+        # unrelated (XHTTP mode) - give it a distinct id so it's not
+        # accidentally wired up by that global, name-based selector.
+        "mode": wtf.SelectField(_("XHTTP Mode"), choices=_XHTTP_MODE_CHOICES, default="", render_kw={"id": "inbound_override_mode"}),
         "hysteria_obfs_password": wtf.StringField(_("Hysteria2 Obfs Password"), description=_("Only applies to hysteria2 proxies. Leave blank to use the global obfuscation password.")),
         "advanced_json": wtf.TextAreaField(_("Advanced Override (JSON)"),
                                             description=_('Deep-merged on top of everything above, for anything the fields don\'t cover, e.g. {"mux_enable": true}. '
                                                            'Leave empty to only use the fields above.')),
+        "override_field_script": _ScriptField(label=""),
     }
 
     can_create = False
     can_delete = False
     can_export = False
     column_sortable_list = ["name", "proto", "enable"]
+
+    def _name_formatter(view, context, model, name):
+        chips = []
+        for part in (model.name or "").split():
+            key = part.split("=")[0]
+            color_var = _NAME_CHIP_COLORS.get(key, "--text-secondary")
+            chips.append(f'<span class="hf-chip" style="background:var({color_var});">{part}</span>')
+        return Markup(f'<div class="hf-chips">{"".join(chips)}</div>')
+
+    # "enable" is intentionally NOT given a column_formatter here: it's in
+    # column_editable_list below (inline checkbox, no modal round-trip
+    # needed just to flip one flag on a 150+ row table) - flask-admin
+    # renders the edit-form field directly for inline-editable columns and
+    # never calls a formatter for them, so one here would just be dead code.
+    column_formatters = {
+        "name": _name_formatter,
+    }
 
     def get_query(self):
         return super().get_query().filter(Proxy.child_id == Child.current().id)
@@ -90,6 +210,12 @@ class InboundOverrideAdmin(AdminLTEModelView):
         if login_required(roles={Role.super_admin}, permissions={Permission.manage_settings})(lambda: True)() != True:
             return False
         return True
+
+    def create_form(self, obj=None):
+        return self._disable_select2(super().create_form(obj))
+
+    def edit_form(self, obj=None):
+        return self._disable_select2(super().edit_form(obj))
 
     def on_form_prefill(self, form, id):
         proxy = Proxy.query.get(id)
@@ -131,4 +257,5 @@ class InboundOverrideAdmin(AdminLTEModelView):
 
     def after_model_change(self, form, model, is_created):
         hutils.proxy.get_proxies.invalidate_all()
+        hutils.apply_scope.mark_dirty(hutils.apply_scope.CORE_ONLY_SUBSYSTEMS)
         hutils.flask.flash_config_success(restart_mode=ApplyMode.apply_config, domain_changed=False)

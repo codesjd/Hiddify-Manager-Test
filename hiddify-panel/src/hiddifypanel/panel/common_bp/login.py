@@ -1,7 +1,7 @@
 from flask_classful import FlaskView, route
 from hiddifypanel import hutils
-from hiddifypanel.auth import login_required, current_account, login_user, logout_user, login_by_uuid
-from flask import redirect, request, g, render_template, flash, jsonify
+from hiddifypanel.auth import login_required, current_account, login_user, logout_user, login_by_username_or_uuid
+from flask import redirect, request, g, render_template, flash, jsonify, session
 from hiddifypanel.hutils.flask import hurl_for
 from flask import current_app as app
 from flask_babel import lazy_gettext as _
@@ -12,20 +12,17 @@ from hiddifypanel.models import *
 from flask_wtf import FlaskForm
 import wtforms as wtf
 
+import datetime
 import re
 
 
 class LoginForm(FlaskForm):
-    secret_textbox = wtf.fields.StringField(_(f'login.secret.label'), [wtf.validators.Regexp(
-        "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$", re.IGNORECASE, _('config.invalid_uuid'))], default='',
-        description=_(f'login.secret.description'), render_kw={
-        'required': "",
-        'pattern': "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
-        'message': _('config.invalid_uuid')
-    })
+    secret_textbox = wtf.fields.StringField(_('Username'), default='',
+        description=_('Enter your username'), render_kw={'required': ""})
 
     password_textbox = wtf.fields.PasswordField(_(f'login.password.label'), default='',
         description=_(f'login.password.description'), render_kw={    })
+    remember_me = wtf.fields.BooleanField(_('Remember me'), default=True)
     submit = wtf.fields.SubmitField(_('login.button'))
 
 
@@ -39,11 +36,11 @@ class LoginView(FlaskView):
         if not current_account:
             form=LoginForm()
             form.secret_textbox.data=form.secret_textbox.data or username_arg
-            return render_template('login.html', form=form)
+            return render_template('login.html', form=form, now_year=datetime.datetime.now().year)
 
             # abort(401, "Unauthorized1")
 
-        if redirect_arg:
+        if hutils.flask.is_safe_redirect_target(redirect_arg):
             return redirect(redirect_arg)
         if hutils.flask.is_admin_proxy_path() and g.account.role in {Role.super_admin, Role.admin, Role.agent}:
             return redirect(hurl_for('admin.Dashboard:index'))
@@ -57,10 +54,15 @@ class LoginView(FlaskView):
         form = LoginForm()
         if form.validate_on_submit():
             uuid = form.secret_textbox.data.strip()
-            if login_by_uuid(uuid,form.password_textbox.data, hutils.flask.is_admin_proxy_path()):
+            if login_by_username_or_uuid(uuid,form.password_textbox.data, hutils.flask.is_admin_proxy_path()):
+                # SESSION_PERMANENT defaults every session to a 10-day
+                # lifetime already, so "remember me" only has a real effect
+                # when explicitly unchecked: falls back to a browser-session
+                # cookie that clears on close, instead of persisting 10 days.
+                session.permanent = form.remember_me.data
                 return redirect(f'/{g.proxy_path}/')
-        hutils.flask.flash(_('config.invalid_uuid'), 'danger')  # type: ignore
-        return render_template('login.html', form=LoginForm())
+        hutils.flask.flash(_('config.invalid_username_or_password'), 'danger')  # type: ignore
+        return render_template('login.html', form=LoginForm(), now_year=datetime.datetime.now().year)
 
     @ route("/l/<path:path>/")
     @ route("/l/<path:path>")
@@ -85,7 +87,7 @@ class LoginView(FlaskView):
 
             return render_template("redirect.html", url=loginurl), 401
             # abort(401, "Unauthorized1")
-        if redirect_arg:
+        if hutils.flask.is_safe_redirect_target(redirect_arg):
             return redirect(redirect_arg)
 
         if hutils.flask.is_admin_proxy_path() and g.account.role in {Role.super_admin, Role.admin, Role.agent}:
@@ -130,11 +132,18 @@ class LoginView(FlaskView):
 
     #     return redirect(f"/{proxy_path}/{path}")
 
+    @ route('/logout')
+    def logout(self):
+        logout_user()
+        return redirect(hurl_for('common_bp.LoginView:index'))
+
     @ route('/<secret_uuid>/manifest.webmanifest')
     def create_pwa_manifest(self):
         domain = request.host
         admin_call=hutils.flask.is_admin_panel_call()
         account=AdminUser.by_uuid(g.uuid) if admin_call else User.by_uuid(g.uuid)
+        if not admin_call and not account:
+            abort(404)
         name = (domain if admin_call  else account.name)
         return jsonify({
             "name": f"Hiddify {name}",

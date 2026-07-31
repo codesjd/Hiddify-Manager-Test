@@ -1,6 +1,8 @@
 frontend in-httpmode-quic
-  {% for port in (["443"] + hconfigs['tls_ports'].split(',')) | unique %}
-  bind quic4@:{{port}},quic6@:{{port}} v4v6 tfo ssl crt /opt/hiddify-manager/ssl/ alpn h3    
+  {# tls_ports = *additional* QUIC/h3 ports. 443 is always included so the
+     panel + client Alt-Svc h3 advertisement stay reachable. #}
+  {% for port in (["443"] + hconfigs['tls_ports'].split(',')) | select | unique %}
+  bind quic4@:{{port}},quic6@:{{port}} v4v6 tfo ssl crt /opt/hiddify-manager/ssl/ alpn h3
   {%endfor%}
 
   mode http

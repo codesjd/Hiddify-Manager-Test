@@ -1,4 +1,4 @@
-from hiddifypanel.cache import cache
+﻿from hiddifypanel.cache import cache
 from hiddifypanel import __version__
 from hiddifypanel.panel import hiddify, custom_widgets
 from hiddifypanel.database import db
@@ -24,6 +24,47 @@ from flask_classful import FlaskView
 from flask_wtf import FlaskForm
 from bleach import clean as bleach_clean, ALLOWED_TAGS as BLEACH_ALLOWED_TAGS
 ALLOWED_TAGS = set([*BLEACH_ALLOWED_TAGS, "h1", "h2", "h3", "h4", "p"])
+
+
+# Same BoolConfig keys already editable, with a friendlier per-protocol
+# layout, on the dedicated Proxies page's own top section
+# (ProxyAdmin.get_global_config_form(), which lists every *_enable
+# BoolConfig not in ConfigCategory.hidden) - showing them again here meant
+# two different pages editing the exact same switch. Kept under
+# ConfigCategory.proxies (rather than moved to hidden) since that category
+# also still carries fields with no other home (naive_port, block_iran_sites,
+# shared_secret) and reassigning it would also drop them off the Proxies
+# page's own filter, which itself excludes anything in ConfigCategory.hidden.
+_PROXIES_CATEGORY_DUPES_ON_PROXY_PAGE = {
+    ConfigEnum.vmess_enable, ConfigEnum.ws_enable, ConfigEnum.grpc_enable,
+    ConfigEnum.httpupgrade_enable, ConfigEnum.xhttp_enable, ConfigEnum.naive_enable,
+    ConfigEnum.vless_enable, ConfigEnum.trojan_enable, ConfigEnum.reality_enable,
+    ConfigEnum.tcp_enable, ConfigEnum.quic_enable, ConfigEnum.h2_enable,
+    # Also a BoolConfig ending in "_enable" under ConfigCategory.proxies, so
+    # it passes ProxyAdmin.get_global_config_form()'s filter too (any
+    # non-hidden *_enable BoolConfig not in its own 4-item exclusion list) -
+    # missed in the original pass since it reads as a subscription-format
+    # toggle rather than a protocol switch, but it's still shown on both
+    # pages today.
+    ConfigEnum.sub_full_xray_json_enable,
+}
+
+
+def _skip_if_unchanged(validator, stored_value):
+    # decoy/fake-tls domains are one-time install-generated values that are
+    # rarely touched again. Their validators do a live DNS lookup and/or
+    # compare them against every other stored fake-domain, so a value that
+    # was fine at install time (or coincidentally equal to another field's
+    # auto-picked domain) can start failing later purely from DNS flakiness
+    # or from that coincidence - with no way for the admin to "fix" a field
+    # they never intended to edit, since resubmitting the same value fails
+    # the same way forever. Only re-run these checks when the admin actually
+    # changed the value.
+    def wrapped(form, field, _validator=validator, _stored=stored_value):
+        if field.data == _stored:
+            return
+        return _validator(form, field)
+    return wrapped
 
 
 class SettingAdmin(FlaskView):
@@ -183,10 +224,19 @@ def get_config_form():
     is_parent = hutils.node.is_parent()
 
     for cat in ConfigCategory:
-        if cat == 'hidden':
+        # wireguard: the whole client-facing protocol is retired in favor
+        # of AmneziaWG (forced off by migration _v127) - no reason to keep
+        # showing its enable/port/noise-trick fields as a settings section.
+        # admin: was just a single language dropdown - moved to the topbar
+        # (see admin-layout.html + Actions.set_language) since a whole
+        # Settings category for one field an admin sets once didn't pull
+        # its weight.
+        if cat == 'hidden' or cat == ConfigCategory.wireguard or cat == ConfigCategory.admin:
             continue
 
         cat_configs = [c for c in ConfigEnum if c.category == cat and (not is_parent or c.show_in_parent)]
+        if cat == ConfigCategory.proxies:
+            cat_configs = [c for c in cat_configs if c not in _PROXIES_CATEGORY_DUPES_ON_PROXY_PAGE]
         if len(cat_configs) == 0:
             continue
 
@@ -262,6 +312,13 @@ def get_config_form():
                 ]
                 field = wtf.SelectField(_("config.telegram_lib.label"), choices=libs, description=_(
                     "config.telegram_lib.description"), default=hconfig(ConfigEnum.telegram_lib))
+            elif c.key == ConfigEnum.tuic_congestion_control:
+                field = wtf.SelectField(
+                    _(f"config.{c.key}.label"),
+                    choices=[("cubic", "Cubic (default)"), ("bbr", "BBR"), ("new_reno", "New Reno")],
+                    description=_(f"config.{c.key}.description"),
+                    default=hconfig(c.key) or "cubic"
+                )
             elif c.key == ConfigEnum.mux_protocol:
                 choices = [("smux", 'smux'), ("yamux", "yamux"), ("h2mux", "h2mux")]
                 field = wtf.SelectField(_(f"config.{c.key}.label"), choices=choices, description=_(f"config.{c.key}.description"), default=hconfig(c.key))
@@ -273,7 +330,7 @@ def get_config_form():
                 render_kw = {'class': "ltr", 'maxlength': 2048}
                 field = wtf.TextAreaField(_(f'config.{c.key}.label'), validators, default=c.value,
                                           description=_(f'config.{c.key}.description'), render_kw=render_kw)
-            elif c.key in {ConfigEnum.additional_configs_xrayjson,ConfigEnum.additional_configs_singbox,ConfigEnum.additional_configs_urls}:
+            elif c.key == ConfigEnum.additional_configs_urls:
                 render_kw = {'class': "ltr", 'maxlength': 20480}
                 field = wtf.TextAreaField(_(f'config.{c.key}.label'), default=c.value,
                                           description=_(f'config.{c.key}.description'), render_kw=render_kw)
@@ -293,17 +350,19 @@ def get_config_form():
                     validators.append(wtf.validators.Regexp("^([A-Za-z0-9\\-\\.]+\\.[a-zA-Z]{2,})|$", re.IGNORECASE, _("config.Invalid_domain")))
                     validators.append(hutils.flask.validate_domain_exist)
                 elif '_domain' in c.key or "_fakedomain" in c.key:
-                    validators.append(wtf.validators.Regexp("^([A-Za-z0-9\\-\\.]+\\.[a-zA-Z]{2,})$", re.IGNORECASE, _("config.Invalid_domain")))
-                    validators.append(hutils.flask.validate_domain_exist)
-
-                    if c.key != ConfigEnum.decoy_domain:
-                        validators.append(wtf.validators.NoneOf([d.domain.lower() for d in Domain.query.all()], _("config.Domain_already_used")))
-                        validators.append(wtf.validators.NoneOf(
-                            [cc.value.lower() for cc in StrConfig.query.filter(StrConfig.child_id == Child.current().id).all() if cc.key != c.key and "fakedomain" in cc.key and cc.key != ConfigEnum.decoy_domain], _("config.Domain_already_used")))
-
                     render_kw['required'] = ""
                     if len(c.value) < 3:
                         c.value = hutils.network.get_random_domains(1)[0]
+                    stored_value = c.value
+
+                    validators.append(wtf.validators.Regexp("^([A-Za-z0-9\\-\\.]+\\.[a-zA-Z]{2,})$", re.IGNORECASE, _("config.Invalid_domain")))
+                    validators.append(_skip_if_unchanged(hutils.flask.validate_domain_exist, stored_value))
+
+                    if c.key != ConfigEnum.decoy_domain:
+                        validators.append(_skip_if_unchanged(
+                            wtf.validators.NoneOf([d.domain.lower() for d in Domain.query.all()], _("config.Domain_already_used")), stored_value))
+                        validators.append(_skip_if_unchanged(wtf.validators.NoneOf(
+                            [cc.value.lower() for cc in StrConfig.query.filter(StrConfig.child_id == Child.current().id).all() if cc.key != c.key and "fakedomain" in cc.key and cc.key != ConfigEnum.decoy_domain], _("config.Domain_already_used")), stored_value))
 
                 # if c.key ==ConfigEnum.reality_short_ids:
                 #     extra_info=f" <a target='_blank' href='{hurl_for('admin.Actions:get_some_random_reality_friendly_domain',test_domain=c.value)}'>"+_('Example Domains')+"</a>"
@@ -331,11 +390,17 @@ def get_config_form():
                     render_kw['required'] = ""
 
                 if 'port' in c.key:
-                    if c.key in [ConfigEnum.http_ports, ConfigEnum.tls_ports]:
-                        validators.append(wtf.validators.Regexp("^(\\d+)(,\\d+)*$", re.IGNORECASE, _("config.Invalid_port")))
-                        render_kw['required'] = ""
-                    else:
-                        validators.append(wtf.validators.Regexp("^(\\d+)(,\\d+)*$|^$", re.IGNORECASE, _("config.Invalid_port")))
+                    # tls_ports/http_ports used to be required (couldn't be
+                    # emptied) AND the haproxy fronts always prepended 443/80
+                    # to whatever was set, so a custom port was only ever
+                    # *added* alongside 443/80, never used *instead* of them.
+                    # Now the field is optional and drives the bound ports
+                    # directly (haproxy falls back to 443/80 only when it's
+                    # empty - see haproxy/fronts/*.pj2), so an admin can serve
+                    # on, e.g., 8443 only. The firewall still allows 80/443
+                    # unconditionally (Actions.all_public_ports), so clearing
+                    # this can't close those at the firewall.
+                    validators.append(wtf.validators.Regexp("^(\\d+)(,\\d+)*$|^$", re.IGNORECASE, _("config.Invalid_port")))
                     # validators.append(wtf.validators.Regexp("^(\d+)(,\d+)*$",re.IGNORECASE,_("config.port is required")))
 
                 # tls tricks validations
@@ -363,10 +428,12 @@ def get_config_form():
                                         description=description + extra_info, render_kw=render_kw)
             setattr(CategoryForm, f'{c.key}', field)
 
-        multifield = wtf.FormField(CategoryForm, Markup('<i class="fa-solid fa-plus"></i>&nbsp' + _(f'config.{cat}.label')))
+        cat_label = "Dnstt" if cat == 'dnstt' else _(f'config.{cat}.label')
+        multifield = wtf.FormField(CategoryForm, Markup('<i class="fa-solid fa-plus"></i>&nbsp;' + cat_label))
 
         setattr(DynamicForm, cat, multifield)
 
     setattr(DynamicForm, "submit", wtf.SubmitField(_('Submit')))
 
     return DynamicForm()
+

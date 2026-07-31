@@ -95,9 +95,62 @@ def get_html_user_link(model: BaseAccount, domain: Domain):
         color_cls = "success" if auto_cdn else 'warning'
         text = f'<span class="badge badge-secondary" >{"Auto" if auto_cdn else "CDN"}</span> ' + text
 
-    res += f"<a target='_blank' data-copy='{link}' href='{link}' class='btn btn-xs btn-{color_cls} ltr share-link' ><i class='fa-solid fa-arrow-up-right-from-square d-none'></i> {text}</a>"
+    res += f"<a target='_blank' data-copy='{link}' href='{link}' class='btn btn-xs btn-{color_cls} ltr' style='margin: 2px;'><i class='fa-solid fa-arrow-up-right-from-square d-none'></i> {text}</a>"
 
     return res
+
+
+def amneziawg_needs_full_install() -> bool:
+    """AmneziaWG's binaries (awg-quick, amneziawg-go) are built from source
+    by other/amneziawg/install.sh, which only ever runs during a real
+    install/reinstall (Command.install) - a plain "Apply Configs"
+    (Command.apply) always skips install.sh entirely, by design, for every
+    subsystem. So the very first time an admin enables an AmneziaWG
+    outbound and clicks "Apply Configs" (rather than a full reinstall),
+    other/amneziawg/run.sh would try to bring up a systemd unit that was
+    never installed and silently fail (awg-quick@... service not found)."""
+    from hiddifypanel.models.routing import get_amneziawg_outbounds
+    if not get_amneziawg_outbounds():
+        return False
+    import shutil
+    return shutil.which('awg-quick') is None or shutil.which('amneziawg-go') is None
+
+
+def l2tp_needs_full_install() -> bool:
+    """Same class of bug as amneziawg_needs_full_install() above: strongSwan
+    and xl2tpd are only actually apt-installed (other/l2tp/install.sh's job)
+    during a real install/reinstall - a plain "Apply Configs" always skips
+    install.sh. The first time an admin enables l2tp_enable or adds an L2TP
+    outbound row on a server that never had either before, other/l2tp/run.sh
+    would try to restart daemons that were never installed."""
+    if not hconfig(ConfigEnum.l2tp_enable):
+        from hiddifypanel.models.routing import get_l2tp_client_outbounds
+        if not get_l2tp_client_outbounds():
+            return False
+    import shutil
+    return shutil.which('ipsec') is None or shutil.which('xl2tpd') is None
+
+
+def core_needs_full_install() -> bool:
+    """Same class of bug as amneziawg_needs_full_install() above: xray and
+    singbox are each only actually downloaded (install.sh's job) the first
+    time install_run runs with that core enabled - on any server that has
+    never had core_type set to a given value, that core's binary was never
+    fetched, since every prior full install/reinstall passed its enable flag
+    as 0 (runsh() substitutes disable.sh for *both* the install.sh and
+    run.sh calls whenever the flag is 0/false - install.sh, the only thing
+    that downloads the binary, never runs). Switching core_type and then
+    only ever clicking "Apply Configs" (which never runs install.sh at all,
+    by design) leaves that core's systemd service pointing at a binary that
+    doesn't exist. Escalate to a full install so the binary actually gets
+    fetched."""
+    import shutil
+    core_type = hconfig(ConfigEnum.core_type)
+    if core_type == 'singbox':
+        return shutil.which('hiddify-core') is None
+    if core_type == 'xray':
+        return shutil.which('xray') is None
+    return False
 
 
 def reinstall_action(complete_install=False, domain_changed=False, do_update=False):
@@ -110,14 +163,27 @@ def reinstall_action(complete_install=False, domain_changed=False, do_update=Fal
 
 def check_need_reset(old_configs, do=False):
     restart_mode = ApplyMode.nothing
+    # None means "at least one changed key's install.sh footprint isn't
+    # confidently known" - the next Apply Configs must then be full-width.
+    # Keeps scanning every key (no early break) so a later reinstall-tier
+    # change can still upgrade restart_mode, and so every changed key gets
+    # a chance to contribute to (or invalidate) the accumulated subsystems.
+    subsystems: set[str] | None = set()
     for c in old_configs:
         if c.apply_mode == ApplyMode.nothing:
             continue
         # c=ConfigEnum(c)
-        if restart_mode == ApplyMode.reinstall:
-            break
-        if old_configs[c] != hconfig(c):
+        if old_configs[c] == hconfig(c):
+            continue
+        if c.apply_mode == ApplyMode.reinstall:
+            restart_mode = ApplyMode.reinstall
+        elif restart_mode != ApplyMode.reinstall:
             restart_mode = c.apply_mode
+        if subsystems is not None:
+            key_subsystems = hutils.apply_scope.subsystems_for_key(c)
+            subsystems = None if key_subsystems is None else (subsystems | key_subsystems)
+    if restart_mode != ApplyMode.nothing:
+        hutils.apply_scope.mark_dirty(subsystems)
     if old_configs[ConfigEnum.proxy_path_admin] != hconfig(ConfigEnum.proxy_path_admin):
         g.new_proxy_path = hconfig(ConfigEnum.proxy_path_admin)
         g.force_proxy_path = g.proxy_path
@@ -188,7 +254,7 @@ def set_db_from_json(json_data, override_child_unique_id=True, set_users=True, s
     if set_child and 'childs' in json_data:
         Child.bulk_register(json_data['childs'], commit=True)
 
-    uuids_without_parent = get_ids_without_parent({u['uuid']: u for u in json_data['admin_users']})
+    uuids_without_parent = get_ids_without_parent({u['uuid']: u for u in json_data.get('admin_users', [])})
     print('uuids_without_parent===============', uuids_without_parent)
     if replace_owner_admin and len(uuids_without_parent):
         new_owner_uuid = uuids_without_parent[0]
@@ -258,7 +324,8 @@ def get_domain_btn_link(domain):
         auto_cdn = (domain.mode == DomainType.auto_cdn_ip) or (domain.cdn_ip and "MTN" in domain.cdn_ip)
         color_cls = "success" if auto_cdn else 'warning'
         text = f'<span class="badge badge-secondary" >{"Auto" if auto_cdn else "CDN"}</span> ' + text
-    res = f"<a target='_blank' href='#' class='btn btn-xs btn-{color_cls} ltr' ><i class='fa-solid fa-arrow-up-right-from-square d-none'></i> {text}</a>"
+    link = f'https://{domain.domain}/'
+    res = f"<a target='_blank' href='{link}' class='btn btn-xs btn-{color_cls} ltr' ><i class='fa-solid fa-arrow-up-right-from-square d-none'></i> {text}</a>"
     return res
 
 
@@ -267,6 +334,20 @@ def get_ssh_client_version(user):
 
 def is_fake_domain(model:Domain):
         return model.mode in {DomainType.fake,DomainType.reality,DomainType.special_reality_tcp,DomainType.special_reality_grpc,DomainType.special_reality_xhttp}
+
+def get_admin_login_link(host: str, is_https: bool = True, child_id=None) -> str:
+    """Plain admin panel URL (no account UUID baked in) - lands on the
+    username/password login form rather than auto-authenticating via a
+    URL-embedded secret. Used anywhere we point an admin at "your panel"
+    (post-install, Quick Setup) now that username/password login is the
+    primary flow; get_account_panel_link's UUID-suffixed links are still
+    used for real per-account deep links (e.g. user subscription URLs)."""
+    if child_id is None:
+        child_id = Child.current().id
+    proxy_path = hconfig(ConfigEnum.proxy_path_admin, child_id)
+    scheme = "https://" if is_https else "http://"
+    return f"{scheme}{host}/{proxy_path}/"
+
 
 def get_account_panel_link(account: BaseAccount, host: str, is_https: bool = True, prefere_path_only: bool = False, child_id=None):
     if child_id is None:
@@ -290,7 +371,10 @@ def get_account_panel_link(account: BaseAccount, host: str, is_https: bool = Tru
     if basic_auth:
         link += "l"
     else:
-        link += f'{account.uuid}/'
+        if is_admin:
+            link += "admin/"
+        else:
+            link += f'{account.uuid}/'
     return link
 
 
@@ -361,9 +445,11 @@ def all_configs_for_cli():
     configs['chconfigs'][0]['first_setup'] = def_user is not None and Domain.query.filter(Domain.domain.contains("sslip.io")).limit(1).count() > 0
 
     # Merge the UI-managed custom outbounds/routing rules (CustomOutbound,
-    # CustomRoutingRule) with whatever raw JSON the admin also typed
-    # directly into additional_configs_xrayjson - both paths stay usable,
-    # the manual field is for anything the form can't express yet.
+    # CustomRoutingRule) into additional_configs_xrayjson - no longer an
+    # admin-editable Settings field (Outbounds/Routing Rules replaced it),
+    # so `manual` below is only ever non-empty on an install that had
+    # something typed in there from before that field was removed from the
+    # UI; still honored for backward compatibility.
     try:
         import json
         db_extra = build_custom_xray_extra()
@@ -377,10 +463,7 @@ def all_configs_for_cli():
     except Exception:
         logger.exception("Failed to merge custom outbounds/routing rules (non-fatal, falling back to manual field only)")
 
-    # Same merge, sing-box schema - additional_configs_singbox already
-    # existed as a settings field but nothing server-side read it before
-    # this; singbox/configs/06_outbounds.json.j2 and 03_routing.json.j2 now
-    # do, the same way the xray templates read additional_configs_xrayjson.
+    # Same merge, sing-box schema - see the comment above, same reasoning.
     try:
         import json
         db_extra_sb = build_custom_singbox_extra()
@@ -402,11 +485,33 @@ def all_configs_for_cli():
     try:
         amneziawg_outbounds = get_amneziawg_outbounds()
         configs['amneziawg_outbounds'] = amneziawg_outbounds
-        configs['chconfigs'][0]['has_amneziawg_outbound'] = len(amneziawg_outbounds) > 0
+        # This flag also gates whether other/amneziawg's install_run() runs
+        # at all (see install.sh) - broadened to also cover the client-facing
+        # hiddifyawg interface (amneziawg_client_enable), not just outbound
+        # chaining, since both need the exact same awg-quick/amneziawg-go
+        # binaries built.
+        configs['chconfigs'][0]['has_amneziawg_outbound'] = len(amneziawg_outbounds) > 0 or bool(hconfig(ConfigEnum.amneziawg_client_enable))
     except Exception:
         logger.exception("Failed to collect AmneziaWG outbounds (non-fatal, other/amneziawg/ will just see an empty list)")
         configs['amneziawg_outbounds'] = []
         configs['chconfigs'][0]['has_amneziawg_outbound'] = False
+
+    # L2TP outbound chaining needs the same strongSwan+xl2tpd daemons as
+    # other/l2tp's inbound side (see routing.get_l2tp_client_outbounds) - one
+    # [lac]/conn block per row, brought up by other/l2tp/run.sh.j2 (a Jinja
+    # template covering both roles from one xl2tpd.conf/ipsec.conf).
+    try:
+        from hiddifypanel.models.routing import get_l2tp_client_outbounds
+        l2tp_outbounds = get_l2tp_client_outbounds()
+        configs['l2tp_outbounds'] = l2tp_outbounds
+        # Also gates whether other/l2tp's install_run() runs at all (see
+        # install.sh) - broadened to cover outbound chaining too, not just
+        # the l2tp_enable inbound toggle, since both need the same packages.
+        configs['chconfigs'][0]['has_l2tp_outbound'] = len(l2tp_outbounds) > 0 or bool(hconfig(ConfigEnum.l2tp_enable))
+    except Exception:
+        logger.exception("Failed to collect L2TP outbounds (non-fatal, other/l2tp/ will just see an empty list)")
+        configs['l2tp_outbounds'] = []
+        configs['chconfigs'][0]['has_l2tp_outbound'] = bool(hconfig(ConfigEnum.l2tp_enable))
     server_ip = hutils.network.get_ip_str(4)
     owner = AdminUser.get_super_admin()
     configs['api_key'] = owner.uuid

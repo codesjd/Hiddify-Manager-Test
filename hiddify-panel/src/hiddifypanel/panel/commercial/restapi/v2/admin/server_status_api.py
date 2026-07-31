@@ -3,6 +3,7 @@ from flask import g
 from flask.views import MethodView
 from apiflask.fields import Dict
 from apiflask import Schema
+from apiflask import abort
 from hiddifypanel.models.usage import DailyUsage
 from hiddifypanel.auth import login_required
 from hiddifypanel.models import Role, DailyUsage
@@ -22,10 +23,17 @@ class AdminServerStatusApi(MethodView):
     def get(self):
         """System: ServerStatus"""
         dto = ServerStatusOutputSchema()
+        top5 = hutils.system.top_processes()
         dto.stats = {  # type: ignore
-            'system': hutils.system.system_stats(),
-            'top5': hutils.system.top_processes()
+            'system': hutils.system.system_stats(cpu_percent=top5.get('system_cpu_percent')),
+            'top5': top5
         }
-        admin_id = request.args.get("admin_id") or g.account.id
+        # Dashboard.py's equivalent view enforces this same subtree check
+        # before querying usage history - this REST endpoint didn't, so any
+        # admin/agent could read another admin's usage history just by
+        # passing their admin_id (which is guessable/sequential).
+        admin_id = hutils.convert.to_int(request.args.get("admin_id")) or g.account.id
+        if admin_id not in g.account.recursive_sub_admins_ids():
+            abort(403, "Access Denied!")
         dto.usage_history = DailyUsage.get_daily_usage_stats(admin_id)  # type: ignore
         return dto

@@ -96,7 +96,13 @@ def configs_as_json(domains: list[Domain], user: User, expire_days: int, remarks
 
 
 def to_xray(proxy: dict) -> dict:
-    if proxy['proto'] in {ProxyProto.naive,ProxyProto.mieru}:
+    # naive/mieru/anytls/tuic are all sing-box-only; xray-core has no
+    # protocol implementation for any of them. tuic was previously only
+    # filtered conditionally for v2rayng user agents (see the
+    # unsupported_protos set above) - every other/unknown client requesting
+    # the full-Xray-JSON subscription format fell through to here and got a
+    # `{"protocol": "tuic", "settings": {}}` outbound, which is invalid.
+    if proxy['proto'] in {ProxyProto.naive, ProxyProto.mieru, ProxyProto.anytls, ProxyProto.tuic}:
         return {}
     outbound = {
         'tag': f'{proxy["extra_info"]} {proxy["name"]}',
@@ -126,6 +132,8 @@ def to_xray(proxy: dict) -> dict:
 
 def add_proto_settings(base: dict, proxy: dict):
     if proxy['proto'] == ProxyProto.wireguard:
+        add_wireguard_settings(base, proxy)
+    elif proxy['proto'] == ProxyProto.amneziawg:
         add_wireguard_settings(base, proxy)
     elif proxy['proto'] == ProxyProto.ss:
         add_shadowsocks_settings(base, proxy)
@@ -256,18 +264,20 @@ def _add_security(base_dict, proxy, tls_info=None):
             # 'maxVersion': '1.3', # Go lang sets
             # 'cipherSuites': '', # Go lang sets
         }
-        # Xray-core >= 26.2.6 removed "allowInsecure" entirely (configs
-        # containing it fail to start). pinnedPeerCertSha256 is the
-        # supported replacement. If we haven't been able to fetch/cache a
-        # cert hash yet (e.g. right after a fresh domain is added, before
-        # DNS/TLS is reachable), we fall back to allowInsecure so older
-        # Xray-core builds and the very first config generation still work;
-        # once the hash is available it takes over automatically.
-        if tls_info['allow_insecure']:
-            if tls_info.get('pinned_cert_sha256'):
-                ss['tlsSettings']['pinnedPeerCertSha256'] = tls_info['pinned_cert_sha256']
-            else:
-                ss['tlsSettings']['allowInsecure'] = True
+        # Xray-core >= 26.2.6 removed "allowInsecure" entirely - configs
+        # containing it fail to *start* (not just a runtime connection
+        # failure), which takes down every proxy sharing that config batch,
+        # not just this one. pinnedPeerCertSha256 is the supported
+        # replacement, but get_pinned_cert_sha256() is a non-blocking cache
+        # (see its docstring) that can legitimately stay empty for a given
+        # host for a while, not just "right after" a domain is added - this
+        # was hit consistently in practice, not as a rare transient case.
+        # Omitting the field entirely when the hash isn't ready yet means
+        # this proxy falls back to normal cert validation (fails to *connect*
+        # for a genuinely self-signed/mismatched cert, self-healing once the
+        # cache populates) instead of poisoning config parsing for everyone.
+        if tls_info['allow_insecure'] and tls_info.get('pinned_cert_sha256'):
+            ss['tlsSettings']['pinnedPeerCertSha256'] = tls_info['pinned_cert_sha256']
         if proxy.get('ech'):
             ss['tlsSettings']['echConfigList'] = [proxy['ech']]
 
@@ -283,7 +293,7 @@ def add_stream_settings(base: dict, proxy: dict):
     if proxy['l3'] == ProxyL3.h3_quic:
         add_quic_stream(ss, proxy)
 
-    if (proxy['transport'] == 'tcp' and ss['security'] != 'reality') or (ss['security'] == 'none' and proxy['transport'] not in [ProxyTransport.httpupgrade, ProxyTransport.WS] and proxy['proto'] != ProxyProto.ss):
+    if (proxy['transport'] == 'tcp' and ss['security'] != 'reality') or (ss['security'] == 'none' and proxy['transport'] not in ('httpupgrade', 'ws') and proxy['proto'] != ProxyProto.ss):
         ss['network'] = proxy['transport']
         add_tcp_stream(ss, proxy)
     if proxy['transport'] == ProxyTransport.h2 and ss['security'] == 'none' and ss['security'] != 'reality':

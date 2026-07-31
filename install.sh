@@ -88,9 +88,6 @@ function main() {
             install_run acme.sh 
         )&
         
-        update_progress "${PROGRESS_ACTION}" "Personal SpeedTest" 35
-        install_run other/speedtest $(hconfig "speed_test") &
-        
         update_progress "${PROGRESS_ACTION}" "dnstt Proxy" 40
         install_run other/dnstt $(hconfig "dnstt_enable") &
 
@@ -117,16 +114,22 @@ function main() {
             install_run other/warp 0 &
         fi
 
-        # core_type decides which proxy core actually runs as a service.
-        # Previously xray was hardcoded to 1 and singbox had no flag at all,
-        # so switching core_type in the panel never stopped the unused core -
-        # both kept running and could fight over the same ports/sockets.
+        # core_type only decides the PRIMARY core. The two cores are
+        # complementary, not redundant: xray serves vless/vmess/trojan/reality,
+        # while hysteria2/tuic/shadowsocks2022/anytls/mieru/naive exist ONLY as
+        # singbox inbounds (there is no xray/configs/ template for them). So on
+        # an xray-core install singbox must ALSO run, or every one of those
+        # protocols points at a dead port. They don't collide: singbox's
+        # overlapping inbounds (vless/vmess/trojan/reality) self-exclude via
+        # `{% if core_type=="singbox" %}` gates, and the two cores use distinct
+        # control/socks ports (xray 10085/1234, singbox 10086/2000). The panel
+        # also polls singbox on 10086 for usage stats, so it must be up.
+        # Only the SINGBOX-primary case can safely drop xray (xhttp is the sole
+        # xray-only transport and is already filtered from singbox subs).
         CORE_TYPE=$(hconfig "core_type")
         XRAY_ENABLE=1
         SINGBOX_ENABLE=1
-        if [[ "$CORE_TYPE" == "xray" ]]; then
-            SINGBOX_ENABLE=0
-        elif [[ "$CORE_TYPE" == "singbox" ]]; then
+        if [[ "$CORE_TYPE" == "singbox" ]]; then
             XRAY_ENABLE=0
         fi
 
@@ -137,7 +140,20 @@ function main() {
         
         update_progress "${PROGRESS_ACTION}" "HiddifyCli" 80
         install_run other/hiddify-cli $(hconfig "hiddifycli_enable") &
-        
+
+        # L2TP/IPsec (strongSwan+xl2tpd). Deliberately inside the
+        # non-apply_users block, unlike wireguard/amneziawg below: its
+        # per-user credentials (chap-secrets) refresh on a full Apply
+        # Configs, not on the per-user fast-path - restarting strongswan/
+        # xl2tpd on every user add would drop every live tunnel, and
+        # jinja.py doesn't re-render other/l2tp on apply_users anyway.
+        # has_l2tp_outbound (not the raw l2tp_enable inbound toggle) so an
+        # L2TP outbound chaining row also brings the daemons up even when
+        # inbound l2tp_enable is off - same reasoning as has_amneziawg_outbound
+        # below.
+        update_progress "${PROGRESS_ACTION}" "L2TP/IPsec" 82
+        install_run other/l2tp $(hconfig "has_l2tp_outbound") &
+
     fi
 
 
@@ -200,6 +216,31 @@ function set_config_from_hpanel() {
 }
 
 function install_run() {
+    # HIDDIFY_APPLY_SUBSYSTEMS, when set, scopes a "Apply Configs" run
+    # (DO_NOT_INSTALL=true) to only the listed subsystems - e.g. changing
+    # just core_type shouldn't also re-run acme.sh's cert issuance, restart
+    # telegram/dnstt/speedtest, etc. Only ever takes effect for the apply
+    # path: a real install/reinstall (DO_NOT_INSTALL unset) always touches
+    # everything, ignoring any stale value here, and an unset/empty
+    # HIDDIFY_APPLY_SUBSYSTEMS (every caller before this feature existed,
+    # and any caller that doesn't explicitly opt in) runs every subsystem
+    # exactly as before - this is a strictly additive, opt-in narrowing.
+    if [ "$DO_NOT_INSTALL" == "true" ] && [ -n "$HIDDIFY_APPLY_SUBSYSTEMS" ] && [ "$1" != "hiddify-panel" ]; then
+        # hiddify-panel itself is exempt - its run.sh runs DB migrations
+        # (hiddify-panel-cli init-db) and restarts the panel/background-tasks
+        # services, none of which are optional per-subsystem work the way
+        # xray/haproxy/acme.sh/etc are. It had no enable-flag gate before
+        # this feature either (always ran unconditionally), so it keeps
+        # doing exactly that regardless of what's in the subsystems list.
+        case ",$HIDDIFY_APPLY_SUBSYSTEMS," in
+            *",$1,"*) ;;
+            *)
+                echo "======================$1==(skipped, not in HIDDIFY_APPLY_SUBSYSTEMS)========={"
+                echo "}========================$1==================================="
+                return 0
+                ;;
+        esac
+    fi
     echo "======================$1====================================={"
    if [ "$DO_NOT_INSTALL" != "true" ];then
             runsh install.sh $@
@@ -209,7 +250,7 @@ function install_run() {
     fi
     if [ "$DO_NOT_RUN" != "true" ];then
          runsh run.sh $@
-    fi   
+    fi
     echo "}========================$1==================================="
 }
 

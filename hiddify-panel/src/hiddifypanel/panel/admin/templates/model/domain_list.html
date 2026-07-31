@@ -1,19 +1,11 @@
-{% extends 'hiddify-flask-admin/list.html' %}
+{% extends 'hiddify-flask-admin/modern_list.html' %}
+
+{% block modern_toolbar_extra %}
+<a href="{{ hurl_for('admin.Actions:apply_configs') }}" class="btn btn-secondary btn-sm form_post">⚡ {{ _('Apply Configs') }}</a>
+{% endblock %}
 
 {% block body %}
-<div class="callout callout-info">
-    {{_('domain.current_server_IPs')}}:
-    {% for ip in hutils.network.get_ips()%}
-    <span class="badge badge-info">{{ip}}</span>
-    {%endfor%}
-</div>
-
 {{super()}}
-
-<div class="callout callout-info">
-    {{_('domain.intro')}}
-</div>
-
 
 <style>
     .table td {

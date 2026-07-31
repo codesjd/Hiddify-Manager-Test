@@ -4,3 +4,4 @@ from . import xrayjson
 from . import singbox
 from . import clash
 from . import wireguard
+from . import amneziawg

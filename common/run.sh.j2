@@ -28,6 +28,7 @@ allow_port "tcp" 53
 # allow_port "udp" 3478
 
 allow_port "udp" {{hconfigs['wireguard_port']}} #wireguard
+allow_port "udp" {{hconfigs['amneziawg_port']}} #amneziawg
 
 
 add2iptables46 "INPUT -p udp -m conntrack --ctstatus SEEN_REPLY,ASSURED,CONFIRMED -j ACCEPT"

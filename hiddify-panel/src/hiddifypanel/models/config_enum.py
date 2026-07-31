@@ -1,4 +1,4 @@
-from enum import auto, Enum
+﻿from enum import auto, Enum
 import os
 from typing import Union
 
@@ -79,6 +79,9 @@ class ConfigCategory(StrEnum):
     additional_configs=auto()
     dnstt=auto()
     webhook=auto()
+    amneziawg=auto()
+    anytls = auto()
+    l2tp = auto()
 
 
 class ApplyMode(StrEnum):
@@ -128,6 +131,53 @@ class ConfigEnum(metaclass=FastEnum):
     wireguard_public_key = _StrConfigDscr(ConfigCategory.hidden, ApplyMode.apply_config, hide_in_virtual_child=True)
     wireguard_noise_trick = _StrConfigDscr(ConfigCategory.wireguard, ApplyMode.apply_config)
 
+    # Client-facing AmneziaWG - a shared "hiddifyawg" interface (like
+    # wireguard_* above's "hiddifywg"), replacing WireGuard as the protocol
+    # users connect to directly. Distinct from the pre-existing
+    # amneziawg_enable/amneziawg_config (marked removed below) which were an
+    # earlier, abandoned single-tunnel design, and distinct from the
+    # Outbounds page's per-row amneziawg tunnels (CustomOutbound.jc/jmin/jmax)
+    # used for chaining - those keep their own per-row settings.
+    amneziawg_client_enable = _BoolConfigDscr(ConfigCategory.amneziawg, ApplyMode.reinstall, hide_in_virtual_child=True)
+    amneziawg_port = _StrConfigDscr(ConfigCategory.amneziawg, ApplyMode.apply_config, hide_in_virtual_child=True)
+    amneziawg_ipv6 = _StrConfigDscr(ConfigCategory.hidden, ApplyMode.apply_config, hide_in_virtual_child=True)
+    amneziawg_ipv4 = _StrConfigDscr(ConfigCategory.hidden, ApplyMode.apply_config, hide_in_virtual_child=True)
+    amneziawg_private_key = _StrConfigDscr(ConfigCategory.hidden, ApplyMode.apply_config, hide_in_virtual_child=True)
+    amneziawg_public_key = _StrConfigDscr(ConfigCategory.hidden, ApplyMode.apply_config, hide_in_virtual_child=True)
+    amneziawg_jc = _StrConfigDscr(ConfigCategory.amneziawg, ApplyMode.apply_config, hide_in_virtual_child=True)
+    amneziawg_jmin = _StrConfigDscr(ConfigCategory.amneziawg, ApplyMode.apply_config, hide_in_virtual_child=True)
+    amneziawg_jmax = _StrConfigDscr(ConfigCategory.amneziawg, ApplyMode.apply_config, hide_in_virtual_child=True)
+    # H1-H4: the magic header values AmneziaWG substitutes for WireGuard's
+    # real message-type bytes (1/2/3/4) on the wire, part of the same
+    # obfuscation scheme as Jc/Jmin/Jmax above - initially left out on the
+    # assumption that omitting them everywhere would make both ends fall
+    # back to the same default consistently, but a real client app is not
+    # guaranteed to apply that default the same way the server's awg-quick
+    # does. Setting them explicitly on both ends removes that ambiguity.
+    amneziawg_h1 = _StrConfigDscr(ConfigCategory.amneziawg, ApplyMode.apply_config, hide_in_virtual_child=True)
+    amneziawg_h2 = _StrConfigDscr(ConfigCategory.amneziawg, ApplyMode.apply_config, hide_in_virtual_child=True)
+    amneziawg_h3 = _StrConfigDscr(ConfigCategory.amneziawg, ApplyMode.apply_config, hide_in_virtual_child=True)
+    amneziawg_h4 = _StrConfigDscr(ConfigCategory.amneziawg, ApplyMode.apply_config, hide_in_virtual_child=True)
+    # S1-S4/I1-I5: AmneziaWG 2.0 additions on top of the Jc/Jmin/Jmax/H1-H4
+    # "classic" scheme above - S1-S4 pad the handshake messages themselves,
+    # I1-I5 are custom signature/junk packets (hex+tag templates, e.g.
+    # "<b 0xAABB><r 16>") sent to mimic a real protocol (DNS/QUIC/SIP)
+    # instead of just junk bytes. Left with no default (unlike Jc/Jmin/Jmax
+    # below, which do have one) - a canned default mimicry template shipped
+    # identically on every install would itself become a distinguishing
+    # fingerprint, defeating the point. See
+    # https://docs.amnezia.org/documentation/amnezia-wg/ for the exact
+    # tag syntax; admins opt in by filling these in themselves.
+    amneziawg_s1 = _StrConfigDscr(ConfigCategory.amneziawg, ApplyMode.apply_config, hide_in_virtual_child=True)
+    amneziawg_s2 = _StrConfigDscr(ConfigCategory.amneziawg, ApplyMode.apply_config, hide_in_virtual_child=True)
+    amneziawg_s3 = _StrConfigDscr(ConfigCategory.amneziawg, ApplyMode.apply_config, hide_in_virtual_child=True)
+    amneziawg_s4 = _StrConfigDscr(ConfigCategory.amneziawg, ApplyMode.apply_config, hide_in_virtual_child=True)
+    amneziawg_i1 = _StrConfigDscr(ConfigCategory.amneziawg, ApplyMode.apply_config, hide_in_virtual_child=True)
+    amneziawg_i2 = _StrConfigDscr(ConfigCategory.amneziawg, ApplyMode.apply_config, hide_in_virtual_child=True)
+    amneziawg_i3 = _StrConfigDscr(ConfigCategory.amneziawg, ApplyMode.apply_config, hide_in_virtual_child=True)
+    amneziawg_i4 = _StrConfigDscr(ConfigCategory.amneziawg, ApplyMode.apply_config, hide_in_virtual_child=True)
+    amneziawg_i5 = _StrConfigDscr(ConfigCategory.amneziawg, ApplyMode.apply_config, hide_in_virtual_child=True)
+
     ssh_server_redis_url = _StrConfigDscr(ConfigCategory.hidden, hide_in_virtual_child=True)
     ssh_server_port = _StrConfigDscr(ConfigCategory.ssh, ApplyMode.apply_config, hide_in_virtual_child=True)
     ssh_server_enable = _BoolConfigDscr(ConfigCategory.ssh, ApplyMode.reinstall)
@@ -175,8 +225,16 @@ class ConfigEnum(metaclass=FastEnum):
     webhook_signing_key = _StrConfigDscr(ConfigCategory.webhook, hide_in_virtual_child=True)
 
     additional_configs_urls =  _StrConfigDscr(ConfigCategory.additional_configs)
-    additional_configs_singbox =  _StrConfigDscr(ConfigCategory.additional_configs)
-    additional_configs_xrayjson =  _StrConfigDscr(ConfigCategory.additional_configs)
+    # additional_configs_singbox/xrayjson are no longer admin-editable text
+    # fields (the UI-managed Outbounds/Routing Rules pages replace that) -
+    # ConfigCategory.hidden so they drop out of the Settings form entirely,
+    # but the keys themselves stay: hiddify.py's all_configs_for_cli() still
+    # writes the *merged* CustomOutbound/CustomRoutingRule JSON into them,
+    # since that's the actual value xray/configs/06_outbounds.json.j2 and
+    # singbox's equivalent read - this is now a purely internal/computed
+    # value, not something an admin ever sets directly.
+    additional_configs_singbox =  _StrConfigDscr(ConfigCategory.hidden)
+    additional_configs_xrayjson =  _StrConfigDscr(ConfigCategory.hidden)
     
     # region child-parent
     # deprecated
@@ -195,6 +253,12 @@ class ConfigEnum(metaclass=FastEnum):
 
     unique_id = _StrConfigDscr(ConfigCategory.hidden)
     last_hash = _StrConfigDscr(ConfigCategory.hidden)
+    # Comma-separated install.sh subsystem names (hutils.apply_scope.Subsystem)
+    # accumulated since the last "Apply Configs" - lets that action touch only
+    # the subsystems actually affected instead of always doing a full-width
+    # apply. Empty/unset means "unknown scope, do everything" (the safe
+    # default and today's unconditional behavior), never "narrow to nothing".
+    pending_apply_subsystems = _StrConfigDscr(ConfigCategory.hidden, hide_in_virtual_child=True)
     cdn_forced_host = _StrConfigDscr(ConfigCategory.hidden)  # removed
     lang = _TypedConfigDscr(Lang, ConfigCategory.branding)
     admin_lang = _TypedConfigDscr(Lang, ConfigCategory.admin)
@@ -229,6 +293,11 @@ class ConfigEnum(metaclass=FastEnum):
     http_ports = _StrConfigDscr(ConfigCategory.http, ApplyMode.apply_config)
     mieru_tcp_ports = _StrConfigDscr(ConfigCategory.mieru, ApplyMode.apply_config, hide_in_virtual_child=True)
     mieru_udp_ports = _StrConfigDscr(ConfigCategory.mieru, ApplyMode.apply_config, hide_in_virtual_child=True)
+    # retired (_v137 forces kcp_enable off for every install) - KCP's whole
+    # value proposition (surviving high packet loss) has been superseded by
+    # Hysteria2/QUIC-family transports; kept only so old DB rows/migrations
+    # referencing these keys don't error, same pattern as the retired
+    # wireguard_* fields.
     kcp_ports = _StrConfigDscr(ConfigCategory.hidden, ApplyMode.apply_config)
     kcp_enable = _BoolConfigDscr(ConfigCategory.hidden, ApplyMode.apply_config)
     decoy_domain = _StrConfigDscr(ConfigCategory.general, ApplyMode.apply_config, hide_in_virtual_child=True)
@@ -248,7 +317,6 @@ class ConfigEnum(metaclass=FastEnum):
     block_iran_sites = _BoolConfigDscr(ConfigCategory.proxies, ApplyMode.apply_config, hide_in_virtual_child=True)
     allow_invalid_sni = _BoolConfigDscr(ConfigCategory.tls, ApplyMode.apply_config, hide_in_virtual_child=True)
     auto_update = _BoolConfigDscr(ConfigCategory.hidden if os.environ.get('HIDDIFY_DISABLE_UPDATE',"").lower() in {'1',"true"} else ConfigCategory.general, ApplyMode.apply_config, True, hide_in_virtual_child=True)
-    speed_test = _BoolConfigDscr(ConfigCategory.general, ApplyMode.reinstall, hide_in_virtual_child=True)
     only_ipv4 = _BoolConfigDscr(ConfigCategory.general, ApplyMode.apply_config, hide_in_virtual_child=True)
 
     shared_secret = _StrConfigDscr(ConfigCategory.proxies, ApplyMode.apply_config, hide_in_virtual_child=True)
@@ -265,7 +333,34 @@ class ConfigEnum(metaclass=FastEnum):
     tuic_enable = _BoolConfigDscr(ConfigCategory.tuic, ApplyMode.apply_config)
     tuic_port = _StrConfigDscr(ConfigCategory.tuic, ApplyMode.apply_config, hide_in_virtual_child=True)
 
+    # TUIC inbound congestion control (server-global).
+    # Choices: `cubic` / `bbr` / `new_reno`.
+    # Distinct from CustomOutbound.tuic_congestion_control (per-outbound dialer).
+    tuic_congestion_control = _StrConfigDscr(ConfigCategory.tuic, ApplyMode.apply_config)
+
+    # AnyTLS inbound -- sing-box 1.12+, gated off by default.
+    # Hiddify app does not yet support AnyTLS (issues #1810/#2077/#2222);
+    # only NekoBox / v2rayN >=7.14.3 consume the singbox subscription.
+    anytls_enable = _BoolConfigDscr(ConfigCategory.anytls, ApplyMode.apply_config)
+    anytls_port = _StrConfigDscr(ConfigCategory.anytls, ApplyMode.apply_config, hide_in_virtual_child=True)
+
+    # L2TP/IPsec inbound - a standalone strongSwan+xl2tpd subsystem (see
+    # other/l2tp/), NOT an xray/singbox protocol. Legacy access method for
+    # the built-in OS VPN clients; each user authenticates with their UUID
+    # and the shared l2tp_psk. Default off. PPTP is deliberately not offered
+    # (broken MS-CHAPv2 crypto). reinstall because enabling installs the
+    # strongswan/xl2tpd packages.
+    l2tp_enable = _BoolConfigDscr(ConfigCategory.l2tp, ApplyMode.reinstall)
+    # The IPsec pre-shared key. hide_in_virtual_child: L2TP terminates on the
+    # host that runs the daemon, not a virtual child.
+    l2tp_psk = _StrConfigDscr(ConfigCategory.l2tp, ApplyMode.apply_config, hide_in_virtual_child=True)
+
     # the hysteria is refereing to hysteria2
+
+    # Kernel TLS offload (kTLS) for sing-box TLS-terminating inbounds.
+    # Requires Linux 5.1+ with CONFIG_TLS and TLS 1.3. Default off.
+    # Enabling on a kernel without kTLS will silently break all TLS inbounds.
+    tls_kernel_offload = _BoolConfigDscr(ConfigCategory.tls, ApplyMode.apply_config)
     hysteria_enable = _BoolConfigDscr(ConfigCategory.hysteria, ApplyMode.apply_config)
     hysteria_port = _StrConfigDscr(ConfigCategory.hidden, ApplyMode.apply_config, hide_in_virtual_child=True)
     # if be enable hysteria2 will be use salamander as obfs

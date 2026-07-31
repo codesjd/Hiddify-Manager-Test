@@ -26,7 +26,18 @@ def init_app(app):
         )
         
 
-        app.secret_key="asdsad"
+        secret_file = '/opt/hiddify-manager/hiddify-panel/secret.key'
+        try:
+            with open(secret_file, 'r') as f:
+                app.secret_key = f.read().strip()
+        except FileNotFoundError:
+            app.secret_key = os.urandom(32).hex()
+            try:
+                with open(secret_file, 'w') as f:
+                    f.write(app.secret_key)
+            except Exception:
+                pass
+
         app.servers = {
             'name': 'current',
             'url': '',
@@ -52,6 +63,14 @@ def init_app(app):
         app.jinja_env.line_statement_prefix = '%'
         from hiddifypanel import hutils
         app.jinja_env.filters['b64encode'] = hutils.encode.do_base_64
+        app.jinja_env.filters['sanitize_html'] = hutils.encode.sanitize_html
+        # csrf_token(): exposes Flask-WTF's session-tied token generator to
+        # every template, independent of whether a given view uses a
+        # FlaskForm (which already gets CSRF via its own hidden field) - the
+        # admin blueprint's raw <form method="post"> actions (see
+        # panel/admin/__init__.py's before_request CSRF check) need it too.
+        from flask_wtf.csrf import generate_csrf
+        app.jinja_env.globals['csrf_token'] = generate_csrf
         app.view_functions['admin.static'] = {}  # fix bug in apiflask
         flask_bootstrap.Bootstrap4(app)
 
@@ -64,6 +83,14 @@ def init_app(app):
                 g.locale = auth.current_account.lang or hconfig(ConfigEnum.lang) or 'en'
             return g.locale
         app.jinja_env.globals['get_locale'] = get_locale
+
+        @app.context_processor
+        def inject_now_year():
+            # admin-layout.html's sidebar footer shows this on every admin
+            # page, not just the Dashboard (which passes it explicitly) -
+            # a context processor avoids every other view needing to
+            # remember to pass it in too.
+            return {'now_year': datetime.datetime.now().year}
         babel = Babel(app, locale_selector=get_locale)
         
         app.config['SESSION_TYPE'] = 'redis'

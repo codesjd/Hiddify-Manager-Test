@@ -1,47 +1,89 @@
 {% extends 'admin-layout.html' %}
 {% from 'bootstrap4/form.html' import render_form %}
 
+{% block title %}{{ _('Backup') }}{% endblock %}
+
 {% block body %}
 {{super()}}
 
-<div class="card-columns">
+<div class="backup-grid">
 <div class="card">
-    <div class="card-header">{{_("Backup")}}</div>
+    <div class="card-header"><h3 class="card-title text-center m-0 w-100">{{_("Backup")}}</h3></div>
     <div class="card-body">
-
-        <div class="row">
-            <div class="col-12">
-                {{_("You can download a json formated of configurations by clicking <a href='%(link)s' class='btn btn-primary'>here</a>", link=hurl_for("admin.Backup:backupfile"))}}
-            </div>
+        <p>{{_('You can download a json formated of configurations')}}</p>
+        <div class="text-center">
+            <a class="btn btn-primary" href="{{hurl_for('admin.Backup:backupfile')}}">{{_('Download Backup File')}}</a>
         </div>
     </div>
 </div>
 
 <div class="card">
-    <div class="card-header">{{_("Restore")}}</div>
+    <div class="card-header"><h3 class="card-title text-center m-0 w-100">{{_("Restore")}}</h3></div>
     <div class="card-body">
-
-        <div class="row">
-            <div class="col-12">
-                {{_('You can restore your configs from previously downloaded configs')}}
-                {{render_form(restore_form)}}
-            </div>
+        <p>{{_('You can restore your configs from previously downloaded configs')}}</p>
+        <div class="text-center">
+            {{render_form(restore_form)}}
         </div>
     </div>
 </div>
 </div>
 
 <style>
-    @media (min-width: 576px) {
-    .card-columns {
-        column-count: 1;
+    .backup-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 16px;
+        align-items: start;
     }
-}
-
-@media (min-width: 768px) {
-    .card-columns {
-        column-count: 2;
+    .backup-grid .card-body p {
+        text-align: center;
     }
-}
+    @media (max-width: 900px) {
+        .backup-grid {
+            grid-template-columns: 1fr;
+        }
+    }
+    /* Only the file-input's own form-group (not the toggle switches below
+       it, which should keep their normal left-aligned icon+label layout) -
+       center it and give the bare native file control a look consistent
+       with the rest of the UI instead of the browser default. */
+    .backup-grid .form-group:has(input[type="file"]) {
+        text-align: center;
+    }
+    /* label defaults to display:inline, so making the file input
+       inline-block (needed below so text-align:center can center it) put
+       it right next to the label instead of on its own line - force just
+       this label onto its own line explicitly instead of relying on a
+       block sibling to push a wrap. */
+    .backup-grid .form-group:has(input[type="file"]) label {
+        display: block !important;
+    }
+    .backup-grid input[type="file"] {
+        display: inline-block !important;
+        width: auto !important;
+        max-width: 100%;
+        padding: 8px 12px !important;
+        border: 1px solid var(--border) !important;
+        border-radius: 10px !important;
+        background: var(--bg) !important;
+        color: var(--text-secondary) !important;
+        font-size: 13px !important;
+        cursor: pointer;
+    }
+    .backup-grid input[type="file"]::file-selector-button {
+        margin-right: 12px;
+        padding: 8px 16px;
+        border: none;
+        border-radius: 8px;
+        background: var(--accent);
+        color: #fff;
+        font-weight: 600;
+        font-size: 13px;
+        cursor: pointer;
+        transition: filter 0.15s;
+    }
+    .backup-grid input[type="file"]::file-selector-button:hover {
+        filter: brightness(1.08);
+    }
 </style>
 {% endblock %}

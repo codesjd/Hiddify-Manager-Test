@@ -17,18 +17,17 @@ to_gig_d = 1024**3
 @shared_task(ignore_result=False)
 def update_local_usage():
     lock_key = "lock-update-local-usage"
-    # if not cache.redis_client.set(lock_key, "locked", nx=True, ex=600):
-    #     return {"msg": "last update task is not finished yet."}
+    if not cache.redis_client.set(lock_key, "locked", nx=True, ex=600):
+        return {"msg": "last update task is not finished yet."}
     try:
         res = update_local_usage_not_lock()
         cache.redis_client.set(lock_key, "locked", nx=False, ex=60)
 
         return res
-    except Exception as e:
+    except Exception:
         cache.redis_client.set(lock_key, "locked", nx=False, ex=60)
         logger.exception("Exception in update usage")
         raise
-        return {"msg": f"Exception in update usage: {e}"}
 
     # return {"status": 'success', "comments":res}
 

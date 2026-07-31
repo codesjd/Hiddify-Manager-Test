@@ -1,0 +1,104 @@
+source /opt/hiddify-manager/common/utils.sh
+
+cd "$(dirname -- "$0")" || exit 1
+
+# The plain (non-.j2) files in this dir were already rendered from their
+# templates by common/jinja.py before run.sh is called; copy each config
+# into the location its daemon actually reads. This file itself is also
+# Jinja-rendered (like other/amneziawg/run.sh.j2) so it can loop over every
+# enabled Outbound with Protocol=l2tp and write that row's own pppd peer
+# options file - one per row, interface name pinned via `ifname` so it's
+# stable across restarts (see CustomOutbound.l2tp_interface).
+mkdir -p /etc/xl2tpd /etc/ppp /etc/ppp/peers
+install -m 600 ipsec.conf     /etc/ipsec.conf
+install -m 600 ipsec.secrets  /etc/ipsec.secrets
+install -m 644 xl2tpd.conf     /etc/xl2tpd/xl2tpd.conf
+install -m 644 options.xl2tpd  /etc/ppp/options.xl2tpd
+# chap-secrets holds every user's secret in plaintext - keep it 600.
+install -m 600 chap-secrets     /etc/ppp/chap-secrets
+
+# Drop any outbound peer-options file from a previous render that no longer
+# has a matching enabled Outbound row - covers both disabling and deleting a
+# row (mirrors other/amneziawg/run.sh.j2's stale-interface cleanup).
+for f in /etc/ppp/peers/l2tpc*; do
+    [ -e "$f" ] || continue
+    name=$(basename "$f")
+    keep=0
+    {% for ob in l2tp_outbounds %}
+    [ "$name" == "{{ ob.interface }}" ] && keep=1
+    {% endfor %}
+    if [ "$keep" -eq 0 ]; then
+        rm -f "$f"
+    fi
+done
+
+{% for ob in l2tp_outbounds %}
+# Client-mode pppd options for this row's L2TP tunnel. nodefaultroute is
+# critical here, same lesson as render_amneziawg_conf()'s Table=off - without
+# it pppd would replace this server's own default route with the tunnel the
+# moment it comes up, taking the server (SSH included) offline.
+#
+# The CHAP username is admin-supplied free text, so it's never embedded
+# directly in the heredoc below - base64 round-trip into a shell variable
+# first instead, same reasoning other/amneziawg/run.sh.j2 gives for its own
+# admin-supplied ob.conf: a value containing a line that happens to match
+# the heredoc terminator could otherwise truncate it early and have the
+# remainder interpreted as shell commands.
+L2TP_USER_{{ ob.interface }}=$(echo {{ ob.username | b64encode }} | base64 -d)
+cat >/etc/ppp/peers/{{ ob.interface }} <<PPPOPTS
+remotename {{ ob.interface }}
+ifname {{ ob.interface }}
+name "${L2TP_USER_{{ ob.interface }}}"
+noipdefault
+usepeerdns
+nodefaultroute
+noauth
+lcp-echo-interval 30
+lcp-echo-failure 4
+persist
+maxfail 0
+mtu 1400
+mru 1400
+PPPOPTS
+chmod 600 /etc/ppp/peers/{{ ob.interface }}
+{% endfor %}
+{% if l2tp_outbounds|length == 0 %}
+echo "No L2TP outbounds configured (Outbounds page, Protocol=l2tp) - nothing to dial out."
+{% endif %}
+
+# NAT the L2TP pool out the public NIC so tunnelled clients reach the
+# internet, same masquerade WireGuard sets up for its own pool. -C checks
+# first so re-running Apply Configs doesn't stack duplicate rules.
+SERVER_PUB_NIC="$(ip -4 route ls | grep default | grep -Po '(?<=dev )(\S+)' | head -1)"
+L2TP_POOL="10.92.0.0/24"
+if [ -n "$SERVER_PUB_NIC" ]; then
+    iptables -t nat -C POSTROUTING -s "$L2TP_POOL" -o "$SERVER_PUB_NIC" -j MASQUERADE 2>/dev/null \
+        || iptables -t nat -A POSTROUTING -s "$L2TP_POOL" -o "$SERVER_PUB_NIC" -j MASQUERADE
+fi
+iptables -C FORWARD -s "$L2TP_POOL" -j ACCEPT 2>/dev/null || iptables -A FORWARD -s "$L2TP_POOL" -j ACCEPT
+iptables -C FORWARD -d "$L2TP_POOL" -j ACCEPT 2>/dev/null || iptables -A FORWARD -d "$L2TP_POOL" -j ACCEPT
+
+# strongSwan's systemd unit is "strongswan-starter" on modern Debian/Ubuntu
+# (the legacy stroke/ipsec.conf daemon) and plain "strongswan" on older
+# ones - enable/restart whichever exists. The `ipsec` CLI shipped by
+# strongswan-starter reloads the SAs from the config we just wrote.
+systemctl enable strongswan-starter >/dev/null 2>&1 || systemctl enable strongswan >/dev/null 2>&1
+systemctl restart strongswan-starter >/dev/null 2>&1 || systemctl restart strongswan >/dev/null 2>&1
+ipsec reload >/dev/null 2>&1 || true
+
+# xl2tpd needs /dev/ppp (see install.sh) - some container-based VPS never
+# expose it. Don't even attempt to start the daemon there: an unsuppressed
+# `systemctl restart` failure on those hosts used to dump a scary-looking
+# error at the very end of the install log and could sit for the ~90s
+# systemd start-job timeout before giving up, right when a fresh install's
+# progress bar is on its last few subsystems. Needed for both roles -
+# inbound sessions and outbound [lac] dialing both go through xl2tpd/pppd.
+if [ -e /dev/ppp ]; then
+    systemctl enable xl2tpd >/dev/null 2>&1
+    systemctl restart xl2tpd >/dev/null 2>&1 || warning "L2TP/IPsec: xl2tpd failed to start - run 'systemctl status xl2tpd' on the server for details."
+else
+    warning "L2TP/IPsec: skipping xl2tpd start - /dev/ppp is unavailable in this environment."
+    systemctl disable xl2tpd >/dev/null 2>&1 || true
+    systemctl stop xl2tpd >/dev/null 2>&1 || true
+fi
+true

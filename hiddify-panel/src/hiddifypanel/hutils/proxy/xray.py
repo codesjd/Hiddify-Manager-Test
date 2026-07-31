@@ -37,9 +37,13 @@ def to_link(proxy: dict) -> str | dict:
         dnstt=f'dnstt://?{urlencode(params, quote_via=quote)}&{resolvers}'
         return f'socks://{proxy["uuid"]}:{proxy["password"]}@localhost:0#{name_link} -> {dnstt}'
     if proxy['proto'] == "naive":
-        naive = f'naive://{proxy["uuid"]}:{proxy["password"]}@{proxy["server"]}:{proxy["port"]}/?security=tls&sni={proxy["sni"]}&uot=1&header=hiddify-naive-secret:{proxy["path"]}'
+        naive = f'naive://{proxy["uuid"]}:{proxy["password"]}@{proxy["server"]}:{proxy["port"]}/?security=tls&sni={proxy["sni"]}&uot=1'
+        if proxy.get('mode') == 'Fake' or proxy.get('allow_insecure'):
+            naive += "&allow_insecure=1"
         if proxy.get('quic'):
             naive += "&quic=1"
+        else:
+            naive += f'&header=hiddify-naive-secret:{proxy["path"]}'
         return f'{naive}#{name_link}'
 
     if proxy['proto'] == "mieru":
@@ -85,8 +89,19 @@ def to_link(proxy: dict) -> str | dict:
         if proxy.get('transport') in {ProxyTransport.xhttp}:
             vmess_data['core'] = 'xray'
             _add_xhttp_extra(vmess_data, proxy)
-        if vmess_data.get('tls') == 'tls' and proxy.get('ech'):
-            vmess_data['ech'] = proxy['ech']
+        if vmess_data.get('tls') == 'tls':
+            if proxy.get('ech'):
+                vmess_data['ech'] = proxy['ech']
+            if proxy.get('mode') == 'Fake' or proxy.get('allow_insecure'):
+                # Xray-core >= 26.2.6 hard-rejects allowInsecure in its own
+                # JSON schema (see xrayjson.py's _add_security for the full
+                # story) - only emit it here if we don't have a
+                # pinnedPeerCertSha256 pin to prefer instead, same fallback
+                # order as the raw-JSON path.
+                if proxy.get('pinned_cert_sha256'):
+                    vmess_data['pcs'] = proxy['pinned_cert_sha256']
+                else:
+                    vmess_data['allowInsecure'] = True
         add_tls_tricks_to_dict(vmess_data, proxy)
         add_mux_to_dict(vmess_data, proxy)
 
@@ -107,7 +122,7 @@ def to_link(proxy: dict) -> str | dict:
             'authentication': 0,
             'passphrase': '',
         }
-        return f"ssh://{proxy["uuid"]}@{proxy["server"]}:{proxy["port"]}/?{urlencode(q, quote_via=quote)}#{name_link}"
+        return f"ssh://{proxy['uuid']}@{proxy['server']}:{proxy['port']}/?{urlencode(q, quote_via=quote)}#{name_link}"
         # baseurl += f'{proxy["uuid"]}@{proxy["server"]}:{proxy["port"]}/?file=ssh&pk={pk}&hk={hk}&private_key={pk}&authentication=0&passphrase#{name_link}'
 
         # return baseurl
@@ -128,11 +143,37 @@ def to_link(proxy: dict) -> str | dict:
             return f'{baseurl}?plugin=v2ray-plugin&mode=websocket&path={proxy["proxy_path"]}&host={proxy["sni"]}&tls&udp-over-tcp=true#{name_link}'
 
     if proxy['proto'] == 'tuic':
-        baseurl = f'tuic://{proxy["uuid"]}:{proxy["uuid"]}@{proxy["server"]}:{proxy["port"]}?congestion_control=cubic&udp_relay_mode=native&sni={proxy["sni"]}&alpn=h3'
+        # congestion_control must reflect the admin's actual
+        # tuic_congestion_control setting (see shared.py/singbox.py) - a
+        # hardcoded "cubic" here silently ignored the setting for anyone
+        # importing this link instead of the full subscription.
+        cc = proxy.get('tuic_congestion_control') or 'cubic'
+        baseurl = f'tuic://{proxy["uuid"]}:{proxy["uuid"]}@{proxy["server"]}:{proxy["port"]}?congestion_control={cc}&udp_relay_mode=native&sni={proxy["sni"]}&alpn=h3'
         if proxy['mode'] == 'Fake' or proxy['allow_insecure']:
-            baseurl += "&allow_insecure=1"
+            # Same allowInsecure removal as xrayjson.py/_add_security() -
+            # prefer pcs, only fall back to the deprecated field when we
+            # don't have a pin yet (see the vmess/generic-link fixes above).
             if proxy.get('pinned_cert_sha256'):
                 baseurl += f"&pcs={proxy['pinned_cert_sha256']}"
+            else:
+                baseurl += "&allow_insecure=1"
+        return f"{baseurl}#{name_link}"
+    if proxy['proto'] == 'anytls':
+        # AnyTLS auth is a bare password - make_proxy() never sets a
+        # separate 'password' key for this proto, so proxy['uuid'] (also
+        # what singbox.py's add_anytls() uses as the password) is the
+        # actual auth token here.
+        baseurl = f'anytls://{proxy["uuid"]}@{proxy["server"]}:{proxy["port"]}?sni={proxy["sni"]}&alpn={proxy["alpn"]}'
+        if proxy.get('fingerprint', 'none') != 'none':
+            baseurl += f'&fp={proxy["fingerprint"]}'
+        if proxy['mode'] == 'Fake' or proxy['allow_insecure']:
+            # Same allowInsecure removal as xrayjson.py/_add_security() -
+            # prefer pcs, only fall back to the deprecated fields when we
+            # don't have a pin yet (see the vmess/generic-link fixes above).
+            if proxy.get('pinned_cert_sha256'):
+                baseurl += f"&pcs={proxy['pinned_cert_sha256']}"
+            else:
+                baseurl += "&insecure=1&allow_insecure=1"
         return f"{baseurl}#{name_link}"
     if proxy['proto'] == 'hysteria2':
         baseurl = f'hysteria2://{proxy["uuid"]}@{proxy["server"]}:{proxy["port"]}?hiddify=1&sni={proxy["sni"]}'
@@ -144,9 +185,13 @@ def to_link(proxy: dict) -> str | dict:
         if proxy.get('hysteria_obfs_enable'):
             baseurl += f'&obfs=salamander&obfs-password={proxy["hysteria_obfs_password"]}'
         if proxy['mode'] == 'Fake' or proxy['allow_insecure']:
-            baseurl += "&insecure=1&allow_insecure=1"
+            # Same allowInsecure removal as xrayjson.py/_add_security() -
+            # prefer pcs, only fall back to the deprecated fields when we
+            # don't have a pin yet (see the vmess/generic-link fixes above).
             if proxy.get('pinned_cert_sha256'):
                 baseurl += f"&pcs={proxy['pinned_cert_sha256']}"
+            else:
+                baseurl += "&insecure=1&allow_insecure=1"
         return f"{baseurl}#{name_link}"
     if proxy['proto'] == ProxyProto.wireguard:
         if g.user_agent.get('is_streisand'):
@@ -173,6 +218,41 @@ def to_link(proxy: dict) -> str | dict:
                 "ifp":proxy["wg_noise_trick"]
             }
             return f'wg://{proxy["server"]}:{proxy["port"]}?{urlencode(query)}#{name_link}'
+    if proxy['proto'] == ProxyProto.amneziawg:
+        # Same wg:// hiddify-format link as plain wireguard above (a
+        # WireGuard-unaware client would ignore the extra jc/jmin/jmax
+        # params, though it would then fail the handshake since the server
+        # requires them) - a client that knows to look for these gets full
+        # AmneziaWG obfuscation. No established "amneziawg://" URI scheme
+        # exists in this codebase or elsewhere to mirror, so this extends
+        # the existing convention rather than inventing a new one; the
+        # downloadable .conf (see hutils/proxy/amneziawg.py) is the
+        # authoritative, format-native way to import this connection.
+        query = {
+            "privateKey": proxy["wg_pk"],
+            "publicKey": proxy["wg_server_pub"],
+            "presharedKey": proxy["wg_psk"],
+            "reserved": "0,0,0",
+            "ip": f'{proxy["wg_ipv4"]}/32',
+            "mtu": "1280",
+            "keepalive": "30",
+            "udp": 1,
+        }
+        if proxy.get("awg_jc"):
+            query["jc"] = proxy["awg_jc"]
+        if proxy.get("awg_jmin"):
+            query["jmin"] = proxy["awg_jmin"]
+        if proxy.get("awg_jmax"):
+            query["jmax"] = proxy["awg_jmax"]
+        if proxy.get("awg_h1"):
+            query["h1"] = proxy["awg_h1"]
+        if proxy.get("awg_h2"):
+            query["h2"] = proxy["awg_h2"]
+        if proxy.get("awg_h3"):
+            query["h3"] = proxy["awg_h3"]
+        if proxy.get("awg_h4"):
+            query["h4"] = proxy["awg_h4"]
+        return f'wg://{proxy["server"]}:{proxy["port"]}?{urlencode(query)}#{name_link}'
 
     baseurl = f'{proxy["proto"]}://{proxy["uuid"]}@{proxy["server"]}:{proxy["port"]}'
 
@@ -218,10 +298,17 @@ def to_link(proxy: dict) -> str | dict:
             q['headerType'] = 'http'
 
     if proxy['mode'] == 'Fake' or proxy['allow_insecure']:
-        q['allowInsecure'] = 'true'
-        q['insecure'] = 'true'
+        # Same allowInsecure removal as xrayjson.py/_add_security() and the
+        # vmess branch above - some clients (confirmed: v2rayN) forward this
+        # query param straight into their embedded Xray-core's deprecated
+        # JSON field with no pcs/vcn migration of their own, so this can't
+        # be set unconditionally alongside pcs like before. Prefer pcs; only
+        # fall back to the deprecated fields when we don't have a pin yet.
         if proxy.get('pinned_cert_sha256'):
             q['pcs'] = proxy['pinned_cert_sha256']
+        else:
+            q['allowInsecure'] = 'true'
+            q['insecure'] = 'true'
     if proxy.get('flow'):
         q['flow'] = proxy["flow"]
 
@@ -284,7 +371,25 @@ def make_v2ray_configs(domains: list[Domain], user: User, expire_days: int, ip_d
             res.append('trojan://1@1.1.1.1#' + hutils.encode.url_encode('✖ Package Ended'))
         return "\n".join(res)
 
+    core_is_singbox = hconfig(ConfigEnum.core_type) == 'singbox'
+
     for pinfo in hutils.proxy.get_valid_proxies(domains):
+        # sing-box now always runs alongside xray (see install.sh - it used
+        # to be disabled whenever core_type=='xray', which killed every
+        # singbox-only inbound's server side entirely) so these protocols'
+        # servers are always up regardless of the primary core. The only
+        # remaining reason to skip one here is a client-recognizability
+        # problem, not a server-availability one: ssh/amneziawg/dnstt have
+        # no standard URI scheme plain-link clients (v2rayN, NekoBox, etc)
+        # know how to parse. anytls/tuic/naive/mieru all have working
+        # schemes built below in to_link(), so they stay.
+        if pinfo['proto'] in {ProxyProto.ssh, ProxyProto.amneziawg, ProxyProto.dnstt}:
+            continue
+
+        # xhttp is xray-specific; singbox has no xhttp inbound so these links
+        # always time out when core_type == singbox.
+        if core_is_singbox and pinfo.get('transport') == 'xhttp':
+            continue
         link = to_link(pinfo)
         if 'msg' not in link:
             res.append(link)
