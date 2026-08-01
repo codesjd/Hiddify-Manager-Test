@@ -4,6 +4,7 @@ from flask_classful import FlaskView, route
 from flask_babel import lazy_gettext as _
 from apiflask import abort
 from sqlalchemy import func as sa_func
+from loguru import logger
 import datetime
 
 
@@ -55,6 +56,18 @@ class Dashboard(FlaskView):
     @login_required(roles={Role.super_admin, Role.admin, Role.agent})
     def index(self):
         if hconfig(ConfigEnum.first_setup):
+            # Temporary diagnostic for an unconfirmed redirect-loop report:
+            # logs the cached hconfig() read alongside a cache-bypassing
+            # direct DB read, plus request/child context, so the next
+            # occurrence is caught with hard evidence instead of another
+            # guess. Remove once root-caused.
+            current_child_id = Child.current().id
+            db_conf = BoolConfig.query.filter(BoolConfig.key == ConfigEnum.first_setup, BoolConfig.child_id == current_child_id).first()
+            logger.warning(
+                f"first_setup redirect fired: host={request.host!r} proxy_path={g.get('proxy_path')!r} "
+                f"child_id={current_child_id} cached_hconfig=True db_value={db_conf.value if db_conf else 'NO ROW'} "
+                f"account={getattr(g, 'account', None)!r}"
+            )
             return redirect(hurl_for("admin.QuickSetup:index"))
 
         if hutils.utils.is_panel_outdated():
