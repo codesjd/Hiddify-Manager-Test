@@ -94,7 +94,17 @@ function main() {
         # mode="cli") directly rather than create_app_wsgi(), which reads
         # sys.argv[1] unconditionally to decide cli-vs-web mode and
         # IndexErrors under `python3 -c "..."` (argv is just ['-c'], no [1]).
-        python3 -c "
+        #
+        # HIDDIFY_CFG_PATH points create_app() at hiddify-panel/app.cfg by
+        # absolute path: create_app() loads it relative to CWD by default
+        # ('app.cfg', see base.py), and by this point in the script CWD is
+        # back at the repo root (runsh() pushd/popd's into hiddify-panel/
+        # only for the duration of its own install.sh/run.sh, then pops
+        # back). Without this, create_app() silently finds no config at
+        # all and crashes with "Either 'SQLALCHEMY_DATABASE_URI' or
+        # 'SQLALCHEMY_BINDS' must be set" - swallowed by the 2>/dev/null
+        # below, so core_type_auto silently never actually ran.
+        HIDDIFY_CFG_PATH="$(pwd)/hiddify-panel/app.cfg" python3 -c "
 from hiddifypanel.base import create_app
 from hiddifypanel.models import ConfigEnum, hconfig, set_hconfig, Domain, DomainType
 app = create_app(app_mode='cli')
