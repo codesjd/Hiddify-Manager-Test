@@ -169,7 +169,20 @@ def mark_dirty(subsystems: frozenset[str] | set[str] | None) -> None:
     set_hconfig(ConfigEnum.pending_apply_subsystems, ','.join(sorted(updated)))
 
 
-def clear_pending_subsystems() -> None:
-    """Called once an apply has actually been dispatched (whether full-width
-    or scoped) - back to the safe "unknown, do everything" default."""
-    set_hconfig(ConfigEnum.pending_apply_subsystems, '')
+def clear_applied_subsystems(applied: frozenset[str] | set[str] | None) -> None:
+    """Called once an apply for exactly `applied` has actually *succeeded* -
+    a dropped/failed run (lock contention, OOM, ...) must leave the pending
+    marker in place so a later apply still retries it, instead of the system
+    believing an unapplied change was already handled.
+
+    None means a full-width apply succeeded - clear everything. A concrete
+    set only subtracts those subsystems, so anything marked dirty by a
+    different change that happened while this apply was already running
+    survives for the next one."""
+    if applied is None:
+        set_hconfig(ConfigEnum.pending_apply_subsystems, '')
+        return
+    current = get_pending_subsystems()
+    if not current:
+        return
+    set_hconfig(ConfigEnum.pending_apply_subsystems, ','.join(sorted(current - set(applied))))

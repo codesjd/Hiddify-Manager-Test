@@ -80,10 +80,10 @@ def rotate_utls_fingerprint_if_due() -> None:
 
     # Applied directly and narrowly (xray+singbox only - utls only affects
     # those two cores' own generated inbound/outbound templates) instead of
-    # going through apply_scope.mark_dirty()/clear_pending_subsystems():
-    # this rotation's effect is already fully captured by the commander()
-    # call below, so there's nothing left to "remember" for a later apply -
-    # and touching the shared pending-subsystems bookkeeping here could
-    # wipe out an unrelated admin change (e.g. a still-pending domain edit)
-    # that's genuinely waiting for the admin's own next Apply Configs click.
+    # going through apply_scope.mark_dirty(): this rotation's effect is
+    # already fully captured by the commander() call below, which clears
+    # exactly {xray, singbox} from the pending set once it succeeds (see
+    # run_commander.py) - any unrelated pending subsystem (e.g. a
+    # still-pending domain edit waiting on the admin's own Apply Configs
+    # click) is left untouched.
     commander(Command.apply, subsystems=hutils.apply_scope.CORE_ONLY_SUBSYSTEMS)

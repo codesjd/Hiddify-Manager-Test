@@ -53,6 +53,7 @@ def commander(command: Command, run_in_background=True, subsystems: set[str] | f
             os.environ['HIDDIFY_CONFIG_PATH'], 'common/commander.py')
     ]
 
+    on_success = None
     if command == Command.apply:
         base_cmd.append('apply')
         if subsystems:
@@ -60,10 +61,22 @@ def commander(command: Command, run_in_background=True, subsystems: set[str] | f
             if not is_safe_arg(subsystems_arg):
                 raise Exception("Invalid input passed to the run_commander function for apply command's subsystems")
             base_cmd.extend(['--subsystems', subsystems_arg])
+
+        def on_success():
+            from hiddifypanel.hutils import apply_scope
+            apply_scope.clear_applied_subsystems(subsystems)
     elif command == Command.install:
         base_cmd.append('install')
+
+        def on_success():
+            from hiddifypanel.hutils import apply_scope
+            apply_scope.clear_applied_subsystems(None)
     elif command == Command.reinstall:
         base_cmd.append('reinstall')
+
+        def on_success():
+            from hiddifypanel.hutils import apply_scope
+            apply_scope.clear_applied_subsystems(None)
     elif command == Command.update:
         base_cmd.append('update')
     elif command == Command.status:
@@ -105,13 +118,16 @@ def commander(command: Command, run_in_background=True, subsystems: set[str] | f
     else:
         raise Exception('WTF is happening!')
     if run_in_background:
-        t = threading.Thread(target=cmd_in_back, args=(base_cmd,), daemon=True)
+        t = threading.Thread(target=cmd_in_back, args=(base_cmd, on_success), daemon=True)
         t.start()
     else:
-        return subprocess.check_output(base_cmd, cwd=str(os.environ['HIDDIFY_CONFIG_PATH'])).decode()
+        output = subprocess.check_output(base_cmd, cwd=str(os.environ['HIDDIFY_CONFIG_PATH'])).decode()
+        if on_success:
+            on_success()
+        return output
 
 
-def cmd_in_back(cmd):
+def cmd_in_back(cmd, on_success=None):
     p = subprocess.Popen(cmd, cwd=str(os.environ['HIDDIFY_CONFIG_PATH']), start_new_session=True)
     p.wait()
     if p.returncode != 0:
@@ -123,3 +139,5 @@ def cmd_in_back(cmd):
         import logging
         logging.getLogger(__name__).error(
             f"Background command failed with exit code {p.returncode}: {' '.join(cmd)}")
+    elif on_success:
+        on_success()

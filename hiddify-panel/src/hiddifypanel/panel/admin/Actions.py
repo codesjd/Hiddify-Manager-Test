@@ -222,9 +222,11 @@ class Actions(FlaskView):
             # None (unknown/unmapped change since the last apply) makes
             # commander() omit --subsystems entirely, which is the exact
             # same command line as before this feature existed - full width,
-            # not "touch nothing".
+            # not "touch nothing". commander() itself clears the pending
+            # marker once this actually succeeds (see run_commander.py) -
+            # clearing it here at dispatch time let a dropped/failed run
+            # (lock contention, OOM, ...) silently lose the change forever.
             commander(Command.apply, subsystems=hutils.apply_scope.get_pending_subsystems())
-        hutils.apply_scope.clear_pending_subsystems()
 
         # import time
         # time.sleep(1)
