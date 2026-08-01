@@ -53,6 +53,20 @@ def commander(command: Command, run_in_background=True, subsystems: set[str] | f
             os.environ['HIDDIFY_CONFIG_PATH'], 'common/commander.py')
     ]
 
+    def _flush_hconfig_cache():
+        # install/apply restarts other/redis, which can race a set_hconfig()
+        # invalidate() call made earlier in the same flow (e.g. Quick
+        # Setup's first_setup=False) right as Redis is bouncing - cache.py's
+        # safe_invalidate catches that and logs it instead of crashing, but
+        # the stale entry then just sits there for its full TTL (500s),
+        # which is exactly what looked like "Quick Setup won't complete,
+        # keeps redirecting back to itself". Once we get here Redis is back
+        # (the subprocess that would have restarted it already exited 0),
+        # so a full flush guarantees every reader sees fresh values instead
+        # of waiting out the TTL.
+        from hiddifypanel.cache import cache
+        cache.invalidate_all_cached_functions()
+
     on_success = None
     if command == Command.apply:
         base_cmd.append('apply')
@@ -65,18 +79,21 @@ def commander(command: Command, run_in_background=True, subsystems: set[str] | f
         def on_success():
             from hiddifypanel.hutils import apply_scope
             apply_scope.clear_applied_subsystems(subsystems)
+            _flush_hconfig_cache()
     elif command == Command.install:
         base_cmd.append('install')
 
         def on_success():
             from hiddifypanel.hutils import apply_scope
             apply_scope.clear_applied_subsystems(None)
+            _flush_hconfig_cache()
     elif command == Command.reinstall:
         base_cmd.append('reinstall')
 
         def on_success():
             from hiddifypanel.hutils import apply_scope
             apply_scope.clear_applied_subsystems(None)
+            _flush_hconfig_cache()
     elif command == Command.update:
         base_cmd.append('update')
     elif command == Command.status:
