@@ -465,10 +465,25 @@ function set_lock() {
     LOCK_DIR="/opt/hiddify-manager/log"
     mkdir -p "$LOCK_DIR" >/dev/null 2>&1
     LOCK_FILE=$LOCK_DIR/$1.lock
-    if [[ -f $LOCK_FILE && $(($(date +%s) - $(cat $LOCK_FILE))) -lt 120 ]]; then
-        error "Another installation is running.... Please wait until it finishes or wait 5 minutes or execute 'rm $LOCK_FILE'"
-        exit 12
-    fi
+    # A concurrent run used to make this instantly exit 12 and vanish - the
+    # panel's background "Apply Configs" (run_commander.py's cmd_in_back)
+    # only logs that failure, nothing ever retries it, so a DB config change
+    # that raced a manual install.sh run silently never reached the
+    # rendered configs (confirmed cause of proxy_path_admin drifting out of
+    # sync with haproxy.cfg). Waiting for the other run to finish instead of
+    # bailing immediately turns a dropped apply into a delayed one.
+    local waited=0
+    while [[ -f $LOCK_FILE && $(($(date +%s) - $(cat $LOCK_FILE))) -lt 120 ]]; do
+        if [[ $waited -eq 0 ]]; then
+            warning "Another installation is running, waiting for it to finish..."
+        fi
+        sleep 5
+        waited=$((waited + 5))
+        if [[ $waited -ge 150 ]]; then
+            error "Another installation is still running after ${waited}s. Please wait until it finishes or execute 'rm $LOCK_FILE'"
+            exit 12
+        fi
+    done
     echo "$(date +%s)" >$LOCK_FILE
 }
 
