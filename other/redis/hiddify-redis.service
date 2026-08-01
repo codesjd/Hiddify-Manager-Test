@@ -16,6 +16,16 @@ TimeoutStopSec=0
 # and it can take several cycles before one lands inside the window.
 TimeoutStartSec=180
 Restart=always
+# Redis backs both the Flask session store and the entire hconfig()/
+# get_hconfigs() cache layer - unlike xray/singbox, where a crash only
+# takes down proxying, losing Redis breaks the whole panel (every
+# request either fails to load/save its session or falls through to a
+# live DB query). Its own memory is hard-capped at 48mb with an LRU
+# eviction policy (see redis.conf's maxmemory), so it can never itself
+# be the cause of memory pressure - only ever an innocent bystander -
+# which makes full OOM immunity safe here, unlike giving it to a
+# service whose memory usage isn't bounded.
+OOMScoreAdjust=-1000
 User=redis
 Group=redis
 RuntimeDirectory=hiddify-redis
