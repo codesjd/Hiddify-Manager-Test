@@ -2,7 +2,15 @@
     "inbounds":[
         {% for protocol in ['vless','vmess','trojan']%}
             {%for stream in ['xhttp','ws','grpc','tcp','httpupgrade']%}
-                {% if (stream=='xhttp' or hconfigs['core_type']=="xray") and hconfigs[protocol~'_enable'] and hconfigs[stream~'_enable'] %}
+                {# Xray always serves these regardless of core_type - sing-box
+                   no longer renders its own competing inbounds for them (see
+                   singbox/configs/05_inbounds_new.json.j2), so an xray-only
+                   client can always use vless/vmess/trojan over any of these
+                   transports, whichever core is primary. core_type still
+                   gates protocols that genuinely need a specific core (e.g.
+                   REALITY tcp+vision binds a single physical port directly,
+                   so exactly one side may claim it). #}
+                {% if hconfigs[protocol~'_enable'] and hconfigs[stream~'_enable'] %}
                     {
                     "tag":"v10-{{protocol}}-{{stream}}",
                     "listen": "@@v10-{{protocol}}-{{stream}}", 

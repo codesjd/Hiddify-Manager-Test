@@ -1,22 +1,19 @@
 
+{# vless/vmess/trojan over ws/grpc/tcp/httpupgrade/xhttp always route to
+   Xray now, regardless of core_type - Xray always renders these (see
+   xray/configs/05_inbounds_new.json.j2) and sing-box no longer renders its
+   own competing copy, so an xray-only client can use them no matter which
+   core is primary. #}
 {% for ip, protocol in enumerate(['vless','vmess','trojan'])%}
     {%for is,stream in enumerate(['ws','grpc','tcp','httpupgrade','xhttp'])%}
         {% if hconfigs[protocol~'_enable'] and hconfigs[stream~'_enable'] %}
 backend v10-{{protocol}}-{{stream}}
-            {% if hconfigs['core_type'] == 'xray' or 'xhttp'== stream %}
-    server xray abns@v10-{{protocol}}-{{stream}} send-proxy-v2 tfo 
-            {%else%}
-    server singbox 127.0.0.1:50{{ip}}{{is}} send-proxy-v2 tfo 
-            {%endif%}
+    server xray abns@v10-{{protocol}}-{{stream}} send-proxy-v2 tfo
 
 
 backend v10-{{protocol}}-{{stream}}-http
     mode http
-            {% if hconfigs['core_type'] == 'xray' or 'xhttp' == stream %}
     server xray abns@v10-{{protocol}}-{{stream}} send-proxy-v2 tfo proto {{"h1" if stream in ['ws',"httpupgrade"] else "h2" }}
-            {%else%}
-    server singbox 127.0.0.1:50{{ip}}{{is}} send-proxy-v2 tfo proto {{"h1" if stream in ['ws',"httpupgrade"] else "h2" }}
-            {%endif%}
         {%endif%}
     {%endfor%}
 {%endfor%}
