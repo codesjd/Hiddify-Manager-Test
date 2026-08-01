@@ -38,7 +38,10 @@ def configs_as_json(domains: list[Domain], **kwargs) -> dict:
         # Auto lists. Excluded from the sing-box JSON specifically; these
         # protocols are untouched in every other subscription format (they
         # still get their own independent links, see to_link()).
-        if pinfo.get('proto') in (ProxyProto.ssh, ProxyProto.mieru, ProxyProto.naive, ProxyProto.amneziawg, ProxyProto.dnstt):
+        # AnyTLS is excluded from this format by explicit request, same
+        # exclusion mechanism as the others - it still gets its own
+        # independent link elsewhere.
+        if pinfo.get('proto') in (ProxyProto.ssh, ProxyProto.mieru, ProxyProto.naive, ProxyProto.amneziawg, ProxyProto.dnstt, ProxyProto.anytls):
             continue
         # xdns/xicmp are Xray-core's finalmask DNS/ICMP-tunneled vless
         # (xray/configs/05_inbounds_0{5,6}_x{dns,icmp}.json.j2) - Xray-core-
