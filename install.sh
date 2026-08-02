@@ -348,6 +348,24 @@ if [[ " $@ " == *" --no-gui "* ]]; then
     fi
     remove_lock $NAME
 else
+    if [ -z "$DB_BACKEND" ] && [ -t 0 ] && [ -t 1 ]; then
+        # Only here: this is the one path with a real human at a real
+        # terminal (every panel-triggered install/apply/reinstall already
+        # passes --no-gui, see commander.py, and skips straight to the
+        # other branch). mysql (the default) is the DB daemon that OOMs
+        # first on a small box - sqlite skips a daemon entirely. Exported
+        # so the recursive `--no-gui` re-exec below inherits the choice.
+        mem_mb=$(awk '/MemTotal/{print int($2/1024)}' /proc/meminfo)
+        recommended="mysql"
+        [ "$mem_mb" -lt 1024 ] && recommended="sqlite"
+        echo ""
+        echo "Select a database backend (detected ${mem_mb}MB RAM):"
+        for opt in sqlite mysql postgres; do
+            [ "$opt" == "$recommended" ] && echo "  $opt (recommended)" || echo "  $opt"
+        done
+        read -rp "Backend [$recommended]: " db_choice
+        export DB_BACKEND="${db_choice:-$recommended}"
+    fi
     show_progress_window --subtitle $(get_installed_config_version) --log $LOG_FILE ./install.sh $@ --no-gui --no-log
     error_code=$?
     if [[ $error_code != "0" ]]; then
