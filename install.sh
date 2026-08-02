@@ -356,15 +356,25 @@ else
         # first on a small box - sqlite skips a daemon entirely. Exported
         # so the recursive `--no-gui` re-exec below inherits the choice.
         mem_mb=$(awk '/MemTotal/{print int($2/1024)}' /proc/meminfo)
-        recommended="mysql"
-        [ "$mem_mb" -lt 1024 ] && recommended="sqlite"
+        recommended=2 # index into db_backends/db_labels below, 1-based
+        [ "$mem_mb" -lt 1024 ] && recommended=1
+        # db_backends holds the real DB_BACKEND values (other/mysql installs
+        # MariaDB, not MySQL - only the label says so, the value install.sh
+        # branches on downstream stays "mysql")
+        db_backends=(sqlite mysql postgres)
+        db_labels=(sqlite mariadb postgres)
         echo ""
         echo "Select a database backend (detected ${mem_mb}MB RAM):"
-        for opt in sqlite mysql postgres; do
-            [ "$opt" == "$recommended" ] && echo "  $opt (recommended)" || echo "  $opt"
+        for i in "${!db_labels[@]}"; do
+            n=$((i + 1))
+            [ "$n" -eq "$recommended" ] && echo "  $n) ${db_labels[$i]} (recommended)" || echo "  $n) ${db_labels[$i]}"
         done
         read -rp "Backend [$recommended]: " db_choice
-        export DB_BACKEND="${db_choice:-$recommended}"
+        db_choice="${db_choice:-$recommended}"
+        if ! [[ "$db_choice" =~ ^[1-9][0-9]*$ ]] || [ "$db_choice" -gt "${#db_backends[@]}" ]; then
+            db_choice="$recommended"
+        fi
+        export DB_BACKEND="${db_backends[$((db_choice - 1))]}"
     fi
     show_progress_window --subtitle $(get_installed_config_version) --log $LOG_FILE ./install.sh $@ --no-gui --no-log
     error_code=$?
