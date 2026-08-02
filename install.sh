@@ -369,11 +369,15 @@ else
             n=$((i + 1))
             [ "$n" -eq "$recommended" ] && echo "  $n) ${db_labels[$i]} (recommended)" || echo "  $n) ${db_labels[$i]}"
         done
-        read -rp "Backend [$recommended]: " db_choice
-        db_choice="${db_choice:-$recommended}"
-        if ! [[ "$db_choice" =~ ^[1-9][0-9]*$ ]] || [ "$db_choice" -gt "${#db_backends[@]}" ]; then
-            db_choice="$recommended"
-        fi
+        db_choice=""
+        while true; do
+            read -rp "Backend [$recommended]: " db_choice
+            db_choice="${db_choice:-$recommended}"
+            if [[ "$db_choice" =~ ^[1-9][0-9]*$ ]] && [ "$db_choice" -le "${#db_backends[@]}" ]; then
+                break
+            fi
+            echo "Enter a number between 1 and ${#db_backends[@]}."
+        done
         export DB_BACKEND="${db_backends[$((db_choice - 1))]}"
     fi
     show_progress_window --subtitle $(get_installed_config_version) --log $LOG_FILE ./install.sh $@ --no-gui --no-log
