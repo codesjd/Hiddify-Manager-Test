@@ -1,5 +1,22 @@
 export venv_path="/opt/hiddify-manager/.venv313"
 
+# DB_BACKEND (install.sh:51-58) only lives for the duration of one install.sh
+# run unless something persists it - every later invocation (panel-triggered
+# apply/reinstall via commander.py, update.sh, a plain manual re-run) starts
+# with an empty env and would otherwise silently fall back to mysql, even on
+# a box that was deliberately set up with sqlite/postgres. This file is that
+# persistence: written once DB_BACKEND is resolved, read back by anything
+# that needs to know the backend without a human re-specifying it.
+DB_BACKEND_STATE_FILE="/opt/hiddify-manager/.db_backend"
+
+function read_persisted_db_backend() {
+    [ -f "$DB_BACKEND_STATE_FILE" ] && cat "$DB_BACKEND_STATE_FILE" 2>/dev/null
+}
+
+function persist_db_backend() {
+    echo "$1" >"$DB_BACKEND_STATE_FILE"
+}
+
 function get_commit_version() {
     json_data=$(curl -sL -H "Accept: application/json" "https://github.com/hiddify/$1/commits/main.atom")
     latest_commit_date=$(echo "$json_data" | jq -r '.payload.commitGroups[0].commits[0].committedDate')
@@ -360,7 +377,7 @@ function check_hiddify_panel() {
         # XRAY_ENABLE/SINGBOX_ENABLE comment) - each is checked unconditionally.
         # DB service depends on DB_BACKEND (install.sh:51-58) - sqlite starts
         # no daemon at all, postgres/timescaledb both run as "postgresql".
-        case "${DB_BACKEND:-mysql}" in
+        case "${DB_BACKEND:-$(read_persisted_db_backend)}" in
             sqlite) db_service="" ;;
             postgres | timescaledb) db_service="postgresql" ;;
             *) db_service="mysql" ;;
