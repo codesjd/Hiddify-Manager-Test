@@ -48,7 +48,14 @@ function main() {
             # DB_BACKEND=timescaledb before running install.sh to opt into
             # the new backend instead - e.g.:
             #   DB_BACKEND=timescaledb ./install.sh --no-gui
+            # Falls back to whatever was persisted from a previous run
+            # (see read_persisted_db_backend in common/utils.sh) before
+            # ever defaulting to mysql, so a panel-triggered reinstall
+            # doesn't silently switch backend out from under an existing
+            # sqlite/postgres install.
+            export DB_BACKEND="${DB_BACKEND:-$(read_persisted_db_backend)}"
             export DB_BACKEND="${DB_BACKEND:-mysql}"
+            persist_db_backend "$DB_BACKEND"
             if [ "$DB_BACKEND" == "postgres" ] || [ "$DB_BACKEND" == "timescaledb" ]; then
                 install_run other/postgres &
             elif [ "$DB_BACKEND" == "sqlite" ]; then
@@ -348,6 +355,41 @@ if [[ " $@ " == *" --no-gui "* ]]; then
     fi
     remove_lock $NAME
 else
+    if [ -z "$DB_BACKEND" ] && [ -z "$(read_persisted_db_backend)" ] && [ -t 0 ] && [ -t 1 ]; then
+        # Only here: this is the one path with a real human at a real
+        # terminal (every panel-triggered install/apply/reinstall already
+        # passes --no-gui, see commander.py, and skips straight to the
+        # other branch), AND a backend was never already chosen (a
+        # persisted choice from a prior install means this is a re-run on
+        # an existing box, not a fresh one - don't ask again). mysql (the
+        # default) is the DB daemon that OOMs first on a small box -
+        # sqlite skips a daemon entirely. Exported
+        # so the recursive `--no-gui` re-exec below inherits the choice.
+        mem_mb=$(awk '/MemTotal/{print int($2/1024)}' /proc/meminfo)
+        recommended=2 # index into db_backends/db_labels below, 1-based
+        [ "$mem_mb" -lt 1024 ] && recommended=1
+        # db_backends holds the real DB_BACKEND values (other/mysql installs
+        # MariaDB, not MySQL - only the label says so, the value install.sh
+        # branches on downstream stays "mysql")
+        db_backends=(sqlite mysql postgres)
+        db_labels=(sqlite mariadb postgres)
+        echo ""
+        echo "Select a database backend (detected ${mem_mb}MB RAM):"
+        for i in "${!db_labels[@]}"; do
+            n=$((i + 1))
+            [ "$n" -eq "$recommended" ] && echo "  $n) ${db_labels[$i]} (recommended)" || echo "  $n) ${db_labels[$i]}"
+        done
+        db_choice=""
+        while true; do
+            read -rp "Backend [$recommended]: " db_choice
+            db_choice="${db_choice:-$recommended}"
+            if [[ "$db_choice" =~ ^[1-9][0-9]*$ ]] && [ "$db_choice" -le "${#db_backends[@]}" ]; then
+                break
+            fi
+            echo "Enter a number between 1 and ${#db_backends[@]}."
+        done
+        export DB_BACKEND="${db_backends[$((db_choice - 1))]}"
+    fi
     show_progress_window --subtitle $(get_installed_config_version) --log $LOG_FILE ./install.sh $@ --no-gui --no-log
     error_code=$?
     if [[ $error_code != "0" ]]; then
