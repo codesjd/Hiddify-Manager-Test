@@ -358,7 +358,14 @@ function check_hiddify_panel() {
         
         # Both cores always run regardless of core_type (see install.sh's
         # XRAY_ENABLE/SINGBOX_ENABLE comment) - each is checked unconditionally.
-        for s in hiddify-xray hiddify-singbox hiddify-nginx hiddify-haproxy mysql; do
+        # DB service depends on DB_BACKEND (install.sh:51-58) - sqlite starts
+        # no daemon at all, postgres/timescaledb both run as "postgresql".
+        case "${DB_BACKEND:-mysql}" in
+            sqlite) db_service="" ;;
+            postgres | timescaledb) db_service="postgresql" ;;
+            *) db_service="mysql" ;;
+        esac
+        for s in hiddify-xray hiddify-singbox hiddify-nginx hiddify-haproxy $db_service; do
             s=${s##*/}
             s=${s%%.*}
             for i in $(seq 1 10); do
