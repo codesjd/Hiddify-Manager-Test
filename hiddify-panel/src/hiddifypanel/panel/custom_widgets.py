@@ -1,18 +1,14 @@
 import datetime
 
+import json5
 from flask_admin.contrib.sqla import ModelView
 from flask_babel import lazy_gettext as _
-from wtforms import TextAreaField
-from wtforms.fields import IntegerField, SelectField, DecimalField
-from wtforms.widgets import TextArea
-
-from wtforms import Field
+from wtforms import Field, TextAreaField
+from wtforms.fields import DecimalField, IntegerField, SelectField
 from wtforms.validators import ValidationError
 from wtforms.widgets import TextArea
-import json5
 
 from hiddifypanel.models import *
-
 
 # from gettext import gettext as _
 
@@ -52,27 +48,25 @@ class LastResetField(IntegerField):
 
 
 class CKTextAreaWidget(TextArea):
-    extra_js = ['//cdn.ckeditor.com/4.6.0/standard/ckeditor.js']
+    extra_js = ["//cdn.ckeditor.com/4.6.0/standard/ckeditor.js"]
 
     def __call__(self, field, **kwargs):
-        if kwargs.get('class'):
-            kwargs['class'] += ' ckeditor'
+        if kwargs.get("class"):
+            kwargs["class"] += " ckeditor"
         else:
-            kwargs.setdefault('class', 'ckeditor')
+            kwargs.setdefault("class", "ckeditor")
         return super(CKTextAreaWidget, self).__call__(field, **kwargs)
 
 
 class CKTextAreaField(TextAreaField):
-    extra_js = ['//cdn.ckeditor.com/4.6.0/standard/ckeditor.js']
+    extra_js = ["//cdn.ckeditor.com/4.6.0/standard/ckeditor.js"]
     widget = CKTextAreaWidget()
 
 
 class MessageAdmin(ModelView):
-    extra_js = ['//cdn.ckeditor.com/4.6.0/standard/ckeditor.js']
+    extra_js = ["//cdn.ckeditor.com/4.6.0/standard/ckeditor.js"]
 
-    form_overrides = {
-        'body': CKTextAreaField
-    }
+    form_overrides = {"body": CKTextAreaField}
 
 
 class EnumSelectField(SelectField):
@@ -96,28 +90,24 @@ class UsageField(DecimalField):
             self.data = None
 
 
-
-
-
-
-
 class JSONWidget(TextArea):
     def __call__(self, field, **kwargs):
-        if kwargs.get('class'):
-            kwargs['class'] += ' ltr json-editor'
+        if kwargs.get("class"):
+            kwargs["class"] += " ltr json-editor"
         else:
-            kwargs.setdefault('class', 'ltr json-editor')
-        
-        kwargs.setdefault("rows",10)
-        
+            kwargs.setdefault("class", "ltr json-editor")
+
+        kwargs.setdefault("rows", 10)
+
         return super().__call__(field, **kwargs)
+
 
 class JSONField(Field):
     widget = JSONWidget()
 
     def _value(self):
         if not self.data:
-            return ''
+            return ""
         if isinstance(self.data, str):
             return self.data
         try:
@@ -127,16 +117,19 @@ class JSONField(Field):
 
     def process_formdata(self, valuelist):
         if valuelist:
-            try:    
+            try:
                 self.data = json5.loads(valuelist[0]) if valuelist[0] else ""
             except Exception as e:
-                raise ValidationError(f'Invalid JSON: {e}')
-            
+                raise ValidationError(f"Invalid JSON: {e}")
 
 
-from typing import Type, TypeVar,Generic
+from typing import Generic, Type, TypeVar
+
 from pydantic import BaseModel
-T=TypeVar("T",bound=BaseModel)
+
+T = TypeVar("T", bound=BaseModel)
+
+
 class CustomJSONField(Field, Generic[T]):
     widget = JSONWidget()
 
@@ -176,7 +169,7 @@ class CustomJSONField(Field, Generic[T]):
                 lines.append(f' "{name}": {value_str},')
 
         if len(lines) > 1:
-            lines[-1] = lines[-1].rstrip(',')
+            lines[-1] = lines[-1].rstrip(",")
 
         lines.append("}")
         return "\n".join(lines)
@@ -199,4 +192,4 @@ class CustomJSONField(Field, Generic[T]):
                 self.data = model_obj.model_dump_json()
 
             except Exception as e:
-                raise ValidationError(f'Invalid JSON: {e}')
+                raise ValidationError(f"Invalid JSON: {e}")

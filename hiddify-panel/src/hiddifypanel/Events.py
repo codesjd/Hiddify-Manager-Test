@@ -17,12 +17,12 @@ class Event:
                 callback(data)
 
 
-config_changed = Event('config_changed')
-user_changed = Event('user_changed')
-domain_changed = Event('domain_changed')
-parentdomain_changed = Event('parentdomain_changed')
-admin_prehook = Event('admin_prehook')
-db_prehook = Event('db_prehook')
+config_changed = Event("config_changed")
+user_changed = Event("user_changed")
+domain_changed = Event("domain_changed")
+parentdomain_changed = Event("parentdomain_changed")
+admin_prehook = Event("admin_prehook")
+db_prehook = Event("db_prehook")
 
 
-db_init_event = Event('db_init')
+db_init_event = Event("db_init")

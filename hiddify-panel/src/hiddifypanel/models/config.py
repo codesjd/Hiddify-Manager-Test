@@ -1,29 +1,25 @@
 from typing import Optional
-from hiddifypanel.models.config_enum import ConfigEnum, LogLevel, PanelMode, Lang
-from flask import g
 
-from hiddifypanel import Events
-from hiddifypanel.database import db
-from hiddifypanel.cache import cache
-from hiddifypanel.models.child import Child, ChildMode
-from sqlalchemy import Column, String, Boolean, Enum, ForeignKey, Integer
+from flask import g
+from loguru import logger
+from sqlalchemy import Boolean, Column, Enum, ForeignKey, Integer, String
 from strenum import StrEnum
 
-from loguru import logger
+from hiddifypanel import Events
+from hiddifypanel.cache import cache
+from hiddifypanel.database import db
+from hiddifypanel.models.child import Child, ChildMode
+from hiddifypanel.models.config_enum import ConfigEnum, Lang, LogLevel, PanelMode
 
 
 class BoolConfig(db.Model):
-    child_id = Column(Integer, ForeignKey('child.id'), primary_key=True, default=0)
+    child_id = Column(Integer, ForeignKey("child.id"), primary_key=True, default=0)
     # category = db.Column(db.String(128), primary_key=True)
     key = Column(Enum(ConfigEnum), primary_key=True)
     value = Column(Boolean)
 
     def to_dict(d):
-        return {
-            'key': str(d.key),
-            'value': d.value,
-            'child_unique_id': d.child.unique_id if d.child else ''
-        }
+        return {"key": str(d.key), "value": d.value, "child_unique_id": d.child.unique_id if d.child else ""}
 
     @staticmethod
     def from_schema(schema):
@@ -32,20 +28,21 @@ class BoolConfig(db.Model):
     def to_schema(self):
         conf_dict = self.to_dict()
         from hiddifypanel.panel.commercial.restapi.v2.parent.schema import HConfigSchema
+
         return HConfigSchema().load(conf_dict)
 
 
 class StrConfig(db.Model):
-    child_id = Column(Integer, ForeignKey('child.id'), primary_key=True, default=0)
+    child_id = Column(Integer, ForeignKey("child.id"), primary_key=True, default=0)
     # category = db.Column(db.String(128), primary_key=True)
     key = Column(Enum(ConfigEnum), primary_key=True, default=ConfigEnum.admin_secret)
     value = Column(String(3072))
 
     def to_dict(self: "StrConfig"):
         return {
-            'key': str(self.key),
-            'value': self.value,
-            'child_unique_id': self.child.unique_id if self.child else ''
+            "key": str(self.key),
+            "value": self.value,
+            "child_unique_id": self.child.unique_id if self.child else "",
         }
 
     @staticmethod
@@ -55,6 +52,7 @@ class StrConfig(db.Model):
     def to_schema(self):
         conf_dict = self.to_dict()
         from hiddifypanel.panel.commercial.restapi.v2.parent.schema import HConfigSchema
+
         return HConfigSchema().load(conf_dict)
 
 
@@ -66,28 +64,30 @@ def hconfig(key: ConfigEnum, child_id: Optional[int] = None):  # -> str | int | 
     value = None
     try:
         if key.type == bool:
-            bool_conf = db.session.query(BoolConfig).filter(BoolConfig.key == key, BoolConfig.child_id == child_id).first()
+            bool_conf = (
+                db.session.query(BoolConfig).filter(BoolConfig.key == key, BoolConfig.child_id == child_id).first()
+            )
             if bool_conf:
                 value = bool_conf.value
             else:
-                logger.debug(f'bool {key} not found ')
+                logger.debug(f"bool {key} not found ")
         else:
             str_conf = db.session.query(StrConfig).filter(StrConfig.key == key, StrConfig.child_id == child_id).first()
             if str_conf:
                 value = str_conf.value
             else:
-                logger.debug(f'str {key} not found ')
+                logger.debug(f"str {key} not found ")
     except BaseException:
-        logger.exception(f'{key} error!')
+        logger.exception(f"{key} error!")
         raise
     if value is not None:
         if key.type == int:
             try:
                 return int(value)
             except (TypeError, ValueError):
-                logger.warning(f'{key} has non-numeric int-typed value {value!r}; defaulting to 0')
+                logger.warning(f"{key} has non-numeric int-typed value {value!r}; defaulting to 0")
                 return 0
-        elif hasattr(key.type, 'from_str'):
+        elif hasattr(key.type, "from_str"):
             return key.type.from_str(value)
 
     return value
@@ -141,18 +141,31 @@ def _safe_int_config(key, value):
     try:
         return int(value)
     except (TypeError, ValueError):
-        logger.warning(f'{key} has non-numeric int-typed value {value!r}; defaulting to 0')
+        logger.warning(f"{key} has non-numeric int-typed value {value!r}; defaulting to 0")
         return 0
 
 
-@cache.cache(ttl=500,)
+@cache.cache(
+    ttl=500,
+)
 def get_hconfigs(child_id: int | None = None, json=False) -> dict:
     if child_id is None:
         child_id = Child.current().id
 
-    return {**{f'{u.key}' if json else u.key: u.value for u in BoolConfig.query.filter(BoolConfig.child_id == child_id).all() if u.key.type == bool},
-            **{f'{u.key}' if json else u.key: _safe_int_config(u.key, u.value) if u.key.type == int and u.value != None else u.value for u in StrConfig.query.filter(StrConfig.child_id == child_id).all() if u.key.type != bool},
-            }
+    return {
+        **{
+            f"{u.key}" if json else u.key: u.value
+            for u in BoolConfig.query.filter(BoolConfig.child_id == child_id).all()
+            if u.key.type == bool
+        },
+        **{
+            f"{u.key}" if json else u.key: (
+                _safe_int_config(u.key, u.value) if u.key.type == int and u.value != None else u.value
+            )
+            for u in StrConfig.query.filter(StrConfig.child_id == child_id).all()
+            if u.key.type != bool
+        },
+    }
 
 
 def get_hconfigs_childs(child_ids: list[int], json=False):
@@ -164,7 +177,7 @@ def get_hconfigs_childs(child_ids: list[int], json=False):
 def add_or_update_config(commit: bool = True, child_id: int | None = None, override_unique_id: bool = True, **config):
     if child_id is None:
         child_id = Child.current().id
-    c = config['key']
+    c = config["key"]
     try:
         ckey = ConfigEnum(c)
     except:
@@ -172,16 +185,19 @@ def add_or_update_config(commit: bool = True, child_id: int | None = None, overr
     if c == ConfigEnum.unique_id and not override_unique_id:
         return
 
-    v = str(config['value']).lower() == "true" if ckey.type == bool else config['value']
+    v = str(config["value"]).lower() == "true" if ckey.type == bool else config["value"]
     if ckey in [ConfigEnum.db_version]:
         return
     set_hconfig(ckey, v, child_id, commit=commit)
 
 
-def bulk_register_configs(hconfigs, commit: bool = True, froce_child_unique_id: str | None = None, override_unique_id: bool = True):
+def bulk_register_configs(
+    hconfigs, commit: bool = True, froce_child_unique_id: str | None = None, override_unique_id: bool = True
+):
     from hiddifypanel.panel import hiddify
+
     for conf in hconfigs:
-        if conf['key'] == ConfigEnum.unique_id and not override_unique_id:
+        if conf["key"] == ConfigEnum.unique_id and not override_unique_id:
             continue
         child_id = hiddify.get_child(unique_id=froce_child_unique_id)
         add_or_update_config(commit=False, child_id=child_id, **conf)

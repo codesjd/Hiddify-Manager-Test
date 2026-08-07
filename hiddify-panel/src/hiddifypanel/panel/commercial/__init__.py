@@ -1,18 +1,20 @@
-from hiddifypanel.models import *
-from hiddifypanel.database import db
 from hiddifypanel import Events, hutils
+from hiddifypanel.database import db
+from hiddifypanel.models import *
 
 commercial = False
 
 
 def init_app(app):
     from .restapi import v1 as restapi_v1
+
     restapi_v1.init_app(app)
     from .restapi.v2 import admin as api_v2_admin
-    from .restapi.v2 import user as api_v2_user
-    from .restapi.v2 import parent as api_v2_parent
     from .restapi.v2 import child as api_v2_child
     from .restapi.v2 import panel as api_v2_panel
+    from .restapi.v2 import parent as api_v2_parent
+    from .restapi.v2 import user as api_v2_user
+
     api_v2_parent.init_app(app)
     api_v2_admin.init_app(app)
     api_v2_user.init_app(app)
@@ -55,6 +57,7 @@ def admin_prehook(flaskadmin, admin_bp):
     # from .ParentDomainAdmin import ParentDomainAdmin
     # flaskadmin.add_view(ParentDomainAdmin(ParentDomain, db.session))
     from .ProxyDetailsAdmin import ProxyDetailsAdmin
+
     flaskadmin.add_view(ProxyDetailsAdmin(Proxy, db.session))
     # CommercialSettings.register(admin_bp)
 

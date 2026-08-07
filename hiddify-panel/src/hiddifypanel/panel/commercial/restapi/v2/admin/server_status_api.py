@@ -1,19 +1,19 @@
-from flask import current_app as app, request
-from flask import g
-from flask.views import MethodView
+from apiflask import Schema, abort
 from apiflask.fields import Dict
-from apiflask import Schema
-from apiflask import abort
-from hiddifypanel.models.usage import DailyUsage
-from hiddifypanel.auth import login_required
-from hiddifypanel.models import Role, DailyUsage
-from hiddifypanel.panel import hiddify
+from flask import current_app as app
+from flask import g, request
+from flask.views import MethodView
+
 from hiddifypanel import hutils
+from hiddifypanel.auth import login_required
+from hiddifypanel.models import DailyUsage, Role
+from hiddifypanel.models.usage import DailyUsage
+from hiddifypanel.panel import hiddify
 
 
 class ServerStatusOutputSchema(Schema):
-    stats = Dict(required=True,  metadata={"description": "System stats"})
-    usage_history = Dict(required=True,  metadata={"description": "System usage history"})
+    stats = Dict(required=True, metadata={"description": "System stats"})
+    usage_history = Dict(required=True, metadata={"description": "System usage history"})
 
 
 class AdminServerStatusApi(MethodView):
@@ -25,8 +25,8 @@ class AdminServerStatusApi(MethodView):
         dto = ServerStatusOutputSchema()
         top5 = hutils.system.top_processes()
         dto.stats = {  # type: ignore
-            'system': hutils.system.system_stats(cpu_percent=top5.get('system_cpu_percent')),
-            'top5': top5
+            "system": hutils.system.system_stats(cpu_percent=top5.get("system_cpu_percent")),
+            "top5": top5,
         }
         # Dashboard.py's equivalent view enforces this same subtree check
         # before querying usage history - this REST endpoint didn't, so any

@@ -1,13 +1,22 @@
 import json
-from flask_babel import lazy_gettext as _
+
 import wtforms as wtf
+from flask_babel import lazy_gettext as _
 from markupsafe import Markup
 from wtforms.validators import ValidationError
-from .adminlte import AdminLTEModelView
-from .InboundOverrideAdmin import _MANAGED_KEYS, _FINGERPRINT_CHOICES, _ALPN_CHOICES, _XHTTP_MODE_CHOICES, _NAME_CHIP_COLORS
+
+from hiddifypanel import hutils
 from hiddifypanel.auth import login_required
 from hiddifypanel.models import *
-from hiddifypanel import hutils
+
+from .adminlte import AdminLTEModelView
+from .InboundOverrideAdmin import (
+    _ALPN_CHOICES,
+    _FINGERPRINT_CHOICES,
+    _MANAGED_KEYS,
+    _NAME_CHIP_COLORS,
+    _XHTTP_MODE_CHOICES,
+)
 
 
 class DomainProxyOverrideAdmin(AdminLTEModelView):
@@ -24,9 +33,21 @@ class DomainProxyOverrideAdmin(AdminLTEModelView):
     picked per row here instead of being fixed context for an existing
     Proxy row.
     """
+
     column_list = ["domain", "proxy", "enable"]
-    form_columns = ["domain", "proxy", "enable",
-                    "sni", "host", "path", "fingerprint", "alpn", "mode", "hysteria_obfs_password", "advanced_json"]
+    form_columns = [
+        "domain",
+        "proxy",
+        "enable",
+        "sni",
+        "host",
+        "path",
+        "fingerprint",
+        "alpn",
+        "mode",
+        "hysteria_obfs_password",
+        "advanced_json",
+    ]
     column_editable_list = ["enable"]
     column_sortable_list = ["enable"]
 
@@ -56,30 +77,57 @@ class DomainProxyOverrideAdmin(AdminLTEModelView):
         # checked/default (True) keeps the proxy included while applying
         # the overrides below, and unchecking it is the explicit "force
         # this off for this domain" action.
-        "enable": wtf.BooleanField(_("Enable"), default=True,
-                                    description=_("Uncheck to force this proxy off for this domain only, even if it's enabled everywhere else. Leave checked to keep its normal on/off state and just apply the overrides below.")),
-        "sni": wtf.StringField(_("SNI"), description=_("Override the Server Name Indication sent to the client's config. Leave blank to use the domain's own SNI.")),
-        "host": wtf.StringField(_("Host header"), description=_("Override the Host header (WS/CDN transports). Leave blank for the default.")),
-        "path": wtf.StringField(_("Path"), description=_("Override the transport path (WS/httpupgrade/xhttp) or gRPC service name. Leave blank for the auto-generated one.")),
+        "enable": wtf.BooleanField(
+            _("Enable"),
+            default=True,
+            description=_(
+                "Uncheck to force this proxy off for this domain only, even if it's enabled everywhere else. Leave checked to keep its normal on/off state and just apply the overrides below."
+            ),
+        ),
+        "sni": wtf.StringField(
+            _("SNI"),
+            description=_(
+                "Override the Server Name Indication sent to the client's config. Leave blank to use the domain's own SNI."
+            ),
+        ),
+        "host": wtf.StringField(
+            _("Host header"),
+            description=_("Override the Host header (WS/CDN transports). Leave blank for the default."),
+        ),
+        "path": wtf.StringField(
+            _("Path"),
+            description=_(
+                "Override the transport path (WS/httpupgrade/xhttp) or gRPC service name. Leave blank for the auto-generated one."
+            ),
+        ),
         "fingerprint": wtf.SelectField(_("uTLS Fingerprint"), choices=_FINGERPRINT_CHOICES, default=""),
         "alpn": wtf.SelectField(_("ALPN"), choices=_ALPN_CHOICES, default=""),
-        "mode": wtf.SelectField(_("XHTTP Mode"), choices=_XHTTP_MODE_CHOICES, default="", render_kw={"id": "domain_proxy_override_mode"}),
-        "hysteria_obfs_password": wtf.StringField(_("Hysteria2 Obfs Password"), description=_("Only applies to hysteria2 proxies. Leave blank to use the global obfuscation password.")),
-        "advanced_json": wtf.TextAreaField(_("Advanced Override (JSON)"),
-                                            description=_('Deep-merged on top of everything above, for anything the fields don\'t cover, e.g. {"mux_enable": true}. '
-                                                           'Leave empty to only use the fields above.')),
+        "mode": wtf.SelectField(
+            _("XHTTP Mode"), choices=_XHTTP_MODE_CHOICES, default="", render_kw={"id": "domain_proxy_override_mode"}
+        ),
+        "hysteria_obfs_password": wtf.StringField(
+            _("Hysteria2 Obfs Password"),
+            description=_("Only applies to hysteria2 proxies. Leave blank to use the global obfuscation password."),
+        ),
+        "advanced_json": wtf.TextAreaField(
+            _("Advanced Override (JSON)"),
+            description=_(
+                'Deep-merged on top of everything above, for anything the fields don\'t cover, e.g. {"mux_enable": true}. '
+                "Leave empty to only use the fields above."
+            ),
+        ),
     }
 
     can_export = False
 
     def _domain_formatter(view, context, model, name):
         if not model.domain:
-            return ''
+            return ""
         return Markup(f'<span class="hf-chip">{model.domain.domain}</span>')
 
     def _proxy_formatter(view, context, model, name):
         if not model.proxy:
-            return ''
+            return ""
         chips = []
         for part in (model.proxy.name or "").split():
             key = part.split("=")[0]

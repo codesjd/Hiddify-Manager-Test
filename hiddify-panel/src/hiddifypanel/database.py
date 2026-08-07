@@ -1,17 +1,20 @@
-from typing import Optional
-from sqlalchemy.orm import  sessionmaker
-from sqlalchemy.orm import as_declarative, declared_attr,relationship
-import sqlalchemy.orm as sa_orm
+import os
 
 # from sqlalchemy_utils import UUIDType
 import re
-import os
-from sqlalchemy import Row, create_engine, text, Sequence
-import sqlalchemy as sa
+from typing import Optional
 
+import sqlalchemy as sa
+import sqlalchemy.orm as sa_orm
+
+#         self._set_rel_query(kwargs)
+#         return sa_orm.relationship(*args, **kwargs)
+from flask_sqlalchemy import SQLAlchemy
+from sqlalchemy import Row, Sequence, create_engine, text
+from sqlalchemy.orm import as_declarative, declared_attr, relationship, sessionmaker
 
 # class SQLAlchemy:
-    
+
 #     def __init__(self):
 #         self.engine = create_engine(os.environ.get("SQLALCHEMY_DATABASE_URI"))
 #         self.session_maker = sessionmaker(bind=self.engine)
@@ -26,8 +29,8 @@ import sqlalchemy as sa
 #             @property
 #             def query(cls):
 #                 return self.session.query(cls)
-            
-    
+
+
 #         self.Query=sa_orm.Query
 #         self.Model=Base
 #         self.Table=sa.Table
@@ -35,42 +38,40 @@ import sqlalchemy as sa
 #         self.Integer=sa.Integer
 #         self.ForeignKey=sa.ForeignKey
 
-    # def _set_rel_query(self, kwargs) -> None:
-    #         """Apply the extension's :attr:`Query` class as the default for relationships
-    #         and backrefs.
+# def _set_rel_query(self, kwargs) -> None:
+#         """Apply the extension's :attr:`Query` class as the default for relationships
+#         and backrefs.
 
-    #         :meta private:
-    #         """
-    #         kwargs.setdefault("query_class", self.Query)
+#         :meta private:
+#         """
+#         kwargs.setdefault("query_class", self.Query)
 
-    #         if "backref" in kwargs:
-    #             backref = kwargs["backref"]
+#         if "backref" in kwargs:
+#             backref = kwargs["backref"]
 
-    #             if isinstance(backref, str):
-    #                 backref = (backref, {})
+#             if isinstance(backref, str):
+#                 backref = (backref, {})
 
-    #             backref[1].setdefault("query_class", self.Query)
+#             backref[1].setdefault("query_class", self.Query)
 
-        
-    # def relationship(
-    #         self, *args, **kwargs
-    #     ) :
-          
-    #         self._set_rel_query(kwargs)
-    #         return sa_orm.relationship(*args, **kwargs)
-from flask_sqlalchemy import SQLAlchemy
-    
+
+# def relationship(
+#         self, *args, **kwargs
+#     ) :
+
 
 db = SQLAlchemy()
 # db.UUID = UUIDType  # type: ignore
+
 
 def init_no_flask():
     engine = create_engine(os.environ.get("SQLALCHEMY_DATABASE_URI"))
     db.session = sessionmaker(bind=engine)()
 
+
 def init_app(app):
 
-    app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = True
+    app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = True
     db.init_app(app)
 
     @app.teardown_request
@@ -90,8 +91,8 @@ def init_app(app):
 
     with app.app_context():
         from hiddifypanel.panel.init_db import init_db
-        init_db()
 
+        init_db()
 
 
 def db_execute(query: str, return_val: bool = False, commit: bool = False, **params):
@@ -114,13 +115,15 @@ def db_execute(query: str, return_val: bool = False, commit: bool = False, **par
 
 def backup_db() -> bool:
     import subprocess
+
     from loguru import logger
+
     dialect = db.engine.dialect.name
     url = str(db.engine.url)
 
-    if dialect == 'sqlite':
-        db_path_from_url = url.replace('sqlite:///', '')
-        if db_path_from_url == ':memory:':
+    if dialect == "sqlite":
+        db_path_from_url = url.replace("sqlite:///", "")
+        if db_path_from_url == ":memory:":
             return True
         backup_path = f"{db_path_from_url}.bak"
         logger.info(f"Backing up SQLite database to {backup_path}")
@@ -129,11 +132,11 @@ def backup_db() -> bool:
             logger.error(f"SQLite backup failed: {res.stderr.decode()}")
             return False
         return True
-    elif dialect == 'mysql':
+    elif dialect == "mysql":
         backup_path = "/opt/hiddify-manager/hiddify-panel/hiddifypanel.sql.bak"
         logger.info(f"Backing up MySQL database to {backup_path}")
         user = db.engine.url.username
-        password = db.engine.url.password or ''
+        password = db.engine.url.password or ""
         database_name = db.engine.url.database
         host = db.engine.url.host
         cmd = f"mysqldump -h {host} -u {user} -p{password} {database_name} > {backup_path}"
@@ -157,11 +160,11 @@ def reconcile_schema() -> bool:
 
     Returns True if schema is clean (or healed), False if ambiguous diffs found or backup failed.
     """
-    from loguru import logger
-    from alembic.migration import MigrationContext
     from alembic.autogenerate import compare_metadata
-    from sqlalchemy.schema import CreateTable, CreateIndex
+    from alembic.migration import MigrationContext
+    from loguru import logger
     from sqlalchemy import text as sa_text
+    from sqlalchemy.schema import CreateIndex, CreateTable
 
     # Explicitly closed once the diff is computed - MigrationContext holds
     # a reference cycle (dialect <-> connection <-> context) that defers
@@ -191,10 +194,10 @@ def reconcile_schema() -> bool:
 
     for op in diff:
         op_type = op[0]
-        if op_type == 'add_table':
+        if op_type == "add_table":
             table = op[1]
             additive_ddl.append(str(CreateTable(table).compile(db.engine)))
-        elif op_type == 'add_column':
+        elif op_type == "add_column":
             # op: ('add_column', schema, table_name, column)
             table_name = op[2]
             column = op[3]
@@ -203,8 +206,9 @@ def reconcile_schema() -> bool:
             # element of its own; alembic provides one (with per-dialect
             # @compiles handlers already registered on import).
             from alembic.ddl.base import AddColumn
+
             additive_ddl.append(str(AddColumn(table_name, column).compile(db.engine)))
-        elif op_type == 'add_index':
+        elif op_type == "add_index":
             index = op[1]
             additive_ddl.append(str(CreateIndex(index).compile(db.engine)))
         else:
@@ -228,4 +232,3 @@ def reconcile_schema() -> bool:
             conn.commit()
 
     return True
-

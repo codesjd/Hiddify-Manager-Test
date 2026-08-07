@@ -1,11 +1,10 @@
-﻿
+﻿from enum import auto
+
+from sqlalchemy import Boolean, Column, Enum, ForeignKey, Integer, String
+from sqlalchemy.types import JSON
 from strenum import StrEnum
-from enum import auto
-from sqlalchemy import Column, String, Integer, Boolean, Enum, ForeignKey
 
 from hiddifypanel.database import db
-
-from sqlalchemy.types import JSON
 
 
 class ProxyTransport(StrEnum):
@@ -74,7 +73,7 @@ class ProxyL3(StrEnum):
 
 class Proxy(db.Model):  # type: ignore
     id = Column(Integer, primary_key=True, autoincrement=True)
-    child_id = Column(Integer, ForeignKey('child.id'), default=0)
+    child_id = Column(Integer, ForeignKey("child.id"), default=0)
     name = Column(String(200), nullable=False, unique=False)
     enable = Column(Boolean, nullable=False)
     proto = Column(Enum(ProxyProto), nullable=False)
@@ -92,14 +91,14 @@ class Proxy(db.Model):  # type: ignore
 
     def to_dict(self):
         return {
-            'name': self.name,
-            'enable': self.enable,
-            'proto': self.proto,
-            'l3': self.l3,
-            'transport': self.transport,
-            'cdn': self.cdn,
-            'child_unique_id': self.child.unique_id if self.child else '',
-            'params': self.params
+            "name": self.name,
+            "enable": self.enable,
+            "proto": self.proto,
+            "l3": self.l3,
+            "transport": self.transport,
+            "cdn": self.cdn,
+            "child_unique_id": self.child.unique_id if self.child else "",
+            "params": self.params,
         }
 
     def __str__(self):
@@ -107,19 +106,19 @@ class Proxy(db.Model):  # type: ignore
 
     @staticmethod
     def add_or_update(commit=True, child_id=0, **proxy):
-        dbproxy = Proxy.query.filter(Proxy.name == proxy['name']).first()
+        dbproxy = Proxy.query.filter(Proxy.name == proxy["name"]).first()
         if not dbproxy:
             dbproxy = Proxy()
             db.session.add(dbproxy)  # type: ignore
-        dbproxy.enable = proxy['enable']
-        dbproxy.name = proxy['name']
-        dbproxy.proto = proxy['proto']
-        if proxy['transport']=="splithttp":
-            proxy['transport']="xhttp"
-        dbproxy.transport = proxy['transport']
-        dbproxy.cdn = proxy['cdn']
-        dbproxy.l3 = proxy['l3']
-        dbproxy.params=proxy['params']
+        dbproxy.enable = proxy["enable"]
+        dbproxy.name = proxy["name"]
+        dbproxy.proto = proxy["proto"]
+        if proxy["transport"] == "splithttp":
+            proxy["transport"] = "xhttp"
+        dbproxy.transport = proxy["transport"]
+        dbproxy.cdn = proxy["cdn"]
+        dbproxy.l3 = proxy["l3"]
+        dbproxy.params = proxy["params"]
         dbproxy.child_id = child_id
         if commit:
             db.session.commit()  # type: ignore
@@ -131,11 +130,13 @@ class Proxy(db.Model):  # type: ignore
     def to_schema(self):
         proxy_dict = self.to_dict()
         from hiddifypanel.panel.commercial.restapi.v2.parent.schema import ProxySchema
+
         return ProxySchema().load(proxy_dict)
 
     @staticmethod
     def bulk_register(proxies, commit=True, force_child_unique_id: str | None = None):
         from hiddifypanel.panel import hiddify
+
         for proxy in proxies:
             child_id = hiddify.get_child(unique_id=force_child_unique_id)
             Proxy.add_or_update(commit=False, child_id=child_id, **proxy)
@@ -166,15 +167,13 @@ class DomainProxyOverride(db.Model):  # type: ignore
     get_valid_proxies(), after both Proxy.params and Domain.extra_params -
     it's the most specific override, so it wins on any key conflict.
     """
+
     id = Column(Integer, primary_key=True, autoincrement=True)
-    domain_id = Column(Integer, ForeignKey('domain.id', ondelete='CASCADE'), nullable=False)
-    proxy_id = Column(Integer, ForeignKey('proxy.id', ondelete='CASCADE'), nullable=False)
-    domain = db.relationship('Domain', foreign_keys=[domain_id])
-    proxy = db.relationship('Proxy', foreign_keys=[proxy_id])
+    domain_id = Column(Integer, ForeignKey("domain.id", ondelete="CASCADE"), nullable=False)
+    proxy_id = Column(Integer, ForeignKey("proxy.id", ondelete="CASCADE"), nullable=False)
+    domain = db.relationship("Domain", foreign_keys=[domain_id])
+    proxy = db.relationship("Proxy", foreign_keys=[proxy_id])
     enable = Column(Boolean, nullable=True)
     params = Column(JSON, default=dict)
 
-    __table_args__ = (
-        db.UniqueConstraint('domain_id', 'proxy_id', name='uq_domain_proxy_override'),
-    )
-
+    __table_args__ = (db.UniqueConstraint("domain_id", "proxy_id", name="uq_domain_proxy_override"),)

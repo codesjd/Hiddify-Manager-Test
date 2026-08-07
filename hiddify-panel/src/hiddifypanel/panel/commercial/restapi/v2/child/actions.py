@@ -1,12 +1,12 @@
-from apiflask import fields, Schema
+from apiflask import Schema, fields
 from flask import current_app as app
 from flask import g
 from flask.views import MethodView
 from loguru import logger
 
-from hiddifypanel.models.child import Child
-from hiddifypanel.panel.run_commander import commander, Command
 from hiddifypanel.auth import login_required
+from hiddifypanel.models.child import Child
+from hiddifypanel.panel.run_commander import Command, commander
 
 
 class Status(MethodView):
@@ -15,7 +15,7 @@ class Status(MethodView):
     def post(self):
         logger.info(f"Status action called by parent: {Child.node.unique_id}")
         commander(Command.status)
-        return {'status': 200, 'msg': 'ok'}
+        return {"status": 200, "msg": "ok"}
 
 
 class UpdateUsage(MethodView):
@@ -24,7 +24,7 @@ class UpdateUsage(MethodView):
     def post(self):
         logger.info(f"Update usage action called by parent: {Child.node.unique_id}")
         commander(Command.update_usage)
-        return {'status': 200, 'msg': 'ok'}
+        return {"status": 200, "msg": "ok"}
 
 
 class Restart(MethodView):
@@ -33,7 +33,7 @@ class Restart(MethodView):
     def post(self):
         logger.info(f"Restart action called by parent: {Child.node.unique_id}")
         commander(Command.restart_services)
-        return {'status': 200, 'msg': 'ok'}
+        return {"status": 200, "msg": "ok"}
 
 
 class ApplyConfig(MethodView):
@@ -42,11 +42,11 @@ class ApplyConfig(MethodView):
     def post(self):
         logger.info(f"Apply config action called by parent: {Child.node.unique_id}")
         commander(Command.apply)
-        return {'status': 200, 'msg': 'ok'}
+        return {"status": 200, "msg": "ok"}
 
 
 class InstallSchema(Schema):
-    full = fields.Boolean( metadata={"description": "full install"},  load_default=True)
+    full = fields.Boolean(metadata={"description": "full install"}, load_default=True)
 
 
 class Install(MethodView):
@@ -54,10 +54,10 @@ class Install(MethodView):
 
     @app.input(InstallSchema, arg_name="data")  # type: ignore
     def post(self, data: dict):
-        if data.get('full'):
+        if data.get("full"):
             logger.info(f"Install action called by parent: {Child.node.unique_id}, full=True")
             commander(Command.install)
         else:
             logger.info(f"Install action called by parent: {Child.node.unique_id}, full=False")
             commander(Command.apply)
-        return {'status': 200, 'msg': 'ok'}
+        return {"status": 200, "msg": "ok"}

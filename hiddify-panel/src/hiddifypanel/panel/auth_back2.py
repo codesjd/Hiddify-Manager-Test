@@ -1,14 +1,23 @@
-from flask_login import LoginManager, current_user, user_accessed, user_logged_in, COOKIE_NAME, AUTH_HEADER_NAME, logout_user
-from flask import g, redirect, request, session
-from hiddifypanel.hutils.flask import hurl_for
-from flask_login.utils import _get_user
-from flask import current_app
 from functools import wraps
-from apiflask import abort
 
-from hiddifypanel.models import AdminUser, User, Role, AccountType
+from apiflask import abort
+from flask import current_app, g, redirect, request, session
+from flask_login import (
+    AUTH_HEADER_NAME,
+    COOKIE_NAME,
+    LoginManager,
+    current_user,
+    logout_user,
+    user_accessed,
+    user_logged_in,
+)
+from flask_login.utils import _get_user
+
+import hiddifypanel.auth as auth
 import hiddifypanel.panel.hiddify as hiddify
 from hiddifypanel import hutils
+from hiddifypanel.hutils.flask import hurl_for
+from hiddifypanel.models import AccountType, AdminUser, Role, User
 
 
 class CustumLoginManager(LoginManager):
@@ -34,7 +43,7 @@ class CustumLoginManager(LoginManager):
         # user = self.header_auth()
         user = None
 
-        account_id = ''
+        account_id = ""
         # Load user from Flask Session
         if hutils.flask.is_api_call(request.path):
             if hutils.flask.is_user_api_call():
@@ -54,15 +63,13 @@ class CustumLoginManager(LoginManager):
             config = current_app.config
             cookie_name = config.get("REMEMBER_COOKIE_NAME", COOKIE_NAME)
             header_name = config.get("AUTH_HEADER_NAME", AUTH_HEADER_NAME)
-            has_cookie = (
-                cookie_name in request.cookies and session.get("_remember") != "clear"
-            )
+            has_cookie = cookie_name in request.cookies and session.get("_remember") != "clear"
             # if header_name in request.headers:
             #     header = request.headers[header_name]
             #     user = self._load_user_from_header(header)
             # if self._request_callback:
             #     user = self._load_user_from_request(request)
-            if (cookie := request.cookies.get(cookie_name)):
+            if cookie := request.cookies.get(cookie_name):
                 user = self._load_user_from_remember_cookie(cookie)
 
         return self._update_request_context_with_user(user)
@@ -83,7 +90,11 @@ class CustumLoginManager(LoginManager):
         else:
             uname = request.authorization.username
             pword = request.authorization.password
-            account = AdminUser.by_username_password(uname, pword) if hutils.flask.is_admin_proxy_path() else User.by_username_password(uname, pword)
+            account = (
+                AdminUser.by_username_password(uname, pword)
+                if hutils.flask.is_admin_proxy_path()
+                else User.by_username_password(uname, pword)
+            )
 
         if account:
             g.account = account
@@ -140,7 +151,9 @@ def login_required(roles: set[Role] | None = None):
                 if account_role not in roles:
                     return auth.redirect_to_login()  # type: ignore
             return fn(*args, **kwargs)
+
         return decorated_view
+
     return wrapper
 
 
@@ -175,12 +188,16 @@ def init_app(app):
             if not account:
                 logout_user()
             else:
-                next_url = request.url.replace(f'/{uuid}/', '/' if is_admin_path else '/client/')
+                next_url = request.url.replace(f"/{uuid}/", "/" if is_admin_path else "/client/")
         print(request.authorization)
         if not account and request.authorization:
             uname = request.authorization.username
             pword = request.authorization.password
-            account = AdminUser.by_username_password(uname, pword) if is_admin_path else User.by_username_password(uname, pword)
+            account = (
+                AdminUser.by_username_password(uname, pword)
+                if is_admin_path
+                else User.by_username_password(uname, pword)
+            )
             print(request.authorization, account)
             if not account:
                 logout_user()
@@ -191,7 +208,7 @@ def init_app(app):
             login_user(account, force=True)
             print("loggining in")
             if next_url is not None:
-                if 0 and g.user_agent['is_browser']:
+                if 0 and g.user_agent["is_browser"]:
                     return redirect(next_url)
                 else:
                     print(next_url)
@@ -225,11 +242,12 @@ def init_app(app):
 
     @login_manager.unauthorized_handler
     def unauthorized():
-        if g.user_agent['is_browser']:
-            return redirect(hurl_for('common_bp.LoginView:basic_0', force=1, next={request.path}))
+        if g.user_agent["is_browser"]:
+            return redirect(hurl_for("common_bp.LoginView:basic_0", force=1, next={request.path}))
 
         else:
             abort(401, "Unauthorized")
         # return f'/{request.path.split("/")[1]}/?force=1&redirect={request.path}'
+
 
 # @login_manager.request_loader

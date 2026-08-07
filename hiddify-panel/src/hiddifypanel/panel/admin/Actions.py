@@ -1,35 +1,33 @@
-import json
 import ipaddress
+import json
 from urllib.parse import urlparse
-from flask_classful import FlaskView, route
-from flask import render_template, request, redirect, g
-from hiddifypanel.hutils.flask import hurl_for
-from hiddifypanel.auth import login_required
-from flask import current_app as app
-from flask_babel import gettext as _
 
+from flask import current_app as app
+from flask import g, redirect, render_template, request
+from flask_babel import gettext as _
+from flask_classful import FlaskView, route
 
 from hiddifypanel import hutils
+from hiddifypanel.auth import login_required
+from hiddifypanel.hutils.flask import hurl_for
 from hiddifypanel.models import *
 from hiddifypanel.panel import hiddify, usage
-from hiddifypanel.panel.run_commander import commander, Command
+from hiddifypanel.panel.run_commander import Command, commander
 
 
 class Actions(FlaskView):
 
     @login_required(roles={Role.super_admin})
     def index(self):
-        return render_template('index.html')
-
-
+        return render_template("index.html")
 
     @login_required(roles={Role.super_admin})
-    @route('apply_configs', methods=['POST'])
+    @route("apply_configs", methods=["POST"])
     def apply_configs(self):
         return self.reinstall(False)
 
     @login_required(roles={Role.super_admin})
-    @route('set_language', methods=['POST'])
+    @route("set_language", methods=["POST"])
     def set_language(self):
         # Admin language used to only be reachable from deep inside Settings
         # (a whole category for one field) - moved to the topbar since it's
@@ -37,7 +35,8 @@ class Actions(FlaskView):
         # page for. Same set_hconfig+refresh sequence QuickSetup's own
         # language step uses.
         import flask_babel
-        lang = request.form.get('lang', '')
+
+        lang = request.form.get("lang", "")
         if lang in [l.value for l in Lang]:
             set_hconfig(ConfigEnum.lang, lang)
             set_hconfig(ConfigEnum.admin_lang, lang)
@@ -50,22 +49,24 @@ class Actions(FlaskView):
         referrer = request.referrer
         if referrer and not hutils.flask.is_safe_redirect_target(urlparse(referrer).path):
             referrer = None
-        return redirect(referrer or hurl_for('admin.Dashboard:index'))
+        return redirect(referrer or hurl_for("admin.Dashboard:index"))
 
-    @route('reset', methods=['POST'])
+    @route("reset", methods=["POST"])
     @login_required(roles={Role.super_admin})
     def reset(self):
         return self.reset2()
 
     @login_required(roles={Role.super_admin})
     def reset2(self):
-        res = render_template("result.html",
-                              out_type="info",
-                              out_msg="",
-                              log_file_url=get_log_api_url(),
-                              log_file='restart.log',
-                              show_success=True,
-                              domains=get_domains())
+        res = render_template(
+            "result.html",
+            out_type="info",
+            out_msg="",
+            log_file_url=get_log_api_url(),
+            log_file="restart.log",
+            show_success=True,
+            domains=get_domains(),
+        )
 
         # run restart.sh
         commander(Command.restart_services)
@@ -74,11 +75,13 @@ class Actions(FlaskView):
 
     @login_required(roles={Role.admin})
     def all_public_ports(self):
-        tcp_ports={80,443}
-        udp_ports={443,}
+        tcp_ports = {80, 443}
+        udp_ports = {
+            443,
+        }
         if hconfig(ConfigEnum.wireguard_enable):
             udp_ports.add(hconfig(ConfigEnum.wireguard_port))
-        if hconfig(ConfigEnum.shadowsocks2022_enable) and (p:=hconfig(ConfigEnum.shadowsocks2022_port)):
+        if hconfig(ConfigEnum.shadowsocks2022_enable) and (p := hconfig(ConfigEnum.shadowsocks2022_port)):
             udp_ports.add(p)
             tcp_ports.add(p)
         if hconfig(ConfigEnum.mieru_enable):
@@ -117,27 +120,29 @@ class Actions(FlaskView):
                 tcp_ports.add(d.internal_port_special)
 
         def to_int(ports):
-            r=set()
+            r = set()
             for p in ports:
                 try:
-                    if ip:=int(p):
+                    if ip := int(p):
                         r.add(ip)
                 except:
                     pass
             return list(r)
-        return {"tcp":to_int(tcp_ports),"udp":to_int(udp_ports)}
-    
+
+        return {"tcp": to_int(tcp_ports), "udp": to_int(udp_ports)}
 
     @login_required(roles={Role.super_admin})
-    @route('reinstall', methods=['POST'])
+    @route("reinstall", methods=["POST"])
     def reinstall(self, complete_install=True, domain_changed=False):
         return self.reinstall2(complete_install, domain_changed)
-    def get_domain_ip(self,domain:str):
+
+    def get_domain_ip(self, domain: str):
         return "<br>".join([str(ip) for ip in hutils.network.get_domain_ips(domain)])
+
     @login_required(roles={Role.super_admin})
     def reinstall2(self, complete_install=True, domain_changed=False):
         if int(hconfig(ConfigEnum.db_version)) < 9:
-            return ("Please update your panel before this action.")
+            return "Please update your panel before this action."
         if hutils.node.is_child():
             hutils.node.run_node_op_in_bg(hutils.node.child.sync_with_parent)
 
@@ -145,26 +150,34 @@ class Actions(FlaskView):
         complete_install = request.args.get("complete_install", str(complete_install)).lower() == "true"
         if not complete_install and hiddify.amneziawg_needs_full_install():
             complete_install = True
-            hutils.flask.flash((_('AmneziaWG needs a one-time setup - running a full install instead of a quick apply.')), 'info')
+            hutils.flask.flash(
+                (_("AmneziaWG needs a one-time setup - running a full install instead of a quick apply.")), "info"
+            )
         if not complete_install and hiddify.l2tp_needs_full_install():
             complete_install = True
-            hutils.flask.flash((_('L2TP/IPsec needs a one-time setup - running a full install instead of a quick apply.')), 'info')
+            hutils.flask.flash(
+                (_("L2TP/IPsec needs a one-time setup - running a full install instead of a quick apply.")), "info"
+            )
         if not complete_install and hiddify.core_needs_full_install():
             complete_install = True
-            hutils.flask.flash((_('The selected core needs a one-time setup - running a full install instead of a quick apply.')), 'info')
+            hutils.flask.flash(
+                (_("The selected core needs a one-time setup - running a full install instead of a quick apply.")),
+                "info",
+            )
         if domain_changed:
-            hutils.flask.flash((_('domain.changed_in_domain_warning')), 'info')
+            hutils.flask.flash((_("domain.changed_in_domain_warning")), "info")
         # hutils.flask.flash(f'complete_install={complete_install} domain_changed={domain_changed} ', 'info')
         # return render_template("result.html")
         # hiddify.add_temporary_access()
         domains = Domain.get_domains()
         # Quick Setup stores the user's preferred domain type in session; use it for redirect
         from flask import session as flask_session
-        preferred_type = flask_session.pop('qs_preferred_domain', None) or request.args.get('preferred_domain', None)
-        
+
+        preferred_type = flask_session.pop("qs_preferred_domain", None) or request.args.get("preferred_domain", None)
+
         def is_ip_or_auto_ip_domain(host):
-            host = (host or '').lower()
-            if host.endswith(('.sslip.io', '.nip.io')):
+            host = (host or "").lower()
+            if host.endswith((".sslip.io", ".nip.io")):
                 return True
             try:
                 ipaddress.ip_address(host)
@@ -173,17 +186,17 @@ class Actions(FlaskView):
                 return False
 
         redirect_host = hutils.network.get_ip_str(4)
-        
-        if preferred_type == 'cdn':
-            cdn_domains = [d for d in domains if d.mode in ['cdn', 'auto_cdn_ip']]
+
+        if preferred_type == "cdn":
+            cdn_domains = [d for d in domains if d.mode in ["cdn", "auto_cdn_ip"]]
             if cdn_domains:
                 redirect_host = cdn_domains[0].domain
-        elif preferred_type == 'direct':
-            direct_domains = [d for d in domains if d.mode == 'direct']
+        elif preferred_type == "direct":
+            direct_domains = [d for d in domains if d.mode == "direct"]
             direct_domain = next((d for d in direct_domains if not is_ip_or_auto_ip_domain(d.domain)), None)
             if direct_domain:
                 redirect_host = direct_domain.domain
-        elif preferred_type == 'ip':
+        elif preferred_type == "ip":
             # Explicit "redirect to IP" choice (e.g. Quick Setup, when the
             # domain's DNS isn't pointed at this server yet) - redirect_host
             # already defaults to the IP above, so this is a no-op, but it
@@ -196,20 +209,22 @@ class Actions(FlaskView):
         else:
             # If no preference is specified (e.g. standard Apply Configs button),
             # stay on the same host the admin is currently using, if valid.
-            current_host = request.host.split(':')[0]
+            current_host = request.host.split(":")[0]
             if any(d.domain == current_host for d in domains):
                 redirect_host = current_host
 
         redirect_url = hiddify.get_admin_login_link(redirect_host)
 
-        resp = render_template("result.html",
-                               out_type="info",
-                               out_msg=_("admin.waiting_for_update"),
-                               redirect_url=redirect_url,
-                               log_file_url=get_log_api_url(),
-                               log_file="0-install.log",
-                               show_success=True,
-                               domains=get_domains())
+        resp = render_template(
+            "result.html",
+            out_type="info",
+            out_msg=_("admin.waiting_for_update"),
+            redirect_url=redirect_url,
+            log_file_url=get_log_api_url(),
+            log_file="0-install.log",
+            show_success=True,
+            domains=get_domains(),
+        )
 
         # subprocess.Popen(f"sudo {config['HIDDIFY_CONFIG_PATH']}/{file} --no-gui".split(" "), cwd=f"{config['HIDDIFY_CONFIG_PATH']}", start_new_session=True)
 
@@ -235,8 +250,8 @@ class Actions(FlaskView):
     @login_required(roles={Role.super_admin})
     def change_reality_keys(self):
         key = hutils.crypto.generate_x25519_keys()
-        set_hconfig(ConfigEnum.reality_private_key, key['private_key'])
-        set_hconfig(ConfigEnum.reality_public_key, key['public_key'])
+        set_hconfig(ConfigEnum.reality_private_key, key["private_key"])
+        set_hconfig(ConfigEnum.reality_public_key, key["public_key"])
         # Best-effort: the migration that first tries this
         # (init_db.py's _v150) can silently skip if the xray binary wasn't
         # downloaded yet at that point in bootstrap - this button runs well
@@ -246,26 +261,28 @@ class Actions(FlaskView):
         # work.
         mldsa65_keys = hutils.crypto.generate_mldsa65_keys()
         if mldsa65_keys:
-            set_hconfig(ConfigEnum.reality_mldsa65_seed, mldsa65_keys['seed'])
-            set_hconfig(ConfigEnum.reality_mldsa65_verify, mldsa65_keys['verify'])
+            set_hconfig(ConfigEnum.reality_mldsa65_seed, mldsa65_keys["seed"])
+            set_hconfig(ConfigEnum.reality_mldsa65_verify, mldsa65_keys["verify"])
         hutils.apply_scope.mark_dirty(hutils.apply_scope.CORE_ONLY_SUBSYSTEMS)
         hutils.flask.flash_config_success(restart_mode=ApplyMode.apply_config, domain_changed=False)
-        return redirect(hurl_for('admin.SettingAdmin:index'))
+        return redirect(hurl_for("admin.SettingAdmin:index"))
 
-    @ login_required(roles={Role.super_admin})
+    @login_required(roles={Role.super_admin})
     def status(self):
         # run status.sh
         commander(Command.status)
-        return render_template("result.html",
-                               out_type="info",
-                               out_msg=_("see the log in the bellow screen"),
-                               log_file_url=get_log_api_url(),
-                               log_file="status.log",
-                               show_success=False,
-                               domains=get_domains())
+        return render_template(
+            "result.html",
+            out_type="info",
+            out_msg=_("see the log in the bellow screen"),
+            log_file_url=get_log_api_url(),
+            log_file="status.log",
+            show_success=False,
+            domains=get_domains(),
+        )
 
-    @ route('update', methods=['POST'])
-    @ login_required(roles={Role.super_admin})
+    @route("update", methods=["POST"])
+    @login_required(roles={Role.super_admin})
     def update(self):
         return self.update2()
 
@@ -276,25 +293,30 @@ class Actions(FlaskView):
 
         commander(Command.update)
 
-        return render_template("result.html",
-                               out_type="success",
-                               out_msg=_("Success! Please wait around 5 minutes to make sure everything is updated."),
-                               show_success=True,
-                               log_file_url=get_log_api_url(),
-                               log_file="update.log",
-                               domains=get_domains())
+        return render_template(
+            "result.html",
+            out_type="success",
+            out_msg=_("Success! Please wait around 5 minutes to make sure everything is updated."),
+            show_success=True,
+            log_file_url=get_log_api_url(),
+            log_file="update.log",
+            domains=get_domains(),
+        )
 
     @login_required(roles={Role.super_admin})
     def get_some_random_reality_friendly_domain(self):
         test_domain = request.args.get("test_domain")
         import ping3
+
         from hiddifypanel.hutils.network.auto_ip_selector import IPASN, IPCOUNTRY
+
         ipv4 = hutils.network.get_ip_str(4)
-        server_country = (IPCOUNTRY.get(ipv4) or {}).get('country', {}).get('iso_code', 'unknown')
-        server_asn = (IPASN.get(ipv4) or {}).get('autonomous_system_organization', 'unknown')
+        server_country = (IPCOUNTRY.get(ipv4) or {}).get("country", {}).get("iso_code", "unknown")
+        server_asn = (IPASN.get(ipv4) or {}).get("autonomous_system_organization", "unknown")
         res = "<table><tr><th>Domain</th><th>IP</th><th>Country</th><th>ASN</th><th>Ping (ms)</th><th>TCP ping (ms)</th></tr>"
         res += f"<tr><td>Your Server</td><td>{ipv4}</td><td>{server_country}</td><td>{server_asn}</td><td>0</td></tr>"
         import time
+
         start = time.time()
         for d in [test_domain, *hutils.network.get_random_domains(30)]:
             if not d:
@@ -305,29 +327,30 @@ class Actions(FlaskView):
             tcp_ping = hutils.network.is_domain_reality_friendly(d)
             if tcp_ping:
                 dip = str(hutils.network.get_domain_ip(d))
-                dip_country = (IPCOUNTRY.get(dip) or {}).get('country', {}).get('iso_code', 'unknown')
+                dip_country = (IPCOUNTRY.get(dip) or {}).get("country", {}).get("iso_code", "unknown")
                 if dip_country == "IR":
                     continue
                 response_time = -1
                 try:
-                    response_time = ping3.ping(d, unit='ms')
+                    response_time = ping3.ping(d, unit="ms")
                     if response_time:
                         response_time = int(response_time)
                 except BaseException:
                     pass
-                dip_asn = (IPASN.get(dip) or {}).get('autonomous_system_organization', 'unknown')
+                dip_asn = (IPASN.get(dip) or {}).get("autonomous_system_organization", "unknown")
                 res += f"<tr><td>{d}</td><td>{dip}</td><td>{dip_country}</td><td>{dip_asn}</td><td>{response_time}</td><td>{tcp_ping}<td></tr>"
 
         return res + "</table>"
 
-    @ login_required(roles={Role.super_admin})
+    @login_required(roles={Role.super_admin})
     def update_usage(self):
-        color = 'white' if g.darkmode else 'black'
-        return render_template("result.html",
-                               out_type="info",
-                               out_msg=f'<pre class="ltr" style="color:{color};">{json.dumps(usage.update_local_usage(),indent=2)}</pre>',
-                               log_file_url=None
-                               )
+        color = "white" if g.darkmode else "black"
+        return render_template(
+            "result.html",
+            out_type="info",
+            out_msg=f'<pre class="ltr" style="color:{color};">{json.dumps(usage.update_local_usage(),indent=2)}</pre>',
+            log_file_url=None,
+        )
 
 
 def get_log_api_url():
@@ -335,4 +358,7 @@ def get_log_api_url():
 
 
 def get_domains():
-    return [str(d.domain).replace("*", hutils.random.get_random_string(3, 6)) for d in Domain.get_domains(always_add_all_domains=True, always_add_ip=False)]
+    return [
+        str(d.domain).replace("*", hutils.random.get_random_string(3, 6))
+        for d in Domain.get_domains(always_add_all_domains=True, always_add_ip=False)
+    ]

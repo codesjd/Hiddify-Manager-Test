@@ -1,0 +1,29 @@
+[flake8]
+max-line-length = 120
+exclude = 
+    .git,
+    __pycache__,
+    build,
+    dist,
+    *.pyi,
+    test_pb2.py
+extend-ignore = E203, W503
+per-file-ignores =
+    hiddifypanel/models/__init__.py: F403, F405
+    hiddifypanel/panel/node/test_pb2.py: ALL
+    */drivers/*.py: F403, F405
+    */base_setup.py: F403, F405
+    */hutils/*.py: F403, F405
+    */panel/commercial/**/*.py: F403, F405
+    */panel/admin/*.py: F403, F405
+    */panel/user/*.py: F403, F405
+    */panel/init_db.py: F403, F405
+    */panel/common.py: F403, F405
+    */panel/hiddify.py: F403, F405
+    */panel/usage.py: F403, F405
+    */panel/cli.py: F403, F405
+    */panel/custom_widgets.py: F403, F405
+    */auth.py: F403, F405
+    */panel/common_bp/login.py: F403, F405
+    */panel/commercial/__init__.py: F403, F405
+    */panel/commercial/ProxyDetailsAdmin.py: F403, F405

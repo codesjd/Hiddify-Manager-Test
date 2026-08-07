@@ -1,5 +1,5 @@
+"""This file isn't a model, it's just an enum for roles"""
 
-'''This file isn't a model, it's just an enum for roles'''
 from strenum import StrEnum
 
 
@@ -25,12 +25,13 @@ class Permission(StrEnum):
     `permissions={Permission.xxx}` to the relevant `login_required(...)`
     call.
     """
+
     view_traffic = "view_traffic"
     manage_users = "manage_users"
     manage_domains = "manage_domains"
     manage_settings = "manage_settings"
-    restart_services = "restart_services"          # Actions: restart/status
-    reinstall_apply = "reinstall_apply"             # Actions: apply/install/reinstall (more disruptive than a plain restart)
+    restart_services = "restart_services"  # Actions: restart/status
+    reinstall_apply = "reinstall_apply"  # Actions: apply/install/reinstall (more disruptive than a plain restart)
 
 
 class AccountType(StrEnum):

@@ -2,11 +2,12 @@ import json
 import os
 import threading
 
-from .abstract_driver import DriverABS
-from hiddifypanel.models import User, hconfig, ConfigEnum
-from hiddifypanel.panel.run_commander import Command, commander
 import redis
 
+from hiddifypanel.models import ConfigEnum, User, hconfig
+from hiddifypanel.panel.run_commander import Command, commander
+
+from .abstract_driver import DriverABS
 
 # Deliberately a different redis key than wireguard_api.py's "wg:users-usage"
 # even though both drivers key off the same User.wg_pub column (AmneziaWG
@@ -19,10 +20,10 @@ USERS_USAGE = "awg:users-usage"
 
 class AmneziaWgApi(DriverABS):
     def get_redis_client(self):
-        if not hasattr(self, 'redis_client'):
+        if not hasattr(self, "redis_client"):
             with self._init_lock:
-                if not hasattr(self, 'redis_client'):
-                    self.redis_client = redis.from_url(os.environ.get("REDIS_URI_SSH",""))
+                if not hasattr(self, "redis_client"):
+                    self.redis_client = redis.from_url(os.environ.get("REDIS_URI_SSH", ""))
 
         return self.redis_client
 
@@ -31,41 +32,42 @@ class AmneziaWgApi(DriverABS):
 
     def __init__(self) -> None:
         super().__init__()
-        self.pub_uuid_map={}
+        self.pub_uuid_map = {}
         self._init_lock = threading.Lock()
         self._map_lock = threading.Lock()
 
     def __load_pubkey_uuid_map(self):
         from hiddifypanel.database import db
-        users = db.session.query(User).all()
-        self.pub_uuid_map={u.wg_pub: u.uuid for u in users}
 
-    def __convert_pub_key_to_uuid(self,pubkeys):
-        res={}
-        can_reload_map=True
+        users = db.session.query(User).all()
+        self.pub_uuid_map = {u.wg_pub: u.uuid for u in users}
+
+    def __convert_pub_key_to_uuid(self, pubkeys):
+        res = {}
+        can_reload_map = True
         for key in pubkeys:
-            if uuid:=self.pub_uuid_map.get(key):
-                res[key]=uuid
+            if uuid := self.pub_uuid_map.get(key):
+                res[key] = uuid
             elif can_reload_map:
                 with self._map_lock:
                     self.__load_pubkey_uuid_map()
-                can_reload_map=False
-                if uuid:=self.pub_uuid_map.get(key):
-                    res[key]=uuid
+                can_reload_map = False
+                if uuid := self.pub_uuid_map.get(key):
+                    res[key] = uuid
         return res
 
     def __get_awg_usages(self) -> dict:
         raw_output = commander(Command.update_awg_usage, run_in_background=False)
         data = {}
-        for line in raw_output.split('\n'):
+        for line in raw_output.split("\n"):
             if not line:
                 continue
             sections = line.split()
             if len(sections) < 3:
                 continue
             data[sections[0]] = {
-                'down': int(sections[1]),
-                'up': int(sections[2]),
+                "down": int(sections[1]),
+                "up": int(sections[2]),
             }
 
         return data
@@ -94,7 +96,7 @@ class AmneziaWgApi(DriverABS):
             if not local_usage.get(wg_pub):
                 local_usage[wg_pub] = {"uuid": uuid, "usage": usage_stats}
                 continue
-            res[uuid] = self.calculate_reset(local_usage[wg_pub]['usage'], usage_stats)
+            res[uuid] = self.calculate_reset(local_usage[wg_pub]["usage"], usage_stats)
             local_usage[wg_pub] = {"uuid": uuid, "usage": usage_stats}
 
         self.get_redis_client().set(USERS_USAGE, json.dumps(local_usage))
@@ -103,14 +105,14 @@ class AmneziaWgApi(DriverABS):
 
     def calculate_reset(self, last_usage: dict, current_usage: dict) -> dict:
         res = {
-            'up': current_usage['up'] - last_usage['up'],
-            'down': current_usage['down'] - last_usage['down'],
+            "up": current_usage["up"] - last_usage["up"],
+            "down": current_usage["down"] - last_usage["down"],
         }
 
-        if res['up'] < 0:
-            res['up'] = 0
-        if res['down'] < 0:
-            res['down'] = 0
+        if res["up"] < 0:
+            res["up"] = 0
+        if res["down"] < 0:
+            res["down"] = 0
         return res
 
     def get_enabled_users(self):
@@ -120,7 +122,7 @@ class AmneziaWgApi(DriverABS):
         new_wg_pubs = set(usages.keys())
         old_usages = self.__get_local_usage()
         old_wg_pubs = set(old_usages.keys())
-        enabled = {u['uuid']: 1 for u in old_usages.values()}
+        enabled = {u["uuid"]: 1 for u in old_usages.values()}
         not_included = new_wg_pubs - old_wg_pubs
         if not_included:
             users = User.query.filter(User.wg_pub.in_(not_included)).all()
@@ -140,6 +142,6 @@ class AmneziaWgApi(DriverABS):
             return {}
         all_usages = self.__sync_local_usages()
         res = {}
-        for uuid,use in all_usages.items():
-            res[uuid] = use['up'] + use['down']
+        for uuid, use in all_usages.items():
+            res[uuid] = use["up"] + use["down"]
         return res

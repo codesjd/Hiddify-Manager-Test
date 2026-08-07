@@ -1,7 +1,2 @@
+from . import amneziawg, clash, singbox, wireguard, xray, xrayjson
 from .shared import *
-from . import xray
-from . import xrayjson
-from . import singbox
-from . import clash
-from . import wireguard
-from . import amneziawg

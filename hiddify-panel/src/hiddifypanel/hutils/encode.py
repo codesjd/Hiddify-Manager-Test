@@ -1,12 +1,14 @@
+import base64
 import re
 import urllib.parse
-import base64
 import uuid
-from html.parser import HTMLParser
 from html import escape as html_escape
+from html.parser import HTMLParser
+
 
 def unicode_slug(instr: str) -> str:
     from slugify import slugify
+
     return slugify(instr, lowercase=False, allow_unicode=True)
 
 
@@ -15,7 +17,7 @@ def url_encode(url: str) -> str:
 
 
 def do_base_64(input: str) -> str:
-    resp = base64.b64encode(f'{input}'.encode("utf-8"))
+    resp = base64.b64encode(f"{input}".encode("utf-8"))
     return resp.decode()
 
 
@@ -29,7 +31,7 @@ def is_valid_uuid(val: str, version: int | None = None) -> bool:
 
 
 def convert_dict_to_url(dict):
-    return '&' + '&'.join([f'{k}={v}' for k, v in dict.items()]) if len(dict) else ''
+    return "&" + "&".join([f"{k}={v}" for k, v in dict.items()]) if len(dict) else ""
 
 
 # branding_freetext (see config_enum.py) is authored through a CKEditor
@@ -41,18 +43,41 @@ def convert_dict_to_url(dict):
 # outright, same as any other "admin authors HTML shown to lower-privilege
 # users" field would need.
 _SANITIZE_ALLOWED_TAGS = {
-    'a', 'b', 'i', 'u', 's', 'strong', 'em', 'p', 'br', 'span', 'div',
-    'ul', 'ol', 'li', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'blockquote',
-    'code', 'pre', 'sub', 'sup', 'hr',
+    "a",
+    "b",
+    "i",
+    "u",
+    "s",
+    "strong",
+    "em",
+    "p",
+    "br",
+    "span",
+    "div",
+    "ul",
+    "ol",
+    "li",
+    "h1",
+    "h2",
+    "h3",
+    "h4",
+    "h5",
+    "h6",
+    "blockquote",
+    "code",
+    "pre",
+    "sub",
+    "sup",
+    "hr",
 }
 _SANITIZE_ALLOWED_ATTRS = {
-    'a': {'href', 'title', 'target', 'rel'},
+    "a": {"href", "title", "target", "rel"},
 }
-_SANITIZE_UNSAFE_URL_SCHEMES = ('javascript:', 'data:', 'vbscript:')
+_SANITIZE_UNSAFE_URL_SCHEMES = ("javascript:", "data:", "vbscript:")
 # Browsers strip ASCII C0 controls (tab/LF/CR and friends) from *inside* a
 # URL before resolving its scheme, so a naive .strip() (leading/trailing
 # only) lets "java\tscript:" through as if it weren't a javascript: URL.
-_CONTROL_CHARS_RE = re.compile(r'[\x00-\x1f]')
+_CONTROL_CHARS_RE = re.compile(r"[\x00-\x1f]")
 
 
 class _HTMLSanitizer(HTMLParser):
@@ -62,7 +87,7 @@ class _HTMLSanitizer(HTMLParser):
         self._skip_depth = 0  # inside a disallowed tag whose content must also be dropped (script/style)
 
     def handle_starttag(self, tag, attrs):
-        if tag in ('script', 'style'):
+        if tag in ("script", "style"):
             self._skip_depth += 1
             return
         if self._skip_depth:
@@ -73,24 +98,26 @@ class _HTMLSanitizer(HTMLParser):
         for name, value in attrs:
             if name not in _SANITIZE_ALLOWED_ATTRS.get(tag, set()):
                 continue
-            if name == 'href' and _CONTROL_CHARS_RE.sub('', (value or '')).strip().lower().startswith(_SANITIZE_UNSAFE_URL_SCHEMES):
+            if name == "href" and _CONTROL_CHARS_RE.sub("", (value or "")).strip().lower().startswith(
+                _SANITIZE_UNSAFE_URL_SCHEMES
+            ):
                 continue
             kept.append(f'{name}="{html_escape(value or "", quote=True)}"')
-        attr_str = (' ' + ' '.join(kept)) if kept else ''
-        self.out.append(f'<{tag}{attr_str}>')
+        attr_str = (" " + " ".join(kept)) if kept else ""
+        self.out.append(f"<{tag}{attr_str}>")
 
     def handle_endtag(self, tag):
-        if tag in ('script', 'style'):
+        if tag in ("script", "style"):
             self._skip_depth = max(0, self._skip_depth - 1)
             return
         if self._skip_depth:
             return
         if tag in _SANITIZE_ALLOWED_TAGS:
-            self.out.append(f'</{tag}>')
+            self.out.append(f"</{tag}>")
 
     def handle_startendtag(self, tag, attrs):
-        if tag == 'br' and not self._skip_depth:
-            self.out.append('<br>')
+        if tag == "br" and not self._skip_depth:
+            self.out.append("<br>")
 
     def handle_data(self, data):
         if not self._skip_depth:
@@ -101,11 +128,12 @@ def sanitize_html(value: str | None) -> str:
     """Strip everything except a small formatting-tag allowlist - see
     _SANITIZE_ALLOWED_TAGS/_SANITIZE_ALLOWED_ATTRS above."""
     if not value:
-        return ''
+        return ""
     parser = _HTMLSanitizer()
     parser.feed(value)
     parser.close()
-    return ''.join(parser.out)
+    return "".join(parser.out)
+
 
 # not used
 # def is_assci_alphanumeric(str):

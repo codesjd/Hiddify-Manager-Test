@@ -1,12 +1,15 @@
 import json
-from flask_babel import lazy_gettext as _
+
 import wtforms as wtf
+from flask_babel import lazy_gettext as _
 from markupsafe import Markup
 from wtforms.validators import ValidationError
-from .adminlte import AdminLTEModelView
+
+from hiddifypanel import hutils
 from hiddifypanel.auth import login_required
 from hiddifypanel.models import *
-from hiddifypanel import hutils
+
+from .adminlte import AdminLTEModelView
 
 
 # Same pattern as OutboundAdmin.py's _ScriptField/_PROTOCOL_FIELD_SCRIPT:
@@ -24,7 +27,7 @@ class _ScriptField(wtf.Field):
         pass
 
     def _value(self):
-        return ''
+        return ""
 
     def __call__(self, **kwargs):
         return Markup(_OVERRIDE_FIELD_SCRIPT)
@@ -86,11 +89,25 @@ _OVERRIDE_FIELD_SCRIPT = """
 # same categories DomainAdmin/OutboundAdmin/RoutingRuleAdmin already color
 # their own chips/pills with.
 _NAME_CHIP_COLORS = {
-    'tls_h2': '--accent-blue', 'tls_h1': '--accent-blue', 'http': '--accent-blue', 'h3_quic': '--accent-blue', 'quic': '--accent-blue',
-    'xhttp': '--accent-green', 'tcp': '--accent-green', 'grpc': '--accent-green', 'ws': '--accent-green', 'httpupgrade': '--accent-green',
-    'direct': '--accent-purple', 'reality': '--accent-purple', 'relay': '--accent-purple',
-    'vless': '--accent-orange', 'vmess': '--accent-orange', 'trojan': '--accent-orange', 'shadowsocks': '--accent-orange',
-    'hysteria2': '--accent-orange', 'tuic': '--accent-orange',
+    "tls_h2": "--accent-blue",
+    "tls_h1": "--accent-blue",
+    "http": "--accent-blue",
+    "h3_quic": "--accent-blue",
+    "quic": "--accent-blue",
+    "xhttp": "--accent-green",
+    "tcp": "--accent-green",
+    "grpc": "--accent-green",
+    "ws": "--accent-green",
+    "httpupgrade": "--accent-green",
+    "direct": "--accent-purple",
+    "reality": "--accent-purple",
+    "relay": "--accent-purple",
+    "vless": "--accent-orange",
+    "vmess": "--accent-orange",
+    "trojan": "--accent-orange",
+    "shadowsocks": "--accent-orange",
+    "hysteria2": "--accent-orange",
+    "tuic": "--accent-orange",
 }
 
 
@@ -101,14 +118,29 @@ _NAME_CHIP_COLORS = {
 _MANAGED_KEYS = ["sni", "host", "path", "fingerprint", "alpn", "mode", "hysteria_obfs_password"]
 
 _FINGERPRINT_CHOICES = [
-    ("", _("(no override)")), ("none", "None"), ("chrome", "Chrome"), ("edge", "Edge"), ("ios", "iOS"),
-    ("android", "Android"), ("safari", "Safari"), ("firefox", "Firefox"), ("random", "random"), ("randomized", "randomized"),
+    ("", _("(no override)")),
+    ("none", "None"),
+    ("chrome", "Chrome"),
+    ("edge", "Edge"),
+    ("ios", "iOS"),
+    ("android", "Android"),
+    ("safari", "Safari"),
+    ("firefox", "Firefox"),
+    ("random", "random"),
+    ("randomized", "randomized"),
 ]
 _ALPN_CHOICES = [
-    ("", _("(no override)")), ("h2", "h2"), ("http/1.1", "http/1.1"), ("h2,http/1.1", "h2,http/1.1"), ("h3", "h3"),
+    ("", _("(no override)")),
+    ("h2", "h2"),
+    ("http/1.1", "http/1.1"),
+    ("h2,http/1.1", "h2,http/1.1"),
+    ("h3", "h3"),
 ]
 _XHTTP_MODE_CHOICES = [
-    ("", _("(no override, default: auto)")), ("auto", "auto"), ("packet-up", "packet-up"), ("stream-up", "stream-up"),
+    ("", _("(no override, default: auto)")),
+    ("auto", "auto"),
+    ("packet-up", "packet-up"),
+    ("stream-up", "stream-up"),
 ]
 
 
@@ -132,8 +164,9 @@ class InboundOverrideAdmin(AdminLTEModelView):
     Uses the Proxy.params field, which already existed on the model but
     wasn't actually applied anywhere until now.
     """
+
     column_hide_backrefs = False
-    list_template = 'model/inboundoverride_list.html'
+    list_template = "model/inboundoverride_list.html"
     column_list = ["name", "proto", "transport", "cdn", "l3", "enable"]
     # Must list every field that should actually render on the edit form,
     # including the form_extra_fields below and the disabled context
@@ -142,9 +175,23 @@ class InboundOverrideAdmin(AdminLTEModelView):
     # form fields (form.sni, form.mode, ...) that didn't exist on the
     # generated form at all, 500ing the edit-modal AJAX load so the pencil
     # button appeared to do nothing.
-    form_columns = ["name", "proto", "transport", "cdn", "l3", "enable",
-                     "sni", "host", "path", "fingerprint", "alpn", "mode", "hysteria_obfs_password", "advanced_json",
-                     "override_field_script"]
+    form_columns = [
+        "name",
+        "proto",
+        "transport",
+        "cdn",
+        "l3",
+        "enable",
+        "sni",
+        "host",
+        "path",
+        "fingerprint",
+        "alpn",
+        "mode",
+        "hysteria_obfs_password",
+        "advanced_json",
+        "override_field_script",
+    ]
     column_editable_list = ["enable"]
 
     column_labels = {
@@ -156,15 +203,28 @@ class InboundOverrideAdmin(AdminLTEModelView):
         "enable": _("Enable"),
     }
     form_widget_args = {
-        'proto': {'disabled': True},
-        'transport': {'disabled': True},
-        'cdn': {'disabled': True},
-        'l3': {'disabled': True},
+        "proto": {"disabled": True},
+        "transport": {"disabled": True},
+        "cdn": {"disabled": True},
+        "l3": {"disabled": True},
     }
     form_extra_fields = {
-        "sni": wtf.StringField(_("SNI"), description=_("Override the Server Name Indication sent to the client's config. Leave blank to use the domain's own SNI.")),
-        "host": wtf.StringField(_("Host header"), description=_("Override the Host header (WS/CDN transports). Leave blank for the default.")),
-        "path": wtf.StringField(_("Path"), description=_("Override the transport path (WS/httpupgrade/xhttp) or gRPC service name. Leave blank for the auto-generated one.")),
+        "sni": wtf.StringField(
+            _("SNI"),
+            description=_(
+                "Override the Server Name Indication sent to the client's config. Leave blank to use the domain's own SNI."
+            ),
+        ),
+        "host": wtf.StringField(
+            _("Host header"),
+            description=_("Override the Host header (WS/CDN transports). Leave blank for the default."),
+        ),
+        "path": wtf.StringField(
+            _("Path"),
+            description=_(
+                "Override the transport path (WS/httpupgrade/xhttp) or gRPC service name. Leave blank for the auto-generated one."
+            ),
+        ),
         "fingerprint": wtf.SelectField(_("uTLS Fingerprint"), choices=_FINGERPRINT_CHOICES, default=""),
         "alpn": wtf.SelectField(_("ALPN"), choices=_ALPN_CHOICES, default=""),
         # render_kw id override: flaskadmin-layout.html's shared modal JS
@@ -173,11 +233,20 @@ class InboundOverrideAdmin(AdminLTEModelView):
         # values) after every modal load. This field means something
         # unrelated (XHTTP mode) - give it a distinct id so it's not
         # accidentally wired up by that global, name-based selector.
-        "mode": wtf.SelectField(_("XHTTP Mode"), choices=_XHTTP_MODE_CHOICES, default="", render_kw={"id": "inbound_override_mode"}),
-        "hysteria_obfs_password": wtf.StringField(_("Hysteria2 Obfs Password"), description=_("Only applies to hysteria2 proxies. Leave blank to use the global obfuscation password.")),
-        "advanced_json": wtf.TextAreaField(_("Advanced Override (JSON)"),
-                                            description=_('Deep-merged on top of everything above, for anything the fields don\'t cover, e.g. {"mux_enable": true}. '
-                                                           'Leave empty to only use the fields above.')),
+        "mode": wtf.SelectField(
+            _("XHTTP Mode"), choices=_XHTTP_MODE_CHOICES, default="", render_kw={"id": "inbound_override_mode"}
+        ),
+        "hysteria_obfs_password": wtf.StringField(
+            _("Hysteria2 Obfs Password"),
+            description=_("Only applies to hysteria2 proxies. Leave blank to use the global obfuscation password."),
+        ),
+        "advanced_json": wtf.TextAreaField(
+            _("Advanced Override (JSON)"),
+            description=_(
+                'Deep-merged on top of everything above, for anything the fields don\'t cover, e.g. {"mux_enable": true}. '
+                "Leave empty to only use the fields above."
+            ),
+        ),
         "override_field_script": _ScriptField(label=""),
     }
 

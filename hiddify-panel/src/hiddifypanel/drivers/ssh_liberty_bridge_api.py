@@ -1,8 +1,11 @@
 import os
 import threading
-from .abstract_driver import DriverABS
-from hiddifypanel.models import *
+
 import redis
+
+from hiddifypanel.models import *
+
+from .abstract_driver import DriverABS
 
 USERS_SET = "ssh-server:users"
 USERS_USAGE = "ssh-server:users-usage"
@@ -18,10 +21,10 @@ class SSHLibertyBridgeApi(DriverABS):
         return hconfig(ConfigEnum.ssh_server_enable)
 
     def get_ssh_redis_client(self):
-        if not hasattr(self, 'redis_client'):
+        if not hasattr(self, "redis_client"):
             with self._init_lock:
-                if not hasattr(self, 'redis_client'):
-                    self.redis_client = redis.from_url(os.environ.get("REDIS_URI_SSH",""), decode_responses=True)
+                if not hasattr(self, "redis_client"):
+                    self.redis_client = redis.from_url(os.environ.get("REDIS_URI_SSH", ""), decode_responses=True)
 
         return self.redis_client
 
@@ -31,9 +34,9 @@ class SSHLibertyBridgeApi(DriverABS):
         return {m.split("::")[0]: 1 for m in members}
 
     def add_client(self, user):
-        print(f'Adding SSH {user}')
+        print(f"Adding SSH {user}")
         redis_client = self.get_ssh_redis_client()
-        redis_client.sadd(USERS_SET, f'{user.uuid}::{user.ed25519_public_key}')
+        redis_client.sadd(USERS_SET, f"{user.uuid}::{user.ed25519_public_key}")
 
     def remove_client(self, user):
         redis_client = self.get_ssh_redis_client()
@@ -43,8 +46,8 @@ class SSHLibertyBridgeApi(DriverABS):
                 if member.startswith(user.uuid):
                     redis_client.srem(USERS_SET, member)
 
-        redis_client.srem(USERS_SET, f'{user.uuid}::{user.ed25519_public_key}')
-        redis_client.hdel(USERS_USAGE, f'{user.uuid}')
+        redis_client.srem(USERS_SET, f"{user.uuid}::{user.ed25519_public_key}")
+        redis_client.hdel(USERS_USAGE, f"{user.uuid}")
 
     def get_all_usage(self):
         redis_client = self.get_ssh_redis_client()
@@ -71,5 +74,5 @@ class SSHLibertyBridgeApi(DriverABS):
         if reset:
             redis_client.hincrby(USERS_USAGE, client_uuid, -value)
         if value:
-            logger.debug(f'ssh usage {client_uuid} {value}')
+            logger.debug(f"ssh usage {client_uuid} {value}")
         return value

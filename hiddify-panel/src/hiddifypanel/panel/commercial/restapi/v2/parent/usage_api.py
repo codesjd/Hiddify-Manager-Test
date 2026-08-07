@@ -1,12 +1,12 @@
 from apiflask import abort
-from flask.views import MethodView
 from flask import current_app as app
 from flask import g
+from flask.views import MethodView
 from loguru import logger
 
+from hiddifypanel.auth import login_required
 from hiddifypanel.models import Child
 from hiddifypanel.panel.usage import add_users_usage_uuid
-from hiddifypanel.auth import login_required
 
 from .schema import UsageInputOutputSchema
 
@@ -14,10 +14,11 @@ from .schema import UsageInputOutputSchema
 class UsageApi(MethodView):
     decorators = [login_required(node_auth=True)]
 
-    @app.input(UsageInputOutputSchema, arg_name='data')  # type: ignore
+    @app.input(UsageInputOutputSchema, arg_name="data")  # type: ignore
     @app.output(UsageInputOutputSchema)  # type: ignore
     def put(self, data):
         from hiddifypanel import hutils
+
         child = Child.query.filter(Child.unique_id == Child.node.unique_id).first()
         if not child:
             logger.error("The child does not exist")
@@ -52,15 +53,17 @@ class UsageApi(MethodView):
         # a normal transient state, not necessarily corruption).
         unknown_uuids = set(child_usages_data) - set(parent_usages_data)
         if unknown_uuids:
-            logger.warning(f"Child sent usage for {len(unknown_uuids)} uuid(s) unknown to parent (ignored): {unknown_uuids}")
+            logger.warning(
+                f"Child sent usage for {len(unknown_uuids)} uuid(s) unknown to parent (ignored): {unknown_uuids}"
+            )
         res = {}
         for p_uuid, p_usage in parent_usages_data.items():
             if child_usage := child_usages_data.get(p_uuid):
-                if child_usage['usage'] > 0:
+                if child_usage["usage"] > 0:
                     usage_data = {
-                        'usage':  child_usage['usage'] - p_usage['usage'],
-                        'devices': child_usage['devices'],
+                        "usage": child_usage["usage"] - p_usage["usage"],
+                        "devices": child_usage["devices"],
                     }
-                    if usage_data['usage'] > 0:
+                    if usage_data["usage"] > 0:
                         res[p_uuid] = usage_data
         return res

@@ -1,29 +1,28 @@
 import re
 import uuid
-from hiddifypanel import hutils
-from hiddifypanel.models.role import Role
-from hiddifypanel.panel import hiddify
-from hiddifypanel.auth import login_required
 
+from flask import current_app
 from wtforms.validators import ValidationError
 
+from hiddifypanel import hutils
+from hiddifypanel.auth import login_required
 from hiddifypanel.models import ConfigEnum, Domain
+from hiddifypanel.models.role import Role
+from hiddifypanel.panel import hiddify
+
 from .adminlte import AdminLTEModelView
-from flask import current_app
 
 
 class ConfigAdmin(AdminLTEModelView):
     can_export = True
-    column_default_sort = ('category', False)
+    column_default_sort = ("category", False)
     column_display_pk = True
     can_delete = False
     can_create = False
     column_editable_list = ["value"]
     column_searchable_list = ["key", "value"]
     form_widget_args = {
-        'description': {
-            'readonly': True
-        },
+        "description": {"readonly": True},
     }
 
     def is_accessible(self):
@@ -33,13 +32,13 @@ class ConfigAdmin(AdminLTEModelView):
 
     def on_model_change(self, form, model, is_created):
         if model.key == ConfigEnum.db_version:
-            raise ValidationError('DB version can not be changed')
+            raise ValidationError("DB version can not be changed")
         # if model.key==ConfigEnum.decoy_domain:
         #     if not re.match("http(s|)://([A-Za-z0-9\-\.]+\.[a-zA-Z]{2,})/?", model.value):
         #         raise ValidationError('Invalid address: e.g., https://www.wikipedia.org/')
         if model.key in [ConfigEnum.admin_secret]:
             if not hutils.encode.is_valid_uuid(model.value):
-                raise ValidationError('Invalid UUID e.g.,' + str(uuid.uuid4()))
+                raise ValidationError("Invalid UUID e.g.," + str(uuid.uuid4()))
 
         # There is no telegram_secret !?
         # if model.key in [ConfigEnum.telegram_secret]:
@@ -48,14 +47,14 @@ class ConfigAdmin(AdminLTEModelView):
 
         if model.key == ConfigEnum.proxy_path:
             if not re.match("^[a-zA-Z0-9]*$", model.value):
-                raise ValidationError('Invalid path. should be ascii string')
+                raise ValidationError("Invalid path. should be ascii string")
 
         if model.key == ConfigEnum.kcp_ports:
             if not re.match("^(\\d,?)*$", model.value):
-                raise ValidationError('Invalid path. should be comma separated integer e.g., 80,81')
+                raise ValidationError("Invalid path. should be comma separated integer e.g., 80,81")
 
         if "domain" in model.key:
             if not re.match("^([A-Za-z0-9\\-.]+\\.[a-zA-Z]{2,})$", model.value):
-                raise ValidationError('Invalid domain: e.g., www.google.com')
+                raise ValidationError("Invalid domain: e.g., www.google.com")
             if len(Domain.query.filter(Domain.domain == model.value).all()) > 0:
                 raise ValidationError(f"Domain model.value is exist in domains section. Use a fake domain")

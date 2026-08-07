@@ -2,4 +2,4 @@
 
 from hiddifypanel import create_app_wsgi
 
-app =  create_app_wsgi()  # noqa
+app = create_app_wsgi()  # noqa

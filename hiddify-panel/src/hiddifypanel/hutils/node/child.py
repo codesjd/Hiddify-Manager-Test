@@ -1,21 +1,33 @@
-from loguru import logger
 import socket
-from flask_babel import gettext as _
-from strenum import StrEnum
-from celery import shared_task
 
-from hiddifypanel.models import AdminUser, User, hconfig, ConfigEnum, ChildMode, Domain, Proxy, StrConfig, BoolConfig, Child, ChildMode
+from celery import shared_task
+from flask_babel import gettext as _
+from loguru import logger
+from strenum import StrEnum
+
 from hiddifypanel import hutils
-from hiddifypanel.panel import hiddify
-from hiddifypanel.panel import usage
-from hiddifypanel.database import db
 from hiddifypanel.cache import cache
+from hiddifypanel.database import db
+from hiddifypanel.models import (
+    AdminUser,
+    BoolConfig,
+    Child,
+    ChildMode,
+    ConfigEnum,
+    Domain,
+    Proxy,
+    StrConfig,
+    User,
+    hconfig,
+)
+from hiddifypanel.panel import hiddify, usage
+from hiddifypanel.panel.commercial.restapi.v2.child.schema import *
 
 # import schmeas
 from hiddifypanel.panel.commercial.restapi.v2.parent.schema import *
-from hiddifypanel.panel.commercial.restapi.v2.child.schema import *
 
 from .api_client import NodeApiClient, NodeApiErrorSchema
+
 # region private
 
 
@@ -38,9 +50,9 @@ def __get_register_data_for_api(name: str, mode: ChildMode) -> RegisterInputSche
 
 
 class SyncFields(StrEnum):
-    domains = 'domains'
-    proxies = 'proxies'
-    hconfigs = 'hconfigs'
+    domains = "domains"
+    proxies = "proxies"
+    hconfigs = "hconfigs"
 
 
 def __get_sync_data_for_api(*fields: SyncFields) -> SyncInputSchema:
@@ -63,14 +75,18 @@ def __get_sync_data_for_api(*fields: SyncFields) -> SyncInputSchema:
 
 
 def __get_parent_panel_url() -> str:
-    url = 'https://' + f"{hconfig(ConfigEnum.parent_domain).removesuffix('/')}/{hconfig(ConfigEnum.parent_admin_proxy_path).removesuffix('/')}"
+    url = (
+        "https://"
+        + f"{hconfig(ConfigEnum.parent_domain).removesuffix('/')}/{hconfig(ConfigEnum.parent_admin_proxy_path).removesuffix('/')}"
+    )
     return url
+
 
 # endregion
 
 
 def is_registered() -> bool:
-    '''Checks if the current parent registered as a child'''
+    """Checks if the current parent registered as a child"""
     try:
         logger.debug("Checking if current panel is registered with parent")
         base_url = __get_parent_panel_url()
@@ -79,12 +95,12 @@ def is_registered() -> bool:
         payload = ChildStatusInputSchema()
         payload.child_unique_id = hconfig(ConfigEnum.unique_id)
 
-        res = NodeApiClient(base_url).post('/api/v2/parent/status/', payload, ChildStatusOutputSchema)
+        res = NodeApiClient(base_url).post("/api/v2/parent/status/", payload, ChildStatusOutputSchema)
         if isinstance(res, NodeApiErrorSchema):
             logger.error(f"Error while checking if current panel is registered with parent: {res.msg}")
             return False
 
-        if res['existance']:
+        if res["existance"]:
             return True
         return False
     except Exception as e:
@@ -101,18 +117,22 @@ def register_to_parent(name: str, apikey: str, mode: ChildMode = ChildMode.remot
         return False
 
     payload = __get_register_data_for_api(name, mode)
-    res = NodeApiClient(p_url, apikey).put('/api/v2/parent/register/', payload, RegisterOutputSchema)
+    res = NodeApiClient(p_url, apikey).put("/api/v2/parent/register/", payload, RegisterOutputSchema)
     if isinstance(res, NodeApiErrorSchema):
         logger.error(f"Error while registering to parent: {res.msg}")
         return False
 
     # TODO: change the bulk_register and such methods to accept models instead of dict
-    AdminUser.bulk_register(res['admin_users'], commit=False)
-    User.bulk_register(res['users'], commit=False)
+    AdminUser.bulk_register(res["admin_users"], commit=False)
+    User.bulk_register(res["users"], commit=False)
 
     # add new child as parent
     db.session.add(  # type: ignore
-        Child(unique_id=res['parent_unique_id'], name=socket.gethostname() or res['parent_unique_id'], mode=ChildMode.parent)
+        Child(
+            unique_id=res["parent_unique_id"],
+            name=socket.gethostname() or res["parent_unique_id"],
+            mode=ChildMode.parent,
+        )
     )
 
     db.session.commit()  # type: ignore
@@ -125,9 +145,9 @@ def register_to_parent(name: str, apikey: str, mode: ChildMode = ChildMode.remot
 @shared_task(
     ignore_result=True,
     autoretry_for=(Exception,),
-    retry_backoff=True,       # exponential: 1s, 2s, 4s, 8s, 16s...
-    retry_backoff_max=600,    # capped at 10 minutes between attempts
-    retry_jitter=True,        # avoid every child retrying in lockstep
+    retry_backoff=True,  # exponential: 1s, 2s, 4s, 8s, 16s...
+    retry_backoff_max=600,  # capped at 10 minutes between attempts
+    retry_jitter=True,  # avoid every child retrying in lockstep
     max_retries=5,
 )
 def periodic_full_resync_with_parent() -> None:
@@ -170,12 +190,12 @@ def sync_with_parent(*fields: SyncFields) -> bool:
         logger.error("Error while syncing with parent: Parent url is empty")
         return False
     payload = __get_sync_data_for_api(*fields)
-    res = NodeApiClient(p_url).put('/api/v2/parent/sync/', payload, SyncOutputSchema)
+    res = NodeApiClient(p_url).put("/api/v2/parent/sync/", payload, SyncOutputSchema)
     if isinstance(res, NodeApiErrorSchema):
         logger.error(f"Error while syncing with parent: {res.msg}")
         return False
-    AdminUser.bulk_register(res['admin_users'], commit=False, remove=True)
-    User.bulk_register(res['users'], commit=False, remove=True)
+    AdminUser.bulk_register(res["admin_users"], commit=False, remove=True)
+    User.bulk_register(res["users"], commit=False, remove=True)
     db.session.commit()  # type: ignore
     logger.success("Successfully synced with parent")
     cache.invalidate_all_cached_functions()
@@ -190,7 +210,7 @@ def sync_users_usage_with_parent() -> bool:
 
     payload = hutils.node.get_users_usage_data_for_api()
     if payload:
-        res = NodeApiClient(p_url).put('/api/v2/parent/usage/', payload, UsageInputOutputSchema)  # type: ignore
+        res = NodeApiClient(p_url).put("/api/v2/parent/usage/", payload, UsageInputOutputSchema)  # type: ignore
         if isinstance(res, NodeApiErrorSchema):
             logger.error(f"Error while syncing users usage with parent: {res.msg}")
             return False

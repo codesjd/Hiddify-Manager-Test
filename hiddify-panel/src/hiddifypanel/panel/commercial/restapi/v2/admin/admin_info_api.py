@@ -1,12 +1,14 @@
+from apiflask import abort
 from flask import current_app as app
 from flask import g
 from flask.views import MethodView
-from apiflask import abort
+
 from hiddifypanel.auth import login_required
 from hiddifypanel.models.admin import AdminMode, AdminUser
-from hiddifypanel.models.config_enum import ConfigEnum, Lang
 from hiddifypanel.models.config import hconfig
+from hiddifypanel.models.config_enum import ConfigEnum, Lang
 from hiddifypanel.models.role import Role
+
 from .schema import AdminSchema
 
 

@@ -1,12 +1,14 @@
-
-from flask import current_app, g, redirect, request, session
-from hiddifypanel.hutils.flask import hurl_for
-from flask_login.utils import _get_user
 from functools import wraps
-from hiddifypanel.models import *
+
 from apiflask import abort as json_abort
-from hiddifypanel import hutils
+from flask import current_app, g, redirect, request, session
+from flask_login.utils import _get_user
 from werkzeug.local import LocalProxy
+
+from hiddifypanel import hutils
+from hiddifypanel.hutils.flask import hurl_for
+from hiddifypanel.models import *
+
 current_account: "BaseAccount" = LocalProxy(lambda: _get_user())
 
 
@@ -52,15 +54,15 @@ def _get_user():
 
 
 def admin_session_is_exist():
-    return '_admin_id' in session
+    return "_admin_id" in session
 
 
 def logout_user():
     g.__account_store = None
-    if '_user_id' in session:
-        session.pop('_user_id')
-    if '_admin_id' in session:
-        session.pop('_admin_id')
+    if "_user_id" in session:
+        session.pop("_user_id")
+    if "_admin_id" in session:
+        session.pop("_admin_id")
 
 
 def login_user(user: AdminUser | User, remember=False, duration=None, force=False, fresh=True, fresh_login=False):
@@ -116,26 +118,28 @@ def login_user(user: AdminUser | User, remember=False, duration=None, force=Fals
 def login_required(roles: set[Role] | None = None, node_auth: bool = False, permissions: set | None = None):
 
     def decorator(func):
-        from flask import has_app_context, current_app
+        from flask import current_app, has_app_context
+
         # Conditionally apply x if has_app_context() is true
         if has_app_context():
-            func = current_app.doc(security='Hiddify-API-Key')(func)
+            func = current_app.doc(security="Hiddify-API-Key")(func)
 
         # Always apply y
         func = login_required2(roles, node_auth, permissions)(func)
         return func
+
     return decorator
 
 
 def login_required2(roles: set[Role] | None = None, node_auth: bool = False, permissions: set | None = None):
-    '''When both roles and node_auth is set, means authentication can be done by either uuid or unique_id'''
+    """When both roles and node_auth is set, means authentication can be done by either uuid or unique_id"""
 
     def wrapper(fn):
 
         @wraps(fn)
         def decorated_view(*args, **kwargs):
             if node_auth and not Child.node and not roles:
-                json_abort(403, 'Unauthorized node')
+                json_abort(403, "Unauthorized node")
             if not current_account and not node_auth:
                 return redirect_to_login()  # type: ignore
             if roles and not Child.node:
@@ -146,11 +150,13 @@ def login_required2(roles: set[Role] | None = None, node_auth: bool = False, per
                 # AnonymousAccount/User don't implement has_permission - only
                 # relevant for AdminUser-gated views, so just skip the check
                 # for account types that don't have it rather than crashing.
-                has_perm_check = getattr(current_account, 'has_permission', None)
+                has_perm_check = getattr(current_account, "has_permission", None)
                 if has_perm_check and not any(has_perm_check(p) for p in permissions):
                     return redirect_to_login()  # type: ignore
             return fn(*args, **kwargs)
+
         return decorated_view
+
     return wrapper
 
 
@@ -161,11 +167,15 @@ def get_account_by_api_key(api_key, is_admin):
 
 
 def get_account_by_uuid(uuid, is_admin):
-    return AdminUser.by_uuid(f'{uuid}') if is_admin else User.by_uuid(f'{uuid}')
+    return AdminUser.by_uuid(f"{uuid}") if is_admin else User.by_uuid(f"{uuid}")
 
 
-def login_by_username_or_uuid(uname_or_uuid, password:str, is_admin: bool)->bool:
-    account = AdminUser.by_username_password(uname_or_uuid, password) if is_admin else User.by_username_password(uname_or_uuid, password)
+def login_by_username_or_uuid(uname_or_uuid, password: str, is_admin: bool) -> bool:
+    account = (
+        AdminUser.by_username_password(uname_or_uuid, password)
+        if is_admin
+        else User.by_username_password(uname_or_uuid, password)
+    )
     if account:
         return login_user(account, force=True, fresh_login=True)
 
@@ -174,6 +184,7 @@ def login_by_username_or_uuid(uname_or_uuid, password:str, is_admin: bool)->bool
         return False
 
     from werkzeug.security import check_password_hash
+
     if account.password and (account.password.startswith("scrypt:") or account.password.startswith("pbkdf2:")):
         if not check_password_hash(account.password, password):
             return False
@@ -182,6 +193,7 @@ def login_by_username_or_uuid(uname_or_uuid, password:str, is_admin: bool)->bool
         # default of an empty password (accounts start with password=""
         # until a real one is set)
         import hmac
+
         if not hmac.compare_digest(account.password or "", password or ""):
             return False
         if password:
@@ -201,7 +213,7 @@ def auth_before_request():
 
     if g.uuid and not is_admin_path:
         account = get_account_by_uuid(g.uuid, is_admin_path)
-        if not account or account.password!="":
+        if not account or account.password != "":
             return logout_redirect()
 
     elif apikey := request.headers.get("Hiddify-API-Key"):
@@ -220,15 +232,19 @@ def auth_before_request():
         if not pword:
             account = get_account_by_uuid(uname, is_admin_path)
         else:
-            account = AdminUser.by_username_password(uname, pword) if is_admin_path else User.by_username_password(uname, pword)
+            account = (
+                AdminUser.by_username_password(uname, pword)
+                if is_admin_path
+                else User.by_username_password(uname, pword)
+            )
         if not account:
             return logout_redirect()
 
-    elif (session_user := session.get('_user_id')) and not is_admin_path:
+    elif (session_user := session.get("_user_id")) and not is_admin_path:
         account = User.by_id(int(session_user.split("_")[1]))  # type: ignore
         if not account:
             return logout_redirect()
-    elif (session_admin := session.get('_admin_id')) and is_admin_path:
+    elif (session_admin := session.get("_admin_id")) and is_admin_path:
         account = AdminUser.by_id(int(session_admin.split("_")[1]))  # type: ignore
         if not account:
             return logout_redirect()
@@ -242,7 +258,7 @@ def auth_before_request():
             return
         if next_url is None:
             return
-        if not g.user_agent['is_browser']:
+        if not g.user_agent["is_browser"]:
             return
         if ".webmanifest" in request.path:
             return
@@ -257,13 +273,16 @@ def logout_redirect():
 
 def redirect_to_login():
     if hutils.flask.is_api_call(request.path):
-        json_abort(403, 'Unathorized')
+        json_abort(403, "Unathorized")
     # if g.user_agent['is_browser']:
     # return redirect(hurl_for('common_bp.LoginView:basic_0', force=1, next=request.path))
-    return redirect(hurl_for('common_bp.LoginView:index', force=1, next=request.path.replace(f'{g.uuid}/',''),user=g.uuid))
+    return redirect(
+        hurl_for("common_bp.LoginView:index", force=1, next=request.path.replace(f"{g.uuid}/", ""), user=g.uuid)
+    )
 
     # else:
     #     abort(401, "Unauthorized")
     # return f'/{request.path.split("/")[1]}/?force=1&redirect={request.path}'
+
 
 # @login_manager.request_loader

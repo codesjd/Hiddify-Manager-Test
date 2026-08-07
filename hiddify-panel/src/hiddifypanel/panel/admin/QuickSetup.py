@@ -1,60 +1,60 @@
 import re
-import flask_babel
 import uuid
-# from flask_babelex import lazy_gettext as _
-from flask import render_template, g, request, session as flask_session
-from flask_babel import gettext as _
-from markupsafe import Markup
-import wtforms as wtf
-from flask_wtf import FlaskForm
-from flask_bootstrap import SwitchField
-from hiddifypanel.panel import hiddify
-from flask_classful import FlaskView
-from wtforms.validators import ValidationError, Length, InputRequired
 
-from hiddifypanel.models import Domain, DomainType, StrConfig, ConfigEnum, get_hconfigs
-from hiddifypanel.database import db
-from hiddifypanel.auth import login_required
+import flask_babel
+import wtforms as wtf
+
+# from flask_babelex import lazy_gettext as _
+from flask import g, render_template, request
+from flask import session as flask_session
+from flask_babel import gettext as _
+from flask_bootstrap import SwitchField
+from flask_classful import FlaskView
+from flask_wtf import FlaskForm
+from markupsafe import Markup
+from wtforms.validators import InputRequired, Length, ValidationError
+
 from hiddifypanel import hutils
+from hiddifypanel.auth import login_required
+from hiddifypanel.database import db
 from hiddifypanel.models import *
+from hiddifypanel.models import ConfigEnum, Domain, DomainType, StrConfig, get_hconfigs
+from hiddifypanel.panel import hiddify
 
 
 class QuickSetup(FlaskView):
     decorators = [login_required({Role.super_admin})]
 
     def current_form(self, step=None, empty=False, next=False):
-        step = int(step or request.form.get("step") or request.args.get('step', "1"))
+        step = int(step or request.form.get("step") or request.args.get("step", "1"))
         if next:
             step = step + 1
-        form = {1: get_lang_form,
-                2: get_password_form,
-                3: get_quick_setup_form,
-                4: get_proxy_form}
+        form = {1: get_lang_form, 2: get_password_form, 3: get_quick_setup_form, 4: get_proxy_form}
 
         return form[step](empty=empty or next)
 
     def index(self):
         return render_template(
-            'quick_setup.html',
-            form=self.current_form(),
-            admin_link=admin_link(),
-            show_domain_info=True)
+            "quick_setup.html", form=self.current_form(), admin_link=admin_link(), show_domain_info=True
+        )
 
     def post(self):
-        if request.args.get('changepw') == "true":
+        if request.args.get("changepw") == "true":
             AdminUser.current_admin_or_owner().uuid = str(uuid.uuid4())
             db.session.commit()
 
         set_hconfig(ConfigEnum.first_setup, False)
         form = self.current_form()
         if not form.validate_on_submit() or form.step.data not in ["1", "2", "3", "4"]:
-            hutils.flask.flash(_('config.validation-error'), 'danger')
+            hutils.flask.flash(_("config.validation-error"), "danger")
             return render_template(
-                'quick_setup.html', form=form,
+                "quick_setup.html",
+                form=form,
                 admin_link=admin_link(),
                 ipv4=hutils.network.get_ip_str(4),
                 ipv6=hutils.network.get_ip_str(6),
-                show_domain_info=False)
+                show_domain_info=False,
+            )
         return form.post(self)
 
 
@@ -62,14 +62,25 @@ def get_lang_form(empty=False):
     class LangForm(FlaskForm):
         step = wtf.HiddenField(default="1")
         admin_lang = wtf.SelectField(
-            _("config.admin_lang.label"), choices=[("en", _("lang.en")), ("fa", _("lang.fa")), ("pt", _("lang.pt")), ("zh", _("lang.zh")), ("ru", _("lang.ru")), ("my", _("lang.my"))],
+            _("config.admin_lang.label"),
+            choices=[
+                ("en", _("lang.en")),
+                ("fa", _("lang.fa")),
+                ("pt", _("lang.pt")),
+                ("zh", _("lang.zh")),
+                ("ru", _("lang.ru")),
+                ("my", _("lang.my")),
+            ],
             description=_("config.admin_lang.description"),
-            default=hconfig(ConfigEnum.admin_lang))
+            default=hconfig(ConfigEnum.admin_lang),
+        )
         country = wtf.SelectField(
-            _("config.country.label"), choices=[("ir", _("Iran")), ("zh", _("China")), ("ru", _("Russia")),  ("other", "Others")],
+            _("config.country.label"),
+            choices=[("ir", _("Iran")), ("zh", _("China")), ("ru", _("Russia")), ("other", "Others")],
             description=_("config.country.description"),
-            default=hconfig(ConfigEnum.country))
-        lang_submit = wtf.SubmitField(_('Submit'))
+            default=hconfig(ConfigEnum.country),
+        )
+        lang_submit = wtf.SubmitField(_("Submit"))
 
         def post(self, view):
             set_hconfig(ConfigEnum.lang, self.admin_lang.data)
@@ -77,11 +88,9 @@ def get_lang_form(empty=False):
             set_hconfig(ConfigEnum.country, self.country.data)
 
             flask_babel.refresh()
-            hutils.flask.flash((_('quicksetup.setlang.success')), 'success')
+            hutils.flask.flash((_("quicksetup.setlang.success")), "success")
 
-            return render_template(
-                'quick_setup.html', form=view.current_form(next=True),
-                show_domain_info=False)
+            return render_template("quick_setup.html", form=view.current_form(next=True), show_domain_info=False)
 
     form = LangForm(None) if empty else LangForm()
     form.step.data = "1"
@@ -94,20 +103,23 @@ def get_password_form(empty=False):
         admin_username = wtf.StringField(
             _("Username"),
             description=_("Used to log in to the admin panel."),
-            default=(AdminUser.current_admin_or_owner().username or 'admin'),
+            default=(AdminUser.current_admin_or_owner().username or "admin"),
             validators=[
                 InputRequired(message=_("Username is required.")),
                 Length(min=3, max=100, message=_("Username must be between 3 and 100 characters.")),
                 validate_username_unique,
-            ])
+            ],
+        )
         admin_pass = wtf.PasswordField(
             _("user.password.title"),
             description=_("user.password.description"),
-            default="admin", validators=[
+            default="admin",
+            validators=[
                 InputRequired(message=_("user.password.validation-required")),
-                Length(min=3, message=_("user.password.validation-lenght"))
-            ])
-        password_submit = wtf.SubmitField(_('Submit'))
+                Length(min=3, message=_("user.password.validation-lenght")),
+            ],
+        )
+        password_submit = wtf.SubmitField(_("Submit"))
 
         def post(self, view):
             admin = AdminUser.current_admin_or_owner()
@@ -115,11 +127,13 @@ def get_password_form(empty=False):
             admin.update_password(self.admin_pass.data)
 
             return render_template(
-                'quick_setup.html', form=view.current_form(next=True),
+                "quick_setup.html",
+                form=view.current_form(next=True),
                 admin_link=admin_link(),
                 ipv4=hutils.network.get_ip_str(4),
                 ipv6=hutils.network.get_ip_str(6),
-                show_domain_info=False)
+                show_domain_info=False,
+            )
 
     form = PasswordForm(None) if empty else PasswordForm()
     form.step.data = "2"
@@ -150,13 +164,18 @@ def get_proxy_form(empty=False):
 
             db.session.commit()
             # Prefer the value submitted by the form; fall back to existing session or 'ip'
-            flask_session['qs_preferred_domain'] = (self.preferred_domain.data or flask_session.get('qs_preferred_domain', 'ip') or 'ip')
+            flask_session["qs_preferred_domain"] = (
+                self.preferred_domain.data or flask_session.get("qs_preferred_domain", "ip") or "ip"
+            )
 
             hutils.proxy.get_proxies.invalidate_all()
             if hutils.node.is_child():
-                hutils.node.run_node_op_in_bg(hutils.node.child.sync_with_parent, *[hutils.node.child.SyncFields.hconfigs])
+                hutils.node.run_node_op_in_bg(
+                    hutils.node.child.sync_with_parent, *[hutils.node.child.SyncFields.hconfigs]
+                )
 
             from .Actions import Actions
+
             return Actions().reinstall(domain_changed=True)
 
     pinned_order = [ConfigEnum.wireguard_enable, ConfigEnum.ssh_server_enable]
@@ -172,19 +191,25 @@ def get_proxy_form(empty=False):
     )
 
     for cf in boolconfigs:
-        if cf.key.category == 'hidden':
+        if cf.key.category == "hidden":
             continue
         if cf.key.startswith("sub_") or cf.key.startswith("mux_"):
             continue
-        if not cf.key.endswith("_enable") or cf.key in [ConfigEnum.hysteria_obfs_enable, ConfigEnum.tls_padding_enable, ConfigEnum.wireguard_enable]:
+        if not cf.key.endswith("_enable") or cf.key in [
+            ConfigEnum.hysteria_obfs_enable,
+            ConfigEnum.tls_padding_enable,
+            ConfigEnum.wireguard_enable,
+        ]:
             continue
 
-        field = SwitchField(_(f'config.{cf.key}.label'), default=cf.value, description=_(f'config.{cf.key}.description'))
-        setattr(ProxyForm, f'{cf.key}', field)
-    setattr(ProxyForm, "submit_global", wtf.fields.SubmitField(_('Submit')))
+        field = SwitchField(
+            _(f"config.{cf.key}.label"), default=cf.value, description=_(f"config.{cf.key}.description")
+        )
+        setattr(ProxyForm, f"{cf.key}", field)
+    setattr(ProxyForm, "submit_global", wtf.fields.SubmitField(_("Submit")))
     form = ProxyForm(None) if empty else ProxyForm()
     if empty:
-        form.preferred_domain.data = flask_session.get('qs_preferred_domain', 'ip')
+        form.preferred_domain.data = flask_session.get("qs_preferred_domain", "ip")
     form.step.data = "4"
     return form
 
@@ -208,13 +233,29 @@ def get_quick_setup_form(empty=False):
             wtf.validators.Regexp(domain_regex, re.IGNORECASE, _("config.Invalid_domain")),
             validate_domain,
             validate_domain_not_conflicting(DomainType.direct),
-            wtf.validators.NoneOf([c.value.lower() for c in StrConfig.query.all() if "fakedomain" in c.key and c.key != ConfigEnum.decoy_domain], _("config.Domain_already_used"))]
+            wtf.validators.NoneOf(
+                [
+                    c.value.lower()
+                    for c in StrConfig.query.all()
+                    if "fakedomain" in c.key and c.key != ConfigEnum.decoy_domain
+                ],
+                _("config.Domain_already_used"),
+            ),
+        ]
 
         cdn_domain_validators = [
-            wtf.validators.Regexp(f'({domain_regex})|(^$)', re.IGNORECASE, _("config.Invalid_domain")),
+            wtf.validators.Regexp(f"({domain_regex})|(^$)", re.IGNORECASE, _("config.Invalid_domain")),
             validate_domain_cdn,
             validate_domain_not_conflicting(DomainType.cdn),
-            wtf.validators.NoneOf([c.value.lower() for c in StrConfig.query.all() if "fakedomain" in c.key and c.key != ConfigEnum.decoy_domain], _("config.Domain_already_used"))]
+            wtf.validators.NoneOf(
+                [
+                    c.value.lower()
+                    for c in StrConfig.query.all()
+                    if "fakedomain" in c.key and c.key != ConfigEnum.decoy_domain
+                ],
+                _("config.Domain_already_used"),
+            ),
+        ]
         domain = wtf.StringField(
             _("domain.domain"),
             domain_validators,
@@ -224,12 +265,17 @@ def get_quick_setup_form(empty=False):
                 "pattern": domain_validators[0].regex.pattern,
                 "title": domain_validators[0].message,
                 "required": "",
-                "placeholder": "sub.domain.com"})
+                "placeholder": "sub.domain.com",
+            },
+        )
 
         enable_xicmp = SwitchField(
             _("Also enable xICMP on this domain"),
-            description=_("xICMP needs no DNS/NS setup, so even a bare server IP entered above works as an xICMP target too - enable this to get it set up during install instead of adding it separately later."),
-            default=False)
+            description=_(
+                "xICMP needs no DNS/NS setup, so even a bare server IP entered above works as an xICMP target too - enable this to get it set up during install instead of adding it separately later."
+            ),
+            default=False,
+        )
 
         cdn_domain = wtf.StringField(
             _("quicksetup.cdn_domain.label"),
@@ -239,17 +285,34 @@ def get_quick_setup_form(empty=False):
                 "class": "ltr",
                 "pattern": domain_validators[0].regex.pattern,
                 "title": domain_validators[0].message,
-                "placeholder": "sub.domain.com"})
-        block_iran_sites = SwitchField(_("config.block_iran_sites.label"), description=_(
-            "config.block_iran_sites.description"), default=hconfig(ConfigEnum.block_iran_sites))
-        decoy_domain = wtf.StringField(_("config.decoy_domain.label"), description=_("config.decoy_domain.description"), default=hconfig(
-            ConfigEnum.decoy_domain), validators=[wtf.validators.Regexp(domain_regex, re.IGNORECASE, _("config.Invalid_domain")), hutils.flask.validate_domain_exist])
+                "placeholder": "sub.domain.com",
+            },
+        )
+        block_iran_sites = SwitchField(
+            _("config.block_iran_sites.label"),
+            description=_("config.block_iran_sites.description"),
+            default=hconfig(ConfigEnum.block_iran_sites),
+        )
+        decoy_domain = wtf.StringField(
+            _("config.decoy_domain.label"),
+            description=_("config.decoy_domain.description"),
+            default=hconfig(ConfigEnum.decoy_domain),
+            validators=[
+                wtf.validators.Regexp(domain_regex, re.IGNORECASE, _("config.Invalid_domain")),
+                hutils.flask.validate_domain_exist,
+            ],
+        )
         preferred_domain = wtf.SelectField(
-            _('quicksetup.preferred_domain.label'),
-            choices=[('ip', _('IP')), ('direct', _('quicksetup.preferred_domain.direct')), ('cdn', _('quicksetup.preferred_domain.cdn'))],
-            description=_('quicksetup.preferred_domain.description'),
-            default='ip')
-        submit = wtf.SubmitField(_('Submit'))
+            _("quicksetup.preferred_domain.label"),
+            choices=[
+                ("ip", _("IP")),
+                ("direct", _("quicksetup.preferred_domain.direct")),
+                ("cdn", _("quicksetup.preferred_domain.cdn")),
+            ],
+            description=_("quicksetup.preferred_domain.description"),
+            default="ip",
+        )
+        submit = wtf.SubmitField(_("Submit"))
 
         def post(self, view):
             # Every lookup here is scoped to the current child (matching
@@ -267,8 +330,10 @@ def get_quick_setup_form(empty=False):
             # True first_setup - which looks like Quick Setup refusing to
             # complete and redirecting back to itself.
             current_child_id = Child.current().id
-            Domain.query.filter(Domain.domain == f'{hutils.network.get_ip_str(4)}.sslip.io', Domain.child_id == current_child_id).delete()
-            domain = (self.domain.data or '').lower()
+            Domain.query.filter(
+                Domain.domain == f"{hutils.network.get_ip_str(4)}.sslip.io", Domain.child_id == current_child_id
+            ).delete()
+            domain = (self.domain.data or "").lower()
             if domain:
                 if not Domain.query.filter(Domain.domain == domain, Domain.child_id == current_child_id).first():
                     db.session.add(Domain(domain=domain, mode=DomainType.direct, child_id=current_child_id))
@@ -276,7 +341,12 @@ def get_quick_setup_form(empty=False):
                 # also_enable_xicmp - xICMP needs no DNS/NS setup, so the
                 # domain entered above (even a bare server IP) can serve
                 # xICMP at the same time as Direct.
-                if self.enable_xicmp.data and not Domain.query.filter(Domain.domain == domain, Domain.mode == DomainType.xicmp, Domain.child_id == current_child_id).first():
+                if (
+                    self.enable_xicmp.data
+                    and not Domain.query.filter(
+                        Domain.domain == domain, Domain.mode == DomainType.xicmp, Domain.child_id == current_child_id
+                    ).first()
+                ):
                     db.session.add(Domain(domain=domain, mode=DomainType.xicmp, child_id=current_child_id))
             if self.cdn_domain.data:
                 cdn_domain = self.cdn_domain.data.lower()
@@ -286,24 +356,26 @@ def get_quick_setup_form(empty=False):
             set_hconfig(ConfigEnum.decoy_domain, self.decoy_domain.data)
 
             # Save preferred domain selection to session (form value preferred)
-            flask_session['qs_preferred_domain'] = self.preferred_domain.data
+            flask_session["qs_preferred_domain"] = self.preferred_domain.data
 
             return render_template(
-                'quick_setup.html', form=view.current_form(next=True),
+                "quick_setup.html",
+                form=view.current_form(next=True),
                 admin_link=admin_link(),
                 preferred_domain=self.preferred_domain.data,
-                show_domain_info=False)
+                show_domain_info=False,
+            )
 
     form = BasicConfigs(None) if empty else BasicConfigs()
     if empty:
-        form.preferred_domain.data = flask_session.get('qs_preferred_domain', 'ip')
+        form.preferred_domain.data = flask_session.get("qs_preferred_domain", "ip")
     form.step.data = "3"
     return form
 
 
 def validate_domain_not_conflicting(mode):
     def _validator(form, field):
-        submitted = (field.data or '').lower()
+        submitted = (field.data or "").lower()
         if not submitted:
             return
         # Scoped to the current child - see the child_id comment in
@@ -313,6 +385,7 @@ def validate_domain_not_conflicting(mode):
         existing = Domain.query.filter(Domain.domain == submitted, Domain.child_id == Child.current().id).first()
         if existing and existing.mode != mode:
             raise ValidationError(_("config.Domain_already_used"))
+
     return _validator
 
 
@@ -324,8 +397,14 @@ def validate_domain(form, field):
 
     myips = hutils.network.get_ips()
     if dip not in myips:
-        raise ValidationError(_("Domain (%(domain)s)-> IP=%(domain_ip)s is not matched with your ip=%(server_ip)s which is required in direct mode",
-                              server_ip=myips, domain_ip=dip, domain=domain))
+        raise ValidationError(
+            _(
+                "Domain (%(domain)s)-> IP=%(domain_ip)s is not matched with your ip=%(server_ip)s which is required in direct mode",
+                server_ip=myips,
+                domain_ip=dip,
+                domain=domain,
+            )
+        )
 
 
 def validate_domain_cdn(form, field):
@@ -338,8 +417,14 @@ def validate_domain_cdn(form, field):
 
     myips = hutils.network.get_ips()
     if dip in myips:
-        raise ValidationError(_("In CDN mode, Domain IP=%(domain_ip)s should be different to your ip=%(server_ip)s",
-                              server_ip=myips, domain_ip=dip, domain=domain))
+        raise ValidationError(
+            _(
+                "In CDN mode, Domain IP=%(domain_ip)s should be different to your ip=%(server_ip)s",
+                server_ip=myips,
+                domain_ip=dip,
+                domain=domain,
+            )
+        )
 
 
 def admin_link():

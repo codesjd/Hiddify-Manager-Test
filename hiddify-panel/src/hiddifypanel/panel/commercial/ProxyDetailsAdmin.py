@@ -1,60 +1,60 @@
-from hiddifypanel.models import *
-from hiddifypanel.panel.admin.adminlte import AdminLTEModelView
+import json
+
+from flask import g, redirect
+from flask_admin import expose
+from flask_admin.actions import action
+from flask_admin.contrib.sqla import filters as sqla_filters
+from flask_admin.contrib.sqla import form, tools
 from flask_babel import gettext as __
 from flask_babel import lazy_gettext as _
-from flask import g, redirect
 from markupsafe import Markup
-from hiddifypanel.auth import login_required
-from flask_admin.actions import action
-from flask_admin.contrib.sqla import form, filters as sqla_filters, tools
-from flask_admin import expose
-from hiddifypanel.panel import  custom_widgets
+from wtforms.widgets import TextArea
 
 # Define a custom field type for the related domains
 from hiddifypanel import hutils
+from hiddifypanel.auth import login_required
+from hiddifypanel.models import *
+from hiddifypanel.panel import custom_widgets
+from hiddifypanel.panel.admin.adminlte import AdminLTEModelView
 
-from wtforms.widgets import TextArea
-import json
 
 class ProxyDetailsAdmin(AdminLTEModelView):
-    list_template = 'model/proxydetail_list.html'
+    list_template = "model/proxydetail_list.html"
     column_hide_backrefs = True
     can_create = False
-    form_excluded_columns = ['child', 'proto', 'transport', 'cdn']
-    column_exclude_list = ['child']
-    column_searchable_list = ['name', 'proto', 'transport', 'l3', 'cdn']
-    column_editable_list = ['name']
-    form_extra_fields = {
-        'params': custom_widgets.JSONField(label='Proxy Params')
-    }
-    form_overrides={
-          'params': custom_widgets.JSONField
-    }
-    @expose('reset_proxies')
+    form_excluded_columns = ["child", "proto", "transport", "cdn"]
+    column_exclude_list = ["child"]
+    column_searchable_list = ["name", "proto", "transport", "l3", "cdn"]
+    column_editable_list = ["name"]
+    form_extra_fields = {"params": custom_widgets.JSONField(label="Proxy Params")}
+    form_overrides = {"params": custom_widgets.JSONField}
+
+    @expose("reset_proxies")
     def reset_proxies(self):
-        from hiddifypanel.panel.init_db import get_proxy_rows_v1
         from hiddifypanel.database import db
+        from hiddifypanel.panel.init_db import get_proxy_rows_v1
+
         db.session.bulk_save_objects(get_proxy_rows_v1())
         db.session.commit()
-        hutils.flask.flash((_('config.validation-success-no-reset')), 'success')  # type: ignore
+        hutils.flask.flash((_("config.validation-success-no-reset")), "success")  # type: ignore
         return redirect("./")
 
-    @action('disable', 'Disable', 'Are you sure you want to disable selected proxies?')
+    @action("disable", "Disable", "Are you sure you want to disable selected proxies?")
     def action_disable(self, ids):
         query = tools.get_query_for_ids(self.get_query(), self.model, ids)
-        count = query.update({'enable': False})
+        count = query.update({"enable": False})
 
         self.session.commit()
-        hutils.flask.flash(_('%(count)s records were successfully disabled.', count=count), 'success')
+        hutils.flask.flash(_("%(count)s records were successfully disabled.", count=count), "success")
         hutils.proxy.get_proxies.invalidate_all()
 
-    @action('enable', 'Enable', 'Are you sure you want to enable selected proxies?')
+    @action("enable", "Enable", "Are you sure you want to enable selected proxies?")
     def action_enable(self, ids):
         query = tools.get_query_for_ids(self.get_query(), self.model, ids)
-        count = query.update({'enable': True})
+        count = query.update({"enable": True})
 
         self.session.commit()
-        hutils.flask.flash(_('%(count)s records were successfully enabled.', count=count), 'success')
+        hutils.flask.flash(_("%(count)s records were successfully enabled.", count=count), "success")
         hutils.proxy.get_proxies.invalidate_all()
 
     # list_template = 'model/domain_list.html'
@@ -77,16 +77,15 @@ class ProxyDetailsAdmin(AdminLTEModelView):
         if login_required(roles={Role.super_admin, Role.admin})(lambda: True)() != True:
             return False
         return True
+
     def _params_formatter(view, context, model, name):
         return str(model.params)
+
     def _enable_formatter(view, context, model, name):
         if model.enable:
             link = '<i class="fa-solid fa-circle-check text-success"></i> '
         else:
             link = '<i class="fa-solid fa-circle-xmark text-danger"></i> '
         return Markup(link)
-    column_formatters = {
 
-        "enable": _enable_formatter,
-        "params": _params_formatter
-    }
+    column_formatters = {"enable": _enable_formatter, "params": _params_formatter}

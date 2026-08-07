@@ -1,10 +1,11 @@
 from flask_admin import Admin
 from flask_admin.contrib import sqla
+
 # from flask_simplelogin import login_required
 from werkzeug.security import generate_password_hash
 
-from hiddifypanel.models import User
 from hiddifypanel.database import db
+from hiddifypanel.models import User
 
 # Proteck admin with login / Monkey Patch
 # AdminIndexView._handle_view = login_required(AdminIndexView._handle_view)

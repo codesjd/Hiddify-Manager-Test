@@ -12,14 +12,15 @@ around the configured interval so the swap itself doesn't land on an
 exactly predictable cadence, which would be its own distinguishing
 pattern.
 """
+
 import random
 from datetime import datetime, timedelta, timezone
 
 from celery import shared_task
 from loguru import logger
 
-from hiddifypanel.models import ConfigEnum, hconfig, set_hconfig
 from hiddifypanel import hutils
+from hiddifypanel.models import ConfigEnum, hconfig, set_hconfig
 from hiddifypanel.panel.run_commander import Command, commander
 
 # Real browser-mimicry choices only - mirrors SettingAdmin.py's utls
@@ -72,6 +73,7 @@ def rotate_utls_fingerprint_if_due() -> None:
     new_fingerprint = random.choice(choices)
 
     from hiddifypanel.database import db
+
     set_hconfig(ConfigEnum.utls, new_fingerprint, commit=False)
     set_hconfig(ConfigEnum.utls_last_rotated_at, now.isoformat(), commit=False)
     db.session.commit()

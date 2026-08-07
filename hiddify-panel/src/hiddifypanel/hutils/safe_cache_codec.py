@@ -13,6 +13,7 @@ scanning hiddifypanel.models - the decoder only ever does a dict lookup
 against that pre-built allowlist, never a dynamic import/getattr driven by
 a string that came off the wire.
 """
+
 import enum
 import ipaddress
 import json
@@ -35,7 +36,7 @@ _IP_TYPES = (
 def _is_enum_like(obj: Any) -> bool:
     if isinstance(obj, enum.Enum):
         return True
-    name = getattr(obj, 'name', None)
+    name = getattr(obj, "name", None)
     if name is None:
         return False
     cls = type(obj)
@@ -66,7 +67,7 @@ def _allowlist() -> dict[str, type]:
 
     allowlist: dict[str, type] = {}
     for name in dir(models_pkg):
-        if name.startswith('_'):
+        if name.startswith("_"):
             continue
         obj = getattr(models_pkg, name)
         if not isinstance(obj, type):
@@ -76,7 +77,7 @@ def _allowlist() -> dict[str, type]:
             is_model = issubclass(obj, db.Model)
         except TypeError:
             pass
-        is_enum = issubclass(obj, enum.Enum) or hasattr(obj, '_value_to_instance_map')
+        is_enum = issubclass(obj, enum.Enum) or hasattr(obj, "_value_to_instance_map")
         if is_model or is_enum:
             allowlist[obj.__name__] = obj
     _ALLOWLIST = allowlist
@@ -89,21 +90,21 @@ def _encode(obj: Any) -> Any:
     if isinstance(obj, db.Model):
         cls = type(obj)
         cols = _model_columns(cls)
-        return {'__t': 'model', 'cls': cls.__name__, 'data': {c: _encode(getattr(obj, c)) for c in cols}}
+        return {"__t": "model", "cls": cls.__name__, "data": {c: _encode(getattr(obj, c)) for c in cols}}
     if _is_enum_like(obj):
-        return {'__t': 'enum', 'cls': type(obj).__name__, 'name': obj.name}
+        return {"__t": "enum", "cls": type(obj).__name__, "name": obj.name}
     if isinstance(obj, (bool, int, float, str)):
         return obj
     if isinstance(obj, datetime):
-        return {'__t': 'datetime', 'v': obj.isoformat()}
+        return {"__t": "datetime", "v": obj.isoformat()}
     if isinstance(obj, date):
-        return {'__t': 'date', 'v': obj.isoformat()}
+        return {"__t": "date", "v": obj.isoformat()}
     if isinstance(obj, _IP_TYPES):
-        return {'__t': 'ipaddress', 'v': str(obj)}
+        return {"__t": "ipaddress", "v": str(obj)}
     if isinstance(obj, tuple):
-        return {'__t': 'tuple', 'v': [_encode(v) for v in obj]}
+        return {"__t": "tuple", "v": [_encode(v) for v in obj]}
     if isinstance(obj, (set, frozenset)):
-        return {'__t': 'set', 'v': [_encode(v) for v in obj]}
+        return {"__t": "set", "v": [_encode(v) for v in obj]}
     if isinstance(obj, (list,)):
         return [_encode(v) for v in obj]
     if isinstance(obj, dict):
@@ -112,12 +113,12 @@ def _encode(obj: Any) -> Any:
         # "dict" tag below would silently drop the key straight to a bare
         # str via JSON, losing the enum type on round-trip.
         if all(type(k) is str for k in obj):
-            return {'__t': 'dict', 'v': {k: _encode(v) for k, v in obj.items()}}
-        return {'__t': 'dict_pairs', 'v': [[_encode(k), _encode(v)] for k, v in obj.items()]}
+            return {"__t": "dict", "v": {k: _encode(v) for k, v in obj.items()}}
+        return {"__t": "dict_pairs", "v": [[_encode(k), _encode(v)] for k, v in obj.items()]}
     # Best-effort fallback: never let one unrepresentable value blow up the
     # whole cached call - matches this cache's existing "log and move on"
     # philosophy elsewhere in this file.
-    return {'__t': 'unrepresentable', 'v': repr(obj)}
+    return {"__t": "unrepresentable", "v": repr(obj)}
 
 
 def _decode(obj: Any) -> Any:
@@ -126,33 +127,33 @@ def _decode(obj: Any) -> Any:
     if not isinstance(obj, dict):
         return obj
 
-    tag = obj.get('__t')
+    tag = obj.get("__t")
     if tag is None:
         return {k: _decode(v) for k, v in obj.items()}
-    if tag == 'dict':
-        return {k: _decode(v) for k, v in obj['v'].items()}
-    if tag == 'dict_pairs':
-        return {_decode(k): _decode(v) for k, v in obj['v']}
-    if tag == 'tuple':
-        return tuple(_decode(v) for v in obj['v'])
-    if tag == 'set':
-        return {_decode(v) for v in obj['v']}
-    if tag == 'datetime':
-        return datetime.fromisoformat(obj['v'])
-    if tag == 'date':
-        return date.fromisoformat(obj['v'])
-    if tag == 'ipaddress':
-        return ipaddress.ip_address(obj['v']) if '/' not in obj['v'] else ipaddress.ip_network(obj['v'])
-    if tag == 'enum':
-        cls = _allowlist().get(obj['cls'])
+    if tag == "dict":
+        return {k: _decode(v) for k, v in obj["v"].items()}
+    if tag == "dict_pairs":
+        return {_decode(k): _decode(v) for k, v in obj["v"]}
+    if tag == "tuple":
+        return tuple(_decode(v) for v in obj["v"])
+    if tag == "set":
+        return {_decode(v) for v in obj["v"]}
+    if tag == "datetime":
+        return datetime.fromisoformat(obj["v"])
+    if tag == "date":
+        return date.fromisoformat(obj["v"])
+    if tag == "ipaddress":
+        return ipaddress.ip_address(obj["v"]) if "/" not in obj["v"] else ipaddress.ip_network(obj["v"])
+    if tag == "enum":
+        cls = _allowlist().get(obj["cls"])
         if cls is None:
             return None
         try:
-            return cls[obj['name']]
+            return cls[obj["name"]]
         except Exception:
             return None
-    if tag == 'model':
-        cls = _allowlist().get(obj['cls'])
+    if tag == "model":
+        cls = _allowlist().get(obj["cls"])
         if cls is None:
             return None
         # cls.__new__(cls) would skip SQLAlchemy's instrumentation setup
@@ -162,16 +163,16 @@ def _decode(obj: Any) -> Any:
         # __init__.
         manager = instrumentation.manager_of_class(cls)
         instance = manager.new_instance()
-        for k, v in obj['data'].items():
+        for k, v in obj["data"].items():
             setattr(instance, k, _decode(v))
         return instance
-    if tag == 'unrepresentable':
-        return obj['v']
+    if tag == "unrepresentable":
+        return obj["v"]
     return {k: _decode(v) for k, v in obj.items()}
 
 
 def dumps(obj: Any) -> bytes:
-    return json.dumps(_encode(obj)).encode('utf-8')
+    return json.dumps(_encode(obj)).encode("utf-8")
 
 
 def loads(data: bytes) -> Any:

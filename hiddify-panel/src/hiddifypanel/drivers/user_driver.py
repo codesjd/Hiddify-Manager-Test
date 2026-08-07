@@ -1,16 +1,18 @@
-from hiddifypanel.drivers.telemt_api import TelemtApi
-
-from .ssh_liberty_bridge_api import SSHLibertyBridgeApi
-from .xray_api import XrayApi
-from .singbox_api import SingboxApi
-from .wireguard_api import WireguardApi
-from .amneziawg_api import AmneziaWgApi
-from hiddifypanel.models import *
-from hiddifypanel.panel import hiddify
 from collections import defaultdict
+
 from loguru import logger
 
-drivers = [XrayApi(), SingboxApi(), SSHLibertyBridgeApi(), WireguardApi(), AmneziaWgApi(),TelemtApi()]
+from hiddifypanel.drivers.telemt_api import TelemtApi
+from hiddifypanel.models import *
+from hiddifypanel.panel import hiddify
+
+from .amneziawg_api import AmneziaWgApi
+from .singbox_api import SingboxApi
+from .ssh_liberty_bridge_api import SSHLibertyBridgeApi
+from .wireguard_api import WireguardApi
+from .xray_api import XrayApi
+
+drivers = [XrayApi(), SingboxApi(), SSHLibertyBridgeApi(), WireguardApi(), AmneziaWgApi(), TelemtApi()]
 
 
 def enabled_drivers():
@@ -23,24 +25,25 @@ def get_users_usage(reset=True):
 
     # users = db.session.query(User).all()
     # users = list(User.query.all())
-    res = defaultdict(lambda: {'usage': 0, 'devices': ''})
+    res = defaultdict(lambda: {"usage": 0, "devices": ""})
     for driver in enabled_drivers():
         try:
             all_usage = driver.get_all_usage()
             for uuid, usage in all_usage.items():
                 # print(f"{driver.__class__.__name__} {uuid} usage={usage}")
                 if usage:
-                    res[uuid]['usage'] += usage
+                    res[uuid]["usage"] += usage
                 # res[user]['devices'] +=usage
         except Exception as e:
             print(driver)
-            hiddify.error(f'ERROR! {driver.__class__.__name__} has error in update usage {e}')
-            logger.exception(f'ERROR! {driver.__class__.__name__} has error in update usage {e}')
+            hiddify.error(f"ERROR! {driver.__class__.__name__} has error in update usage {e}")
+            logger.exception(f"ERROR! {driver.__class__.__name__} has error in update usage {e}")
     return res
 
 
 def get_enabled_users():
     from collections import defaultdict
+
     d = defaultdict(int)
     total = 0
     for driver in enabled_drivers():
@@ -53,8 +56,8 @@ def get_enabled_users():
             total += 1
         except Exception as e:
             print(driver)
-            hiddify.error(f'ERROR! {driver.__class__.__name__} has error in get_enabled users {e}')
-            logger.exception(f'ERROR! {driver.__class__.__name__} has error in get_enabled users {e}')
+            hiddify.error(f"ERROR! {driver.__class__.__name__} has error in get_enabled users {e}")
+            logger.exception(f"ERROR! {driver.__class__.__name__} has error in get_enabled users {e}")
     # print(d, total)
     res = defaultdict(bool)
     for u, v in d.items():
@@ -68,8 +71,8 @@ def add_client(user: User):
         try:
             driver.add_client(user)
         except Exception as e:
-            hiddify.error(f'ERROR! {driver.__class__.__name__} has error {e} in add client for user={user.uuid} {e}')
-            logger.exception(f'ERROR! {driver.__class__.__name__} has error {e} in add client for user={user.uuid} {e}')
+            hiddify.error(f"ERROR! {driver.__class__.__name__} has error {e} in add client for user={user.uuid} {e}")
+            logger.exception(f"ERROR! {driver.__class__.__name__} has error {e} in add client for user={user.uuid} {e}")
 
 
 def remove_client(user: User):
@@ -77,5 +80,5 @@ def remove_client(user: User):
         try:
             driver.remove_client(user)
         except Exception as e:
-            hiddify.error(f'ERROR! {driver.__class__.__name__} has error {e} in remove client for user={user.uuid}')
-            logger.exception(f'ERROR! {driver.__class__.__name__} has error {e} in remove client for user={user.uuid}')
+            hiddify.error(f"ERROR! {driver.__class__.__name__} has error {e} in remove client for user={user.uuid}")
+            logger.exception(f"ERROR! {driver.__class__.__name__} has error {e} in remove client for user={user.uuid}")

@@ -14,7 +14,9 @@ Configured via three settings (Panel Settings admin page):
     X-Hiddify-Signature header = hex HMAC-SHA256(secret, raw_json_body), so
     your receiver can verify the request actually came from this panel.
 """
+
 from __future__ import annotations
+
 import json
 import threading
 import time
@@ -26,6 +28,7 @@ from loguru import logger
 def _do_post(url: str, payload: dict, secret: str | None):
     import hashlib
     import hmac
+
     import requests
 
     body = json.dumps(payload, default=str)
@@ -54,7 +57,8 @@ def send_webhook_event(event_type: str, data: dict[str, Any]) -> None:
     (e.g. the celery usage-update task) don't block on a slow endpoint.
     """
     try:
-        from hiddifypanel.models import hconfig, ConfigEnum
+        from hiddifypanel.models import ConfigEnum, hconfig
+
         if not hconfig(ConfigEnum.webhook_enable):
             return
         url = hconfig(ConfigEnum.webhook_url)

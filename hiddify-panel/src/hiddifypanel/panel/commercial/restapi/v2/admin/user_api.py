@@ -1,16 +1,15 @@
+from apiflask import abort
+from flask import current_app as app
 from flask import g
 from flask.views import MethodView
-from flask import current_app as app
-from apiflask import abort
+
 from hiddifypanel.auth import login_required
+from hiddifypanel.drivers import user_driver
 from hiddifypanel.models import *
 from hiddifypanel.panel import hiddify
-from hiddifypanel.drivers import user_driver
-
-
 
 from . import has_permission
-from .schema import UserSchema, PostUserSchema, PatchUserSchema, SuccessfulSchema
+from .schema import PatchUserSchema, PostUserSchema, SuccessfulSchema, UserSchema
 
 
 class UserApi(MethodView):
@@ -34,21 +33,21 @@ class UserApi(MethodView):
             abort(403, "You don't have permission to access this user")
 
         for field in User.__table__.columns.keys():  # type: ignore
-            if field in ['id', 'expiry_time']:
+            if field in ["id", "expiry_time"]:
                 continue
             # if field in data:
             #     setattr(user, field, data[field])
 
-        if data.get('added_by_uuid'):
+        if data.get("added_by_uuid"):
             # Same ownership check as UsersApi.post: a caller-supplied
             # added_by_uuid must resolve to an admin the caller actually
             # owns (self or a sub-admin), otherwise a user could be
             # reassigned outside the caller's subtree.
-            target_admin = AdminUser.by_uuid(data['added_by_uuid'])
+            target_admin = AdminUser.by_uuid(data["added_by_uuid"])
             if not target_admin or target_admin.id not in g.account.recursive_sub_admins_ids():
                 abort(403, "You don't have permission to add a user for this admin")
 
-        data['old_uuid'] = uuid
+        data["old_uuid"] = uuid
         user_driver.remove_client(user)
         dbuser = User.add_or_update(**data) or abort(502, "Unknown issue! User is not patched")
         if dbuser.is_active:
@@ -67,4 +66,4 @@ class UserApi(MethodView):
             abort(403, "You don't have permission to access this user")
         user.remove()  # type: ignore
         hiddify.quick_apply_users()
-        return {'status': 200, 'msg': 'ok'}
+        return {"status": 200, "msg": "ok"}

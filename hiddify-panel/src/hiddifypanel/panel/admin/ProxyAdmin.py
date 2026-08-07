@@ -1,26 +1,27 @@
+import wtforms as wtf
+from flask import render_template
+from flask_babel import gettext as _
+from flask_bootstrap import SwitchField
+from flask_classful import FlaskView
+from flask_wtf import FlaskForm
+from wtforms.fields import *
+
 from hiddifypanel import hutils
+from hiddifypanel.auth import login_required
+from hiddifypanel.database import db
+from hiddifypanel.models import BoolConfig, Child, ConfigEnum, Proxy, get_hconfigs, hconfig, set_hconfig
 from hiddifypanel.models.config_enum import ApplyMode
 from hiddifypanel.models.role import Role
-import wtforms as wtf
-from flask_wtf import FlaskForm
-from flask_bootstrap import SwitchField
-from flask_babel import gettext as _
-from flask import render_template
-
-
-from hiddifypanel.models import ConfigEnum, Child, get_hconfigs, BoolConfig, ConfigEnum, hconfig, Proxy, set_hconfig
-from hiddifypanel.database import db
-from wtforms.fields import *
 from hiddifypanel.panel import hiddify
-from flask_classful import FlaskView
-from hiddifypanel.auth import login_required
 
 
 class ProxyAdmin(FlaskView):
     decorators = [login_required({Role.super_admin})]
 
     def index(self):
-        return render_template('proxy.html', global_config_form=get_global_config_form(), detailed_config_form=get_all_proxy_form())
+        return render_template(
+            "proxy.html", global_config_form=get_global_config_form(), detailed_config_form=get_all_proxy_form()
+        )
 
     def post(self):
         global_config_form = get_global_config_form()
@@ -37,7 +38,9 @@ class ProxyAdmin(FlaskView):
             # print(cat,vs)
             hutils.proxy.get_proxies.invalidate_all()
             if hutils.node.is_child():
-                hutils.node.run_node_op_in_bg(hutils.node.child.sync_with_parent, *[hutils.node.child.SyncFields.hconfigs])
+                hutils.node.run_node_op_in_bg(
+                    hutils.node.child.sync_with_parent, *[hutils.node.child.SyncFields.hconfigs]
+                )
             hiddify.check_need_reset(old_configs)
             all_proxy_form = get_all_proxy_form(True)
 
@@ -53,7 +56,7 @@ class ProxyAdmin(FlaskView):
                         if not proxy_id.startswith("p_"):
                             continue
                         try:
-                            id = int(proxy_id.split('_')[-1])
+                            id = int(proxy_id.split("_")[-1])
                         except ValueError:
                             continue
                         # id can be stale (proxy deleted by another request
@@ -69,14 +72,16 @@ class ProxyAdmin(FlaskView):
             db.session.commit()
             hutils.proxy.get_proxies.invalidate_all()
             if hutils.node.is_child():
-                hutils.node.run_node_op_in_bg(hutils.node.child.sync_with_parent, *[hutils.node.child.SyncFields.proxies])
+                hutils.node.run_node_op_in_bg(
+                    hutils.node.child.sync_with_parent, *[hutils.node.child.SyncFields.proxies]
+                )
             hutils.apply_scope.mark_dirty(hutils.apply_scope.CORE_ONLY_SUBSYSTEMS)
             hutils.flask.flash_config_success(restart_mode=ApplyMode.apply_config, domain_changed=False)
             global_config_form = get_global_config_form(True)
         else:
-            hutils.flask.flash((_('config.validation-error')), 'danger')
+            hutils.flask.flash((_("config.validation-error")), "danger")
 
-        return render_template('proxy.html', global_config_form=global_config_form, detailed_config_form=all_proxy_form)
+        return render_template("proxy.html", global_config_form=global_config_form, detailed_config_form=all_proxy_form)
 
 
 # wireguard_enable: retired in favor of AmneziaWG - forced off by migration
@@ -84,7 +89,12 @@ class ProxyAdmin(FlaskView):
 # three are sub-options of a protocol that's already got its own toggle
 # (mux_enable/hysteria_enable) rather than a protocol switch in their own
 # right, so they don't belong on this page's per-protocol layout.
-_GLOBAL_CONFIG_EXCLUDED_ENABLES = {ConfigEnum.mux_brutal_enable, ConfigEnum.mux_padding_enable, ConfigEnum.hysteria_obfs_enable, ConfigEnum.wireguard_enable}
+_GLOBAL_CONFIG_EXCLUDED_ENABLES = {
+    ConfigEnum.mux_brutal_enable,
+    ConfigEnum.mux_padding_enable,
+    ConfigEnum.hysteria_obfs_enable,
+    ConfigEnum.wireguard_enable,
+}
 
 
 def is_shown_on_proxies_page(key: "ConfigEnum") -> bool:
@@ -92,7 +102,7 @@ def is_shown_on_proxies_page(key: "ConfigEnum") -> bool:
     Proxies page's own global-config form (get_global_config_form below) -
     used by SettingAdmin.get_config_form() to keep the same toggle from
     also showing up a second time on the Settings page."""
-    return key.category != 'hidden' and key.endswith("_enable") and key not in _GLOBAL_CONFIG_EXCLUDED_ENABLES
+    return key.category != "hidden" and key.endswith("_enable") and key not in _GLOBAL_CONFIG_EXCLUDED_ENABLES
 
 
 def get_global_config_form(empty=False):
@@ -105,9 +115,11 @@ def get_global_config_form(empty=False):
         if not is_shown_on_proxies_page(cf.key):
             continue
 
-        field = SwitchField(_(f'config.{cf.key}.label'), default=cf.value, description=_(f'config.{cf.key}.description'))
-        setattr(DynamicForm, f'{cf.key}', field)
-    setattr(DynamicForm, "submit_global", wtf.fields.SubmitField(_('Submit')))
+        field = SwitchField(
+            _(f"config.{cf.key}.label"), default=cf.value, description=_(f"config.{cf.key}.description")
+        )
+        setattr(DynamicForm, f"{cf.key}", field)
+    setattr(DynamicForm, "submit_global", wtf.fields.SubmitField(_("Submit")))
     if empty:
         return DynamicForm(None)
     return DynamicForm()
@@ -121,36 +133,37 @@ def get_all_proxy_form(empty=False):
         pass
 
     for cdn in categories1:
+
         class CDNForm(FlaskForm):
             class Meta:
                 csrf = False
+
             pass
+
         cdn_proxies = [c for c in proxies if c.cdn == cdn]
-        pgroup = {
-            'wireguard': 'other',
-            'tuic': 'other',
-            'ssh': 'other',
-            'hysteria2': 'other',
-            "mieru":"other"
-            
-        }
+        pgroup = {"wireguard": "other", "tuic": "other", "ssh": "other", "hysteria2": "other", "mieru": "other"}
         protos = sorted([c for c in {pgroup.get(c.proto, c.proto): 1 for c in cdn_proxies}])
         for proto in protos:
+
             class ProtoForm(FlaskForm):
                 class Meta:
                     csrf = False
+
                 pass
+
             proto_proxies = [c for c in cdn_proxies if pgroup.get(c.proto, c.proto) == proto]
             for proxy in proto_proxies:
-                field = SwitchField(proxy.name, default=proxy.enable, description=f"l3:{proxy.l3} transport:{proxy.transport}")
+                field = SwitchField(
+                    proxy.name, default=proxy.enable, description=f"l3:{proxy.l3} transport:{proxy.transport}"
+                )
                 setattr(ProtoForm, f"p_{proxy.id}", field)
 
             multifield = wtf.fields.FormField(ProtoForm, proto)
             setattr(CDNForm, proto, multifield)
-        field_name = cdn if cdn != "Fake" else _('config.domain_fronting.label')
+        field_name = cdn if cdn != "Fake" else _("config.domain_fronting.label")
         multifield = wtf.fields.FormField(CDNForm, field_name)
         setattr(DynamicForm, cdn, multifield)
-    setattr(DynamicForm, "submit_detail", wtf.fields.SubmitField(_('Submit')))
+    setattr(DynamicForm, "submit_detail", wtf.fields.SubmitField(_("Submit")))
     if empty:
         return DynamicForm(None)
     return DynamicForm()

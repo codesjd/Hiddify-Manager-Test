@@ -1,11 +1,12 @@
-from flask_babel import gettext as _
-from flask_babel import lazy_gettext as __
+import flask_admin.babel
+from flask_admin.babel import gettext as gettext_old
+from flask_admin.babel import lazy_gettext as lazy_gettext_old
+from flask_admin.babel import ngettext as ngettext_old
+
 # from flask_babel import ngettext as n_
 from flask_babel import LazyString
-from flask_admin.babel import gettext as gettext_old
-from flask_admin.babel import ngettext as ngettext_old
-from flask_admin.babel import lazy_gettext as lazy_gettext_old
-import flask_admin.babel
+from flask_babel import gettext as _
+from flask_babel import lazy_gettext as __
 
 
 def gettext(string, **variables):

@@ -1,13 +1,15 @@
-from werkzeug.local import LocalProxy
-from flask import request
-from apiflask import abort
-from flask_restful import Resource
 import threading
 import time
 
-from hiddifypanel.models import *
+from apiflask import abort
+from flask import request
+from flask_restful import Resource
+from werkzeug.local import LocalProxy
+
 from hiddifypanel import Events
 from hiddifypanel.cache import cache
+from hiddifypanel.models import *
+
 _bot = None
 # Guards both _bot's lazy construction and every place that mutates the
 # shared bot's .token/.username or calls into it - uwsgi runs this app with
@@ -24,25 +26,29 @@ def _get_bot():
     with _bot_lock:
         if _bot is None:
             import telebot
+
             class ExceptionHandler(telebot.ExceptionHandler):
                 def handle(self, exception):
                     error_msg = str(exception)
                     telebot.logger.error(f"Telegram bot error: {error_msg}")
                     try:
                         if "webhook" in error_msg.lower():
-                            if hasattr(_bot, 'remove_webhook'):
+                            if hasattr(_bot, "remove_webhook"):
                                 _bot.remove_webhook()
                                 telebot.logger.info("Removed webhook due to error")
                         elif "connection" in error_msg.lower():
                             import time
+
                             time.sleep(5)
                             return True
                     except Exception as e:
                         telebot.logger.error(f"Error during recovery attempt: {str(e)}")
                     return False
+
             _bot = telebot.TeleBot("1:2", parse_mode="HTML", threaded=False, exception_handler=ExceptionHandler())
-            _bot.username = ''
+            _bot.username = ""
         return _bot
+
 
 bot = LocalProxy(_get_bot)
 
@@ -66,7 +72,7 @@ def register_bot(set_hook=False, remove_hook=False):
                     bot.remove_webhook()
                 domain = Domain.get_panel_link()
                 if not domain:
-                    raise Exception('Cannot get valid domain for setting telegram bot webhook')
+                    raise Exception("Cannot get valid domain for setting telegram bot webhook")
 
                 admin_proxy_path = hconfig(ConfigEnum.proxy_path_admin)
 
@@ -75,8 +81,8 @@ def register_bot(set_hook=False, remove_hook=False):
                     bot.set_webhook(url=f"https://{domain}/{admin_proxy_path}/{user_secret}/api/v1/tgbot/")
     except Exception as e:
         import telebot
-        telebot.logger.error(e)
 
+        telebot.logger.error(e)
 
 
 def init_app(app):
@@ -94,17 +100,19 @@ def init_app(app):
 class TGBotResource(Resource):
     def post(self):
         try:
-            if request.headers.get('content-type') == 'application/json':
-                json_string = request.get_data().decode('utf-8')
+            if request.headers.get("content-type") == "application/json":
+                json_string = request.get_data().decode("utf-8")
                 import telebot
+
                 update = telebot.types.Update.de_json(json_string)
                 with _bot_lock:
                     bot.process_new_updates([update])
-                return ''
+                return ""
             else:
                 abort(403)
         except Exception as e:
             print("Error", e)
             import traceback
+
             traceback.print_exc()
             return "", 500

@@ -1,15 +1,20 @@
-
-from marshmallow import Schema, fields
-
-
 from apiflask import APIBlueprint
 from flask_restful import Api
-from .tgbot import bot, register_bot, register_bot_cached, TGBotResource
+from marshmallow import Schema, fields
+
 from . import tgbot
-from .tgmsg import SendMsgResource
 from .resources import *
+from .tgbot import TGBotResource, bot, register_bot, register_bot_cached
+from .tgmsg import SendMsgResource
+
 bp = APIBlueprint("api_v1", __name__, url_prefix="/<proxy_path>/api/v1/", tag="api_v1", enable_openapi=False)
-bp_uuid = APIBlueprint("api_v1_uuid", __name__, url_prefix="/<proxy_path>/<uuid:secret_uuid>/api/v1/", template_folder="templates", enable_openapi=False)
+bp_uuid = APIBlueprint(
+    "api_v1_uuid",
+    __name__,
+    url_prefix="/<proxy_path>/<uuid:secret_uuid>/api/v1/",
+    template_folder="templates",
+    enable_openapi=False,
+)
 api = Api(bp)
 api_uuid = Api(bp_uuid)
 

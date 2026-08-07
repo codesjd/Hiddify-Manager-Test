@@ -1,9 +1,9 @@
-from flask.views import MethodView
 from flask import current_app as app
+from flask.views import MethodView
 
+from hiddifypanel import __version__
 from hiddifypanel.auth import login_required
 from hiddifypanel.models import Role
-from hiddifypanel import __version__
 
 from .schema import PanelInfoOutputSchema
 

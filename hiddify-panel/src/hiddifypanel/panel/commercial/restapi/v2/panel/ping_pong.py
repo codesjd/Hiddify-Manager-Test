@@ -1,9 +1,10 @@
+from flask import current_app as app
 from flask.views import MethodView
 
 from hiddifypanel.auth import login_required
 from hiddifypanel.models import Role
+
 from .schema import PongOutputSchema
-from flask import current_app as app
 
 
 class PingPongApi(MethodView):
@@ -12,24 +13,24 @@ class PingPongApi(MethodView):
     @app.output(PongOutputSchema)  # type: ignore
     def get(self):
         """Ping Pong: Get"""
-        return {'msg': 'GET: PONG'}
+        return {"msg": "GET: PONG"}
 
     @app.output(PongOutputSchema)  # type: ignore
     def post(self):
         """Ping Pong: Post"""
-        return {'msg': 'POST: PONG'}
+        return {"msg": "POST: PONG"}
 
     @app.output(PongOutputSchema)  # type: ignore
     def patch(self):
         """Ping Pong: Patch"""
-        return {'msg': 'PATCH: PONG'}
+        return {"msg": "PATCH: PONG"}
 
     @app.output(PongOutputSchema)  # type: ignore
     def delete(self):
         """Ping Pong: Delete"""
-        return {'msg': 'DELETE: PONG'}
+        return {"msg": "DELETE: PONG"}
 
     @app.output(PongOutputSchema)  # type: ignore
     def put(self):
         """Ping Pong: Put"""
-        return {'msg': 'PUT: PONG'}
+        return {"msg": "PUT: PONG"}

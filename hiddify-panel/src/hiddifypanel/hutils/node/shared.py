@@ -1,12 +1,14 @@
 import threading
-from loguru import logger
 from typing import Callable
-from flask import copy_current_request_context
 
-from hiddifypanel.models import hconfig, ConfigEnum, PanelMode, User
+from flask import copy_current_request_context
+from loguru import logger
+
 from hiddifypanel.cache import cache
-from hiddifypanel.panel.commercial.restapi.v2.parent.schema import UsageInputOutputSchema, UsageData
+from hiddifypanel.models import ConfigEnum, PanelMode, User, hconfig
 from hiddifypanel.panel.commercial.restapi.v2.panel.schema import PanelInfoOutputSchema
+from hiddifypanel.panel.commercial.restapi.v2.parent.schema import UsageData, UsageInputOutputSchema
+
 from .api_client import NodeApiClient, NodeApiErrorSchema
 
 
@@ -16,6 +18,7 @@ def is_child() -> bool:
 
 def is_parent() -> bool:
     return hconfig(ConfigEnum.panel_mode) == PanelMode.parent
+
 
 # region usage
 
@@ -34,12 +37,10 @@ def get_users_usage_data_for_api() -> UsageInputOutputSchema:
 
 def convert_usage_api_response_to_dict(data: dict) -> dict:
     converted = {}
-    for i in data['usages']:  # type: ignore
-        converted[str(i['uuid'])] = {
-            'usage': i['usage'],
-            'devices': ','.join(i['devices'])  # type: ignore
-        }
+    for i in data["usages"]:  # type: ignore
+        converted[str(i["uuid"])] = {"usage": i["usage"], "devices": ",".join(i["devices"])}  # type: ignore
     return converted
+
 
 # endregion
 
@@ -48,12 +49,12 @@ def convert_usage_api_response_to_dict(data: dict) -> dict:
 
 
 def is_panel_active(domain: str, proxy_path: str, apikey: str | None = None) -> bool:
-    base_url = f'https://{domain}/{proxy_path}'
-    res = NodeApiClient(base_url, apikey).get('/api/v2/panel/ping/', dict)
+    base_url = f"https://{domain}/{proxy_path}"
+    res = NodeApiClient(base_url, apikey).get("/api/v2/panel/ping/", dict)
     if isinstance(res, NodeApiErrorSchema):
         logger.error(f"Error while checking if panel is active: {res.msg}")
         return False
-    if 'PONG' in res['msg']:
+    if "PONG" in res["msg"]:
         logger.debug(f"Panel is active: {res['msg']}")
         return True
     logger.debug("Panel is not active")
@@ -62,8 +63,8 @@ def is_panel_active(domain: str, proxy_path: str, apikey: str | None = None) -> 
 
 # @cache.cache(300)
 def get_panel_info(domain: str, proxy_path: str, apikey: str | None = None) -> dict | None:
-    base_url = f'https://{domain}/{proxy_path}'
-    res = NodeApiClient(base_url, apikey).get('/api/v2/panel/info/', PanelInfoOutputSchema)
+    base_url = f"https://{domain}/{proxy_path}"
+    res = NodeApiClient(base_url, apikey).get("/api/v2/panel/info/", PanelInfoOutputSchema)
     if isinstance(res, NodeApiErrorSchema):
         logger.error(f"Error while getting panel info from {domain}: {res.msg}")
         return None

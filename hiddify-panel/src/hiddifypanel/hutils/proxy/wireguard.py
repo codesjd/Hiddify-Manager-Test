@@ -4,7 +4,7 @@ def _conf_value(value) -> str:
     (e.g. PostUp/PostDown, which wg-quick runs as shell commands on
     whoever's machine imports this profile). Strip CR/LF so a value can
     never span past the single line it belongs on."""
-    return str(value).replace('\r', '').replace('\n', '')
+    return str(value).replace("\r", "").replace("\n", "")
 
 
 def generate_wireguard_config(proxy: dict) -> str:
@@ -17,9 +17,9 @@ def generate_wireguard_config(proxy: dict) -> str:
     Returns:
         str: A WireGuard configuration string.
     """
-    name=_conf_value(f'{proxy["extra_info"]} {proxy["name"]}')
+    name = _conf_value(f'{proxy["extra_info"]} {proxy["name"]}')
     addrs = _conf_value(f"{proxy['wg_ipv4']}/32")
-    if proxy['wg_ipv6']:
+    if proxy["wg_ipv6"]:
         addrs += f", {_conf_value(proxy['wg_ipv6'])}/128"
     config = f"""[Interface]
 # Name = {name}

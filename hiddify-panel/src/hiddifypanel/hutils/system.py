@@ -1,5 +1,6 @@
-import psutil
 import os
+
+import psutil
 
 
 def get_folder_size(folder_path: str) -> int:
@@ -25,7 +26,7 @@ def top_processes() -> dict:
     # which is what made e.g. a single process show non-zero cpu% while the
     # overall gauge showed 0%.
     psutil.cpu_percent(interval=None)
-    processes = [p for p in psutil.process_iter(['name', 'username', 'memory_info']) if p.info['name'] != '']
+    processes = [p for p in psutil.process_iter(["name", "username", "memory_info"]) if p.info["name"] != ""]
     for p in processes:
         try:
             p.cpu_percent(interval=None)
@@ -33,6 +34,7 @@ def top_processes() -> dict:
             pass
 
     import time
+
     time.sleep(0.1)
     system_cpu_percent = psutil.cpu_percent(interval=None)
 
@@ -42,19 +44,19 @@ def top_processes() -> dict:
     cpu_usage = {}
     for p in processes:
         try:
-            name = p.info['name']
-            if p.info['username'] == "hiddify-panel":
+            name = p.info["name"]
+            if p.info["username"] == "hiddify-panel":
                 name = "Hiddify"
-            mem_usage = p.info['memory_info'].rss
+            mem_usage = p.info["memory_info"].rss
             cpu_percent = p.cpu_percent(interval=None) / num_cores
-            
+
             if name in memory_usage:
-                memory_usage[name] += mem_usage / (1024 ** 3)
-                ram_usage[name] += mem_usage / (1024 ** 3)
+                memory_usage[name] += mem_usage / (1024**3)
+                ram_usage[name] += mem_usage / (1024**3)
                 cpu_usage[name] += cpu_percent
             else:
-                memory_usage[name] = mem_usage / (1024 ** 3)
-                ram_usage[name] = mem_usage / (1024 ** 3)
+                memory_usage[name] = mem_usage / (1024**3)
+                ram_usage[name] = mem_usage / (1024**3)
                 cpu_usage[name] = cpu_percent
         except psutil.Error:
             pass
@@ -65,19 +67,14 @@ def top_processes() -> dict:
         ram_usage[" " * len(ram_usage)] = 0
     while len(memory_usage) < 5:
         memory_usage[" " * len(memory_usage)] = 0
-        
+
     # Sort the processes by memory usage, RAM usage, and CPU usage
     top_memory = sorted(memory_usage.items(), key=lambda x: x[1], reverse=True)[:5]
     top_ram = sorted(ram_usage.items(), key=lambda x: x[1], reverse=True)[:5]
     top_cpu = sorted(cpu_usage.items(), key=lambda x: x[1], reverse=True)[:5]
 
     # Return the top processes for memory usage, RAM usage, and CPU usage
-    return {
-        "memory": top_memory,
-        "ram": top_ram,
-        "cpu": top_cpu,
-        "system_cpu_percent": system_cpu_percent
-    }
+    return {"memory": top_memory, "ram": top_ram, "cpu": top_cpu, "system_cpu_percent": system_cpu_percent}
 
 
 def system_stats(cpu_percent: float | None = None) -> dict:
@@ -94,25 +91,25 @@ def system_stats(cpu_percent: float | None = None) -> dict:
     ram_total = ram_stats.total / 1024**3
 
     # Disk usage (in GB)
-    disk_stats = psutil.disk_usage('/')
+    disk_stats = psutil.disk_usage("/")
     disk_used = disk_stats.used / 1024**3
     disk_total = disk_stats.total / 1024**3
 
-    hiddify_used = get_folder_size('/opt/hiddify-manager/') / 1024**3
+    hiddify_used = get_folder_size("/opt/hiddify-manager/") / 1024**3
 
     # Network usage
     net_stats = psutil.net_io_counters()
     bytes_sent_cumulative = net_stats.bytes_sent
     bytes_recv_cumulative = net_stats.bytes_recv
-    bytes_sent = net_stats.bytes_sent - getattr(system_stats, 'prev_bytes_sent', 0)
-    bytes_recv = net_stats.bytes_recv - getattr(system_stats, 'prev_bytes_recv', 0)
+    bytes_sent = net_stats.bytes_sent - getattr(system_stats, "prev_bytes_sent", 0)
+    bytes_recv = net_stats.bytes_recv - getattr(system_stats, "prev_bytes_recv", 0)
     system_stats.prev_bytes_sent = net_stats.bytes_sent
     system_stats.prev_bytes_recv = net_stats.bytes_recv
 
     # Total connections and unique IPs
     connections = psutil.net_connections()
     total_connections = len(connections)
-    unique_ips = set([conn.raddr.ip for conn in connections if conn.status == 'ESTABLISHED' and conn.raddr])
+    unique_ips = set([conn.raddr.ip for conn in connections if conn.status == "ESTABLISHED" and conn.raddr])
     total_unique_ips = len(unique_ips)
 
     # Load average
@@ -137,5 +134,5 @@ def system_stats(cpu_percent: float | None = None) -> dict:
         "load_avg_1min": load_avg[0],
         "load_avg_5min": load_avg[1],
         "load_avg_15min": load_avg[2],
-        'num_cpus': num_cpus
+        "num_cpus": num_cpus,
     }

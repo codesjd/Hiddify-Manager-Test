@@ -1,34 +1,30 @@
+import base64
 import glob
+import ipaddress
+import os
+import random
+import re
+import socket
+import ssl
+import threading
+import time
+import urllib.request
 from typing import List, Literal, Set, Union
 from urllib.parse import urlparse
 
+import dns.resolver
+import psutil
+import requests
 from dns.rdtypes.svcbbase import ECHParam
 
-import urllib.request
-import ipaddress
-from hiddifypanel.hutils.network.auto_ip_selector import get_ipasn
-import requests
-import random
-import socket
-import threading
-import time
-import ssl
-import re
-import os
-import ipaddress
-import psutil
-import socket
-import threading
-from typing import List, Union, Literal
-
-from hiddifypanel.models import *
 from hiddifypanel.cache import cache
+from hiddifypanel.hutils.network.auto_ip_selector import get_ipasn
+from hiddifypanel.models import *
 
-import dns.resolver
-import base64
 
-
-def get_domain_ip_old(domain: str, retry: int = 3, version: Literal[4, 6] | None = None) -> Union[ipaddress.IPv4Address, ipaddress.IPv6Address, None]:
+def get_domain_ip_old(
+    domain: str, retry: int = 3, version: Literal[4, 6] | None = None
+) -> Union[ipaddress.IPv4Address, ipaddress.IPv6Address, None]:
     res = None
     if not version:
         try:
@@ -57,12 +53,21 @@ def get_domain_ip_old(domain: str, retry: int = 3, version: Literal[4, 6] | None
     return ipaddress.ip_address(res)
 
 
-def get_domain_ip(domain: str, retry: int = 3, version: Literal[4, 6] | None = None) -> Union[ipaddress.IPv4Address, ipaddress.IPv6Address, None]:
-    ips=get_domain_ips_cached(domain)
-    ips=[ip for ip in ips if version==None or (version==4 and isinstance(ip,ipaddress.IPv4Address)) or  (version==6 and isinstance(ip,ipaddress.IPv6Address)) ]
+def get_domain_ip(
+    domain: str, retry: int = 3, version: Literal[4, 6] | None = None
+) -> Union[ipaddress.IPv4Address, ipaddress.IPv6Address, None]:
+    ips = get_domain_ips_cached(domain)
+    ips = [
+        ip
+        for ip in ips
+        if version == None
+        or (version == 4 and isinstance(ip, ipaddress.IPv4Address))
+        or (version == 6 and isinstance(ip, ipaddress.IPv6Address))
+    ]
     if ips:
-        return random.sample(ips,1)[0]
-    return get_domain_ip_old(domain,0)
+        return random.sample(ips, 1)[0]
+    return get_domain_ip_old(domain, 0)
+
 
 _pinned_cert_cache: dict = {}
 _pinned_cert_inflight: set = set()
@@ -71,6 +76,7 @@ _pinned_cert_inflight_lock = threading.Lock()
 
 def _fetch_cert_sha256_blocking(host: str, port: int, timeout: float) -> Union[str, None]:
     import hashlib
+
     try:
         ctx = ssl.create_default_context()
         ctx.check_hostname = False
@@ -92,6 +98,7 @@ def _fetch_cert_sha256_blocking(host: str, port: int, timeout: float) -> Union[s
 
 def _background_fetch_cert(host: str, port: int, key: str):
     import time
+
     try:
         result = _fetch_cert_sha256_blocking(host, port, timeout=2.0)
         if result:
@@ -118,6 +125,7 @@ def get_pinned_cert_sha256(host: str, port: int = 443) -> Union[str, None]:
     until the background fetch finishes (usually within a few seconds).
     """
     import time
+
     key = f"{host}:{port}"
     cached = _pinned_cert_cache.get(key)
     # A 1-hour TTL with no invalidation hook meant a pin fetched before a
@@ -147,13 +155,12 @@ def invalidate_pinned_cert_cache(host: str, port: int = 443):
     _pinned_cert_cache.pop(f"{host}:{port}", None)
 
 
-
 @cache.cache(300)
 def _get_domain_ips_cached_raw(domain: str, retry: int = 0) -> Set[Union[ipaddress.IPv4Address, ipaddress.IPv6Address]]:
     try:
         return {ipaddress.ip_address(domain)}
-    except:
-        return get_domain_ips(domain,retry)
+    except Exception:
+        return get_domain_ips(domain, retry)
 
 
 _failed_dns_lookup_at: dict = {}
@@ -207,6 +214,7 @@ def get_domain_ips_cached(domain: str, retry: int = 0) -> Set[Union[ipaddress.IP
             _failed_dns_lookup_at.pop(domain, None)
     return result
 
+
 def get_domain_ips(domain: str, retry: int = 3) -> Set[Union[ipaddress.IPv4Address, ipaddress.IPv6Address]]:
     res = set()
     if retry < 0:
@@ -247,7 +255,6 @@ def get_socket_public_ip(version: Literal[4, 6]) -> Union[ipaddress.IPv4Address,
         return None
 
 
-
 def get_interface_public_ip(version: Literal[4, 6]) -> List[Union[ipaddress.IPv4Address, ipaddress.IPv6Address]]:
     addresses = []
     try:
@@ -262,7 +269,7 @@ def get_interface_public_ip(version: Literal[4, 6]) -> List[Union[ipaddress.IPv4
                     continue
 
                 try:
-                    ip_obj = ipaddress.ip_address(ip.split('%')[0])  # Remove scope_id for IPv6
+                    ip_obj = ipaddress.ip_address(ip.split("%")[0])  # Remove scope_id for IPv6
                     if ip_obj.is_global:
                         addresses.append(ip_obj)
                 except ValueError:
@@ -272,6 +279,7 @@ def get_interface_public_ip(version: Literal[4, 6]) -> List[Union[ipaddress.IPv4
 
     except (OSError, KeyError):
         return []
+
 
 @cache.cache(ttl=600)
 def get_ips(version: Literal[4, 6] | None = None) -> List[Union[ipaddress.IPv4Address, ipaddress.IPv6Address]]:
@@ -289,7 +297,7 @@ def get_ips(version: Literal[4, 6] | None = None) -> List[Union[ipaddress.IPv4Ad
 
     # send request
     try:
-        ip = urllib.request.urlopen(f'https://v{version}.ident.me/',timeout=2).read().decode('utf8')
+        ip = urllib.request.urlopen(f"https://v{version}.ident.me/", timeout=2).read().decode("utf8")
         if ip:
             addrs.append(ipaddress.ip_address(ip))
     except BaseException:
@@ -319,7 +327,7 @@ def get_ip(version: Literal[4, 6], retry: int = 5) -> ipaddress.IPv4Address | ip
 
     if ip is None:
         try:
-            ip = urllib.request.urlopen(f'https://v{version}.ident.me/').read().decode('utf8')
+            ip = urllib.request.urlopen(f"https://v{version}.ident.me/").read().decode("utf8")
             if ip:
                 ip = ipaddress.ip_address(ip)
         except BaseException:
@@ -330,28 +338,88 @@ def get_ip(version: Literal[4, 6], retry: int = 5) -> ipaddress.IPv4Address | ip
 
 
 def get_random_user_agent():
-    
-    uas = requests.get('https://cdn.jsdelivr.net/gh/microlinkhq/top-user-agents@master/src/index.json', timeout=5).json()
+
+    uas = requests.get(
+        "https://cdn.jsdelivr.net/gh/microlinkhq/top-user-agents@master/src/index.json", timeout=5
+    ).json()
     if uas:
-        return random.sample(uas,1)[0]
-    return 
+        return random.sample(uas, 1)[0]
+    return
+
+
 def get_random_domains(count: int = 1, retry: int = 6) -> List[str]:
     try:
-        region="CN" if retry<3 else "IR"
+        region = "CN" if retry < 3 else "IR"
         irurl = f"https://api.ooni.io/api/v1/measurements?probe_cc={region}&test_name=web_connectivity&anomaly=false&confirmed=false&failure=false&limit=100&offset={(3-retry%3)*100}"
         # cnurl="https://api.ooni.io/api/v1/measurements?probe_cc=CN&test_name=web_connectivity&anomaly=false&confirmed=false&failure=false&order_by=test_start_time&limit=1000"
         data_ir = requests.get(irurl, timeout=5).json()
         # data_cn=requests.get(url).json()
 
-        domains = [urlparse(d['input']).netloc.lower() for d in data_ir.get('results',{}) if d.get('scores',{}).get('blocking_country') == 0.0]
+        domains = [
+            urlparse(d["input"]).netloc.lower()
+            for d in data_ir.get("results", {})
+            if d.get("scores", {}).get("blocking_country") == 0.0
+        ]
         domains = [d for d in domains if not d.endswith(".ir") and ".gov" not in d]
 
         return random.sample(domains, count)
     except BaseException as e:
-        print('Error, getting random domains... ', e, 'retrying...', retry)
+        print("Error, getting random domains... ", e, "retrying...", retry)
         if retry <= 0:
-            defdomains = ["fa.wikipedia.org",'en.wikipedia.org','wikipedia.org','yahoo.com','en.yahoo.com',"msn.com",'foot.com',"fast.com","speedtest.net","remove.bg","flightradar24.com","chess.com","supercell.com","react.dev","amazon.com","google.com","gstatic.com","mirror.nyist.edu.cn","mirror.nju.edu.cn","hcaptcha.com","sourceforge.net","github.com","www.google.com","hatgpt.com","google.com","github.com","claude.ai","dash.cloudflare.com","pages.dev","workers.dev","gemini.google.com","www.workspace.google.com","www.mail.google.com","www.gstatic.com","www.gmail.com","workspace.google.com","ss1.gstatic.com","mail.google.com","gstatic.com","gmail.com","g3.gstatic.com","g1.gstatic.com","fonts.gstatic.com","csi.gstatic.com","connectivitycheck.gstatic.com","clientservices.googleapis.com","checkin.gstatic.com","beacons.gvt2.com","beacons.gcp.gvt2.com","dash.cloudflare.com","cloudflare.com"]
-            print('Error, using default domains')
+            defdomains = [
+                "fa.wikipedia.org",
+                "en.wikipedia.org",
+                "wikipedia.org",
+                "yahoo.com",
+                "en.yahoo.com",
+                "msn.com",
+                "foot.com",
+                "fast.com",
+                "speedtest.net",
+                "remove.bg",
+                "flightradar24.com",
+                "chess.com",
+                "supercell.com",
+                "react.dev",
+                "amazon.com",
+                "google.com",
+                "gstatic.com",
+                "mirror.nyist.edu.cn",
+                "mirror.nju.edu.cn",
+                "hcaptcha.com",
+                "sourceforge.net",
+                "github.com",
+                "www.google.com",
+                "hatgpt.com",
+                "google.com",
+                "github.com",
+                "claude.ai",
+                "dash.cloudflare.com",
+                "pages.dev",
+                "workers.dev",
+                "gemini.google.com",
+                "www.workspace.google.com",
+                "www.mail.google.com",
+                "www.gstatic.com",
+                "www.gmail.com",
+                "workspace.google.com",
+                "ss1.gstatic.com",
+                "mail.google.com",
+                "gstatic.com",
+                "gmail.com",
+                "g3.gstatic.com",
+                "g1.gstatic.com",
+                "fonts.gstatic.com",
+                "csi.gstatic.com",
+                "connectivitycheck.gstatic.com",
+                "clientservices.googleapis.com",
+                "checkin.gstatic.com",
+                "beacons.gvt2.com",
+                "beacons.gcp.gvt2.com",
+                "dash.cloudflare.com",
+                "cloudflare.com",
+            ]
+            print("Error, using default domains")
             return random.sample(defdomains, count)
         return get_random_domains(count, retry - 1)
 
@@ -365,11 +433,11 @@ def is_domain_support_tls_13(domain: str) -> bool:
             return ssock.version() == "TLSv1.3"
 
 
-def is_domain_support_h2_tls13(sni: str, server: str = '') -> bool:
+def is_domain_support_h2_tls13(sni: str, server: str = "") -> bool:
     try:
 
         context = ssl.create_default_context(purpose=ssl.Purpose.SERVER_AUTH)
-        context.options |= (ssl.OP_NO_SSLv2 | ssl.OP_NO_SSLv3 | ssl.OP_NO_TLSv1 | ssl.OP_NO_TLSv1_1)
+        context.options |= ssl.OP_NO_SSLv2 | ssl.OP_NO_SSLv3 | ssl.OP_NO_TLSv1 | ssl.OP_NO_TLSv1_1
         context.options |= ssl.OP_NO_COMPRESSION
         context.set_ciphers("ECDHE+AESGCM:ECDHE+CHACHA20:DHE+AESGCM:DHE+CHACHA20")
         context.set_alpn_protocols(["h2"])
@@ -384,7 +452,7 @@ def is_domain_support_h2_tls13(sni: str, server: str = '') -> bool:
                         return True
                 return False
     except Exception as e:
-        print(f'{sni} {e}')
+        print(f"{sni} {e}")
         return False
 
 
@@ -420,7 +488,7 @@ def is_domain_use_letsencrypt(domain: str) -> bool:
 
         issuer = dict(x[0] for x in certificate.get("issuer", []))
 
-        return issuer['organizationName'] == "Let's Encrypt"
+        return issuer["organizationName"] == "Let's Encrypt"
     except BaseException:
         return False
 
@@ -428,6 +496,7 @@ def is_domain_use_letsencrypt(domain: str) -> bool:
 @cache.cache(ttl=300)
 def get_direct_host_or_ip(prefer_version: int) -> str:
     from hiddifypanel.models import Domain
+
     direct = Domain.query.filter(Domain.mode == DomainType.direct, Domain.sub_link_only == False).first()
     if not direct:
         direct = Domain.query.filter(Domain.mode == DomainType.direct).first()
@@ -445,10 +514,10 @@ def is_ssh_password_authentication_enabled() -> bool:
     def check_file(file_path: str) -> bool:
         if os.path.isfile(file_path):
             try:
-                with open(file_path, 'r') as f:
+                with open(file_path, "r") as f:
                     for line in f.readlines():
                         line = line.strip()
-                        if line.startswith('#'):
+                        if line.startswith("#"):
                             continue
                         if re.search(r"^PasswordAuthentication\s+no", line, re.IGNORECASE):
                             return False
@@ -476,9 +545,9 @@ def add_number_to_ipv6(ip: str, number: int) -> str:
     return str(ipaddress.IPv6Address(ip) + number)
 
 
-@ cache.cache(600)
+@cache.cache(600)
 def is_in_same_asn(domain_or_ip: str, domain_or_ip_target: str) -> bool:
-    '''Returns True if domain is in panel ASN'''
+    """Returns True if domain is in panel ASN"""
     try:
         ip = domain_or_ip if is_ip(domain_or_ip) else get_domain_ip(domain_or_ip)
         ip_target = domain_or_ip_target if is_ip(domain_or_ip_target) else get_domain_ip(domain_or_ip_target)
@@ -501,43 +570,41 @@ def is_in_same_asn(domain_or_ip: str, domain_or_ip_target: str) -> bool:
         #                    f"<br> Server ASN={asn_ipv4.get('autonomous_system_organization','unknown')}<br>{domain}_ASN={asn_dip.get('autonomous_system_organization','unknown')}", "warning")
 
 
-@ cache.cache(600)
+@cache.cache(600)
 def get_ip_asn(ip: ipaddress.IPv4Address | ipaddress.IPv6Address | str) -> str:
     IPASN = get_ipasn()
     if not IPASN:
         return __get_ip_asn_api(ip)
     try:
         if asn := IPASN.get(str(ip)):
-            return str(asn.get('autonomous_system_organization', ''))
-        return ''
-    except:
-        return ''
+            return str(asn.get("autonomous_system_organization", ""))
+        return ""
+    except Exception:
+        return ""
 
 
 def __get_ip_asn_api(ip: ipaddress.IPv4Address | ipaddress.IPv6Address | str) -> str:
     ip = str(ip)
     if not is_ip(ip):
-        return ''
-    endpoint = f'https://ipapi.co/{ip}/asn/'
+        return ""
+    endpoint = f"https://ipapi.co/{ip}/asn/"
     return str(requests.get(endpoint, timeout=5).content)
 
 
-@ cache.cache(3600)
+@cache.cache(3600)
 def is_ip(input: str):
     try:
         _ = ipaddress.ip_address(input)
         return True
-    except:
+    except Exception:
         return False
 
 
 def resolve_domain_with_api(domain: str) -> str:
     if not domain:
-        return ''
-    endpoint = f'http://ip-api.com/json/{domain}?fields=query'
-    return str(requests.get(endpoint, timeout=5).json().get('query'))
-
-
+        return ""
+    endpoint = f"http://ip-api.com/json/{domain}?fields=query"
+    return str(requests.get(endpoint, timeout=5).json().get("query"))
 
 
 @cache.cache(600)
@@ -559,45 +626,47 @@ def get_ech_info(domain):
 
 
 def all_public_ports():
-        tcp_ports={80:"http",443:"tls"}
-        udp_ports={443:"quic",}
-        log=[]
-        if hconfig(ConfigEnum.wireguard_enable):
-            udp_ports[hconfig(ConfigEnum.wireguard_port)]="wireguard"
-            
-            
-        if hconfig(ConfigEnum.shadowsocks2022_enable) and (p:=hconfig(ConfigEnum.shadowsocks2022_port)):
-            udp_ports[p]="shadowsocks_2022"
-            tcp_ports[p]="shadowsocks_2022"
-        if hconfig(ConfigEnum.mieru_enable):
-            for p in hconfig(ConfigEnum.mieru_tcp_ports).split(","):
-                tcp_ports[p]="mieru"
-            for p in hconfig(ConfigEnum.mieru_udp_ports).split(","):
-                udp_ports[p]="mieru"
-        if hconfig(ConfigEnum.ssh_server_enable):
-            tcp_ports[hconfig(ConfigEnum.ssh_server_port)]="ssh"
-        
-        for d in Domain.query.all():
-            udp_ports[d.internal_port_tuic]="tuic"
-            udp_ports[d.internal_port_naive]="naive"
-            udp_ports[d.internal_port_hysteria2]="hysteria"
-            # xdns/xicmp (finalmask) ride mKCP, which is UDP-based, same as
-            # every other finalmask/QUIC protocol above.
-            udp_ports[d.internal_port_xdns]="xdns"
-            udp_ports[d.internal_port_xicmp]="xicmp"
-            if d.tls_port:
-                tcp_ports[d.tls_port]="tls"
-                udp_ports[d.tls_port]="quic"
-            if d.http_port:
-                tcp_ports[d.http_port]="http"
+    tcp_ports = {80: "http", 443: "tls"}
+    udp_ports = {
+        443: "quic",
+    }
+    log = []
+    if hconfig(ConfigEnum.wireguard_enable):
+        udp_ports[hconfig(ConfigEnum.wireguard_port)] = "wireguard"
 
-        def to_int(ports):
-            r={}
-            for p,v in ports.items():
-                try:
-                    if ip:=int(p):
-                        r[ip]=v
-                except:
-                    pass
-            return {k:v for k,v in sorted(r.items())}
-        return {"tcp":to_int(tcp_ports),"udp":to_int(udp_ports)}
+    if hconfig(ConfigEnum.shadowsocks2022_enable) and (p := hconfig(ConfigEnum.shadowsocks2022_port)):
+        udp_ports[p] = "shadowsocks_2022"
+        tcp_ports[p] = "shadowsocks_2022"
+    if hconfig(ConfigEnum.mieru_enable):
+        for p in hconfig(ConfigEnum.mieru_tcp_ports).split(","):
+            tcp_ports[p] = "mieru"
+        for p in hconfig(ConfigEnum.mieru_udp_ports).split(","):
+            udp_ports[p] = "mieru"
+    if hconfig(ConfigEnum.ssh_server_enable):
+        tcp_ports[hconfig(ConfigEnum.ssh_server_port)] = "ssh"
+
+    for d in Domain.query.all():
+        udp_ports[d.internal_port_tuic] = "tuic"
+        udp_ports[d.internal_port_naive] = "naive"
+        udp_ports[d.internal_port_hysteria2] = "hysteria"
+        # xdns/xicmp (finalmask) ride mKCP, which is UDP-based, same as
+        # every other finalmask/QUIC protocol above.
+        udp_ports[d.internal_port_xdns] = "xdns"
+        udp_ports[d.internal_port_xicmp] = "xicmp"
+        if d.tls_port:
+            tcp_ports[d.tls_port] = "tls"
+            udp_ports[d.tls_port] = "quic"
+        if d.http_port:
+            tcp_ports[d.http_port] = "http"
+
+    def to_int(ports):
+        r = {}
+        for p, v in ports.items():
+            try:
+                if ip := int(p):
+                    r[ip] = v
+            except Exception:
+                pass
+        return {k: v for k, v in sorted(r.items())}
+
+    return {"tcp": to_int(tcp_ports), "udp": to_int(udp_ports)}

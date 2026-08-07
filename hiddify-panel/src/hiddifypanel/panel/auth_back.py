@@ -1,11 +1,12 @@
 from typing import Set
-from apiflask import HTTPBasicAuth, HTTPTokenAuth
-from flask_httpauth import MultiAuth
 
-from hiddifypanel.models.user import User
-from hiddifypanel.models.admin import AdminUser
+from apiflask import HTTPBasicAuth, HTTPTokenAuth
 from flask import session
+from flask_httpauth import MultiAuth
 from strenum import StrEnum
+
+from hiddifypanel.models.admin import AdminUser
+from hiddifypanel.models.user import User
 
 basic_auth = HTTPBasicAuth()
 api_auth = HTTPTokenAuth("ApiKey")
@@ -13,10 +14,10 @@ multi_auth = MultiAuth(basic_auth, api_auth)
 
 
 class AccountRole(StrEnum):
-    user = 'user'
-    admin = 'admin'
-    super_admin = 'super_admin'
-    agent = 'agent'
+    user = "user"
+    admin = "admin"
+    super_admin = "super_admin"
+    agent = "agent"
 
 
 @basic_auth.verify_password
@@ -46,26 +47,26 @@ def verify_api_auth_token(token) -> User | AdminUser | None:
 
 
 def set_admin_authentication_in_session(admin: AdminUser) -> None:
-    if not session.get('account'):
-        session['account'] = {
-            'uuid': admin.uuid,
-            'role': get_account_role(admin),
+    if not session.get("account"):
+        session["account"] = {
+            "uuid": admin.uuid,
+            "role": get_account_role(admin),
             # 'username': res.username,
         }
 
 
 def set_user_authentication_in_session(user: User) -> None:
-    session['user_sign'] = {'uuid': user.uuid}
+    session["user_sign"] = {"uuid": user.uuid}
 
 
 def verify_admin_authentication_from_session() -> User | AdminUser | None:
-    if session.get('account'):
-        return User.by_uuid(session['account']['uuid']) or AdminUser.by_uuid(session['account']['uuid'])
+    if session.get("account"):
+        return User.by_uuid(session["account"]["uuid"]) or AdminUser.by_uuid(session["account"]["uuid"])
 
 
 def verify_user_authentication_from_session() -> User | AdminUser | None:
-    if session.get('user_sign'):
-        return User.by_uuid(session['user_sign']['uuid'])
+    if session.get("user_sign"):
+        return User.by_uuid(session["user_sign"]["uuid"])
 
 
 # actually this is not used, we authenticate the client and setup it in
@@ -74,24 +75,24 @@ def verify_user_authentication_from_session() -> User | AdminUser | None:
 @api_auth.get_user_roles
 @basic_auth.get_user_roles
 def get_account_role(account) -> AccountRole | None:
-    '''Returns user/admin role
-     Allowed roles are:
-     - for user:
-        - user
-     - for admin:
-        - super_admin
-        - admin
-        - agent
-    '''
+    """Returns user/admin role
+    Allowed roles are:
+    - for user:
+       - user
+    - for admin:
+       - super_admin
+       - admin
+       - agent
+    """
     if isinstance(account, User):
         return AccountRole.user
     if isinstance(account, AdminUser):
         match account.mode:
-            case 'super_admin':
+            case "super_admin":
                 return AccountRole.super_admin
-            case 'admin':
+            case "admin":
                 return AccountRole.admin
-            case 'agent':
+            case "agent":
                 return AccountRole.agent
 
 
@@ -121,7 +122,7 @@ def standalone_user_basic_auth_verification() -> User | None:
 def standalone_api_auth_verify():
     auth = api_auth.get_auth()
     try:
-        if hasattr(auth, 'token'):
+        if hasattr(auth, "token"):
             account = verify_api_auth_token(auth.token)
             if account:
                 return account

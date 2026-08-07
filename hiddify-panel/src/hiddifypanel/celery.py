@@ -1,5 +1,6 @@
 import os
 import sys
+
 from celery import Celery, Task
 from celery.schedules import crontab
 from dotenv import dotenv_values
@@ -13,26 +14,29 @@ def init_app(app):
                 return self.run(*args, **kwargs)
 
     celery_app = Celery(app.name, task_cls=FlaskTask)
-    
-    celery_app.config_from_object(dict(
-        broker_url=app.config['REDIS_URI_MAIN'],
-        result_backend=app.config['REDIS_URI_MAIN'],
-        # task_ignore_result=True,
-    ))
+
+    celery_app.config_from_object(
+        dict(
+            broker_url=app.config["REDIS_URI_MAIN"],
+            result_backend=app.config["REDIS_URI_MAIN"],
+            # task_ignore_result=True,
+        )
+    )
     app.extensions["celery"] = celery_app
 
-
-        # Calls test('hello') every 10 seconds.
+    # Calls test('hello') every 10 seconds.
     from hiddifypanel.panel import usage
-    celery_app.add_periodic_task(60.0, usage.update_local_usage.s(), name='update usage')
+
+    celery_app.add_periodic_task(60.0, usage.update_local_usage.s(), name="update usage")
     # celery_app.conf.beat_schedule = {
     # 'update_usage': {
     #     'task': 'hiddifypanel.panel.usage.update_local_usage',
-    #     'schedule': 30.0, 
+    #     'schedule': 30.0,
 
     # },
-# }
+    # }
     from hiddifypanel.panel.cli import backup_task
+
     celery_app.autodiscover_tasks()
     # celery_app.add_periodic_task(30.0, backup_task.s(), name='backup task')
     # celery_app.add_periodic_task(
@@ -40,70 +44,72 @@ def init_app(app):
     #     backup_task.delay(),
     # )
 
-    celery_app.add_periodic_task(
-        crontab(hour="*/6", minute="0"),
-        backup_task.s(),
-        name="backup_task "
-    )
+    celery_app.add_periodic_task(crontab(hour="*/6", minute="0"), backup_task.s(), name="backup_task ")
 
     # Plan 031: bounds parent-sync staleness on a partition to this
     # interval instead of "whenever some unrelated config change happens to
     # trigger a sync next" - see periodic_full_resync_with_parent()'s
     # docstring. No-ops immediately on a non-child node.
     from hiddifypanel.hutils.node.child import periodic_full_resync_with_parent
-    celery_app.add_periodic_task(900.0, periodic_full_resync_with_parent.s(), name='periodic full resync with parent')
+
+    celery_app.add_periodic_task(900.0, periodic_full_resync_with_parent.s(), name="periodic full resync with parent")
 
     # Opt-in uTLS fingerprint rotation - checked hourly, no-ops instantly
     # unless utls_auto_rotate is on and the configured interval has
     # actually elapsed (see hutils/tls_fingerprint_rotation.py).
     from hiddifypanel.hutils.tls_fingerprint_rotation import rotate_utls_fingerprint_if_due
-    celery_app.add_periodic_task(3600.0, rotate_utls_fingerprint_if_due.s(), name='rotate utls fingerprint if due')
+
+    celery_app.add_periodic_task(3600.0, rotate_utls_fingerprint_if_due.s(), name="rotate utls fingerprint if due")
 
     celery_app.set_default()
     return celery_app
 
 
-
 def init_app_no_flask():
-    config={}
-    for c, v in dotenv_values(os.environ.get("HIDDIFY_CFG_PATH", 'app.cfg')).items():
+    config = {}
+    for c, v in dotenv_values(os.environ.get("HIDDIFY_CFG_PATH", "app.cfg")).items():
         if v.isdecimal():
             v = int(v)
         else:
             v = True if v.lower() == "true" else (False if v.lower() == "false" else v)
         config[c] = v
-    import hiddifypanel.database 
+    import hiddifypanel.database
+
     hiddifypanel.database.init_no_flask()
 
     from hiddifypanel.panel import init_db
+
     while not init_db.is_db_latest():
         logger.error("The database upgrade is required before proceeding. Retrying...")
         import time
+
         time.sleep(20)
-    
+
     logger.info("Starting background tasks")
 
     celery_app = Celery()
-    
-    celery_app.config_from_object(dict(
-        broker_url=config['REDIS_URI_MAIN'],
-        result_backend=config['REDIS_URI_MAIN'],
-        # task_ignore_result=True,
-    ))
-    
 
-    
-        # Calls test('hello') every 10 seconds.
+    celery_app.config_from_object(
+        dict(
+            broker_url=config["REDIS_URI_MAIN"],
+            result_backend=config["REDIS_URI_MAIN"],
+            # task_ignore_result=True,
+        )
+    )
+
+    # Calls test('hello') every 10 seconds.
     from hiddifypanel.panel import usage
-    celery_app.add_periodic_task(60.0, usage.update_local_usage.s(), name='update usage')
+
+    celery_app.add_periodic_task(60.0, usage.update_local_usage.s(), name="update usage")
     # celery_app.conf.beat_schedule = {
     # 'update_usage': {
     #     'task': 'hiddifypanel.panel.usage.update_local_usage',
-    #     'schedule': 30.0, 
+    #     'schedule': 30.0,
 
     # },
-# }
+    # }
     from hiddifypanel.panel.cli import backup_task
+
     celery_app.autodiscover_tasks()
     # celery_app.add_periodic_task(30.0, backup_task.s(), name='backup task')
     # celery_app.add_periodic_task(
@@ -115,18 +121,17 @@ def init_app_no_flask():
         crontab(hour="*/6", minute="0"),
         # crontab(hour="*", minute="*"),
         backup_task.s(),
-        name="backup_task "
+        name="backup_task ",
     )
 
     from hiddifypanel.hutils.node.child import periodic_full_resync_with_parent
-    celery_app.add_periodic_task(900.0, periodic_full_resync_with_parent.s(), name='periodic full resync with parent')
+
+    celery_app.add_periodic_task(900.0, periodic_full_resync_with_parent.s(), name="periodic full resync with parent")
 
     from hiddifypanel.hutils.tls_fingerprint_rotation import rotate_utls_fingerprint_if_due
-    celery_app.add_periodic_task(3600.0, rotate_utls_fingerprint_if_due.s(), name='rotate utls fingerprint if due')
+
+    celery_app.add_periodic_task(3600.0, rotate_utls_fingerprint_if_due.s(), name="rotate utls fingerprint if due")
 
     celery_app.set_default()
 
     return celery_app
-
-
-    

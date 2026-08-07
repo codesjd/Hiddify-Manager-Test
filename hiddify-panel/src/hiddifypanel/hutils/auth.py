@@ -1,5 +1,5 @@
 import base64
-from typing import Tuple, Any
+from typing import Any, Tuple
 from uuid import UUID
 
 
@@ -23,7 +23,7 @@ def get_uuid_from_url_path(path: str, section_index: int = 2) -> str | None:
         str | None: The extracted UUID as a string if found, or None if not found.
     """
     s_index = 1
-    for section in path.lstrip('/').split('/'):
+    for section in path.lstrip("/").split("/"):
         if is_uuid_valid(section, 4):
             if s_index == section_index:
                 return section
@@ -42,24 +42,26 @@ def parse_login_id(raw_id: str) -> Tuple[Any | None, str | None]:
             and the ID is a string. If the raw ID cannot be parsed, None is returned
             for both the account type and ID.
     """
-    splitted = raw_id.split('_', 1)
+    splitted = raw_id.split("_", 1)
     if len(splitted) < 2:
         return None, None
     admin_or_user, id = splitted
     from hiddifypanel.models.role import AccountType
-    account_type = AccountType.admin if admin_or_user == 'admin' else AccountType.user
+
+    account_type = AccountType.admin if admin_or_user == "admin" else AccountType.user
     if not id or not account_type:
         return None, None
     return account_type, id
 
 
 def add_basic_auth_to_url(url: str, username: str, password: str) -> str:
-    if 'https://' in url:
-        return url.replace('https://', f'https://{username}:{password}@')
-    elif 'http://' in url:
-        return url.replace('http://', f'http://{username}:{password}@')
+    if "https://" in url:
+        return url.replace("https://", f"https://{username}:{password}@")
+    elif "http://" in url:
+        return url.replace("http://", f"http://{username}:{password}@")
     else:
         return url
+
 
 # region unused(never mentioned in codebase)
 

@@ -1,28 +1,32 @@
-from flask import render_template, request, redirect, g
-from flask_babel import lazy_gettext as _
-from . import fix_flaskadmin_babel
 import flask_admin
+from apiflask import APIBlueprint
+from flask import g, redirect, render_template, request
 from flask_admin import Admin
+from flask_adminlte3 import AdminLTE3
+from flask_babel import lazy_gettext as _
+
 from hiddifypanel import Events
-from .DomainAdmin import DomainAdmin
-from .AdminstratorAdmin import AdminstratorAdmin
-
-
 from hiddifypanel.database import db
 from hiddifypanel.models import *
-from apiflask import APIBlueprint
-from flask_adminlte3 import AdminLTE3
+
+from . import fix_flaskadmin_babel
+from .AdminstratorAdmin import AdminstratorAdmin
+from .DomainAdmin import DomainAdmin
 
 flask_bp = APIBlueprint("flask", __name__, template_folder="templates", enable_openapi=False)
 admin_bp = APIBlueprint("admin", __name__, template_folder="templates", enable_openapi=False)
 
-flaskadmin = Admin(endpoint="admin", base_template='flaskadmin-layout.html',
-                   translations_path="/opt/hiddify-develop/hiddify-panel/src/hiddifypanel/translations/")
+flaskadmin = Admin(
+    endpoint="admin",
+    base_template="flaskadmin-layout.html",
+    translations_path="/opt/hiddify-develop/hiddify-panel/src/hiddifypanel/translations/",
+)
 
 
 def init_app(app):
 
     from .UserAdmin import UserAdmin
+
     # admin_secret=StrConfig.query.filter(StrConfig.key==ConfigEnum.admin_secret).first()
     #
     # return
@@ -34,7 +38,7 @@ def init_app(app):
 
     Events.admin_prehook.notify(flaskadmin=flaskadmin, admin_bp=admin_bp)
 
-    @app.route('/<proxy_path>/admin')
+    @app.route("/<proxy_path>/admin")
     @app.doc(hide=True)
     def auto_route(proxy_path=None, user_secret=None):
         return redirect(request.url.replace("http://", "https://") + "/")
@@ -43,23 +47,40 @@ def init_app(app):
     flaskadmin.add_view(DomainAdmin(Domain, db.session, name=_("admin.menu.domain")))
     flaskadmin.add_view(AdminstratorAdmin(AdminUser, db.session, name=_("Admins")))
     from .NodeAdmin import NodeAdmin
+
     flaskadmin.add_view(NodeAdmin(Child, db.session))
+    from .DomainProxyOverrideAdmin import DomainProxyOverrideAdmin
+    from .InboundOverrideAdmin import InboundOverrideAdmin
     from .OutboundAdmin import OutboundAdmin
     from .RoutingRuleAdmin import RoutingRuleAdmin
-    from .InboundOverrideAdmin import InboundOverrideAdmin
-    from .DomainProxyOverrideAdmin import DomainProxyOverrideAdmin
+
     flaskadmin.add_view(OutboundAdmin(CustomOutbound, db.session, name=_("Outbounds"), category=_("Xray Configs")))
-    flaskadmin.add_view(RoutingRuleAdmin(CustomRoutingRule, db.session, name=_("Routing Rules"), category=_("Xray Configs")))
-    flaskadmin.add_view(InboundOverrideAdmin(Proxy, db.session, name=_("Inbound Overrides"), category=_("Xray Configs"), endpoint="inbound_override"))
-    flaskadmin.add_view(DomainProxyOverrideAdmin(DomainProxyOverride, db.session, name=_("Domain Proxy Overrides"), category=_("Xray Configs"), endpoint="domain_proxy_override"))
-    from .Dashboard import Dashboard
-    from .SettingAdmin import SettingAdmin
-    from .commercial_info import CommercialInfo
-    from .ProxyAdmin import ProxyAdmin
+    flaskadmin.add_view(
+        RoutingRuleAdmin(CustomRoutingRule, db.session, name=_("Routing Rules"), category=_("Xray Configs"))
+    )
+    flaskadmin.add_view(
+        InboundOverrideAdmin(
+            Proxy, db.session, name=_("Inbound Overrides"), category=_("Xray Configs"), endpoint="inbound_override"
+        )
+    )
+    flaskadmin.add_view(
+        DomainProxyOverrideAdmin(
+            DomainProxyOverride,
+            db.session,
+            name=_("Domain Proxy Overrides"),
+            category=_("Xray Configs"),
+            endpoint="domain_proxy_override",
+        )
+    )
     from .Actions import Actions
     from .Backup import Backup
-    from .QuickSetup import QuickSetup
+    from .commercial_info import CommercialInfo
+    from .Dashboard import Dashboard
     from .DomainProxyManage import DomainProxyManage
+    from .ProxyAdmin import ProxyAdmin
+    from .QuickSetup import QuickSetup
+    from .SettingAdmin import SettingAdmin
+
     Dashboard.register(admin_bp, route_base="/")
     SettingAdmin.register(admin_bp)
     ProxyAdmin.register(admin_bp)
@@ -87,26 +108,33 @@ def init_app(app):
         # classic CSRF. SettingAdmin/ProxyAdmin/QuickSetup/Backup already
         # submit a valid csrf_token via their FlaskForm, so this is a
         # no-op there; it's only new enforcement for the raw-form routes.
-        if request.blueprint not in ('admin', 'child_admin'):
+        if request.blueprint not in ("admin", "child_admin"):
             return
-        if request.method not in ('POST', 'PUT', 'PATCH', 'DELETE'):
+        if request.method not in ("POST", "PUT", "PATCH", "DELETE"):
             return
         from flask_wtf.csrf import validate_csrf
         from wtforms.validators import ValidationError
-        token = request.form.get('csrf_token') or request.headers.get('X-CSRFToken')
+
+        token = request.form.get("csrf_token") or request.headers.get("X-CSRFToken")
         try:
             validate_csrf(token)
         except ValidationError:
             from apiflask import abort
+
             abort(400, "The CSRF token is missing or invalid.")
 
     # admin_bp.add_url_rule('/admin/quicksetup/',endpoint="quicksetup",view_func=QuickSetup.index,methods=["GET"])
     # admin_bp.add_url_rule('/admin/quicksetup/',endpoint="quicksetup-save", view_func=QuickSetup.save,methods=["POST"])
 
-    app.add_url_rule("/<proxy_path>/admin/static/<filename>/", endpoint="admin.static")  # fix bug in admin with blueprint
+    app.add_url_rule(
+        "/<proxy_path>/admin/static/<filename>/", endpoint="admin.static"
+    )  # fix bug in admin with blueprint
 
     flask_bp.debug = True
-    app.register_blueprint(admin_bp, url_prefix=f"/<proxy_path>/admin/",)
-    app.register_blueprint(admin_bp, name=f'child_{admin_bp.name}', url_prefix=f"/<proxy_path>/<int:child_id>/admin/")
+    app.register_blueprint(
+        admin_bp,
+        url_prefix=f"/<proxy_path>/admin/",
+    )
+    app.register_blueprint(admin_bp, name=f"child_{admin_bp.name}", url_prefix=f"/<proxy_path>/<int:child_id>/admin/")
     app.register_blueprint(flask_bp, url_prefix=f"/<proxy_path>/")
-    app.register_blueprint(flask_bp, name=f'child_{flask_bp.name}', url_prefix=f"/<proxy_path>/<int:child_id>/")
+    app.register_blueprint(flask_bp, name=f"child_{flask_bp.name}", url_prefix=f"/<proxy_path>/<int:child_id>/")

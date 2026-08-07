@@ -1,20 +1,20 @@
+import os
 import re
 import subprocess
-from loguru import logger
-
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Tuple
+
 from flask import current_app, g
 from flask_babel import lazy_gettext as _
-from datetime import timedelta
-import os
+from loguru import logger
+
+from hiddifypanel import hutils
 from hiddifypanel.cache import cache
-from hiddifypanel.models import *
 from hiddifypanel.database import db
 from hiddifypanel.hutils.utils import *
-from hiddifypanel import hutils
-from hiddifypanel.panel.run_commander import commander, Command
-import subprocess
+from hiddifypanel.models import *
+from hiddifypanel.panel.run_commander import Command, commander
+
 to_gig_d = 1000 * 1000 * 1000
 
 
@@ -42,7 +42,7 @@ def add_short_link_imp(link: str, period_min: int = 5) -> Tuple[str, datetime]:
 
     pattern = r"([^/]+)\("
 
-    with open(os.environ['HIDDIFY_CONFIG_PATH'] + "/nginx/parts/short-link.conf", 'r') as f:
+    with open(os.environ["HIDDIFY_CONFIG_PATH"] + "/nginx/parts/short-link.conf", "r") as f:
         for line in f:
             if link in line:
                 return re.search(pattern, line).group(1), datetime.now() + timedelta(minutes=period_min)
@@ -67,7 +67,7 @@ def quick_apply_users():
     # run install.sh apply_users
     commander(Command.apply_users)
 
-    return {"status": 'success'}
+    return {"status": "success"}
 
 
 # Importing socket library
@@ -85,14 +85,18 @@ def get_html_user_link(model: BaseAccount, domain: Domain):
 
     # for showing child/node link (we send child_id to get_account_panel_link to get domain proxy path correctly)
     d_child_id = domain.child_id
-    link = f'{get_account_panel_link(model, d,child_id=d_child_id)}#{hutils.encode.unicode_slug(model.name)}'
+    link = f"{get_account_panel_link(model, d,child_id=d_child_id)}#{hutils.encode.unicode_slug(model.name)}"
 
     text = domain.alias or domain.domain
-    color_cls = 'info'
+    color_cls = "info"
 
-    if isinstance(domain, Domain) and not domain.sub_link_only and domain.mode in [DomainType.cdn, DomainType.auto_cdn_ip]:
+    if (
+        isinstance(domain, Domain)
+        and not domain.sub_link_only
+        and domain.mode in [DomainType.cdn, DomainType.auto_cdn_ip]
+    ):
         auto_cdn = (domain.mode == DomainType.auto_cdn_ip) or (domain.cdn_ip and "MTN" in domain.cdn_ip)
-        color_cls = "success" if auto_cdn else 'warning'
+        color_cls = "success" if auto_cdn else "warning"
         text = f'<span class="badge badge-secondary" >{"Auto" if auto_cdn else "CDN"}</span> ' + text
 
     res += f"<a target='_blank' data-copy='{link}' href='{link}' class='btn btn-xs btn-{color_cls} ltr' style='margin: 2px;'><i class='fa-solid fa-arrow-up-right-from-square d-none'></i> {text}</a>"
@@ -110,10 +114,12 @@ def amneziawg_needs_full_install() -> bool:
     other/amneziawg/run.sh would try to bring up a systemd unit that was
     never installed and silently fail (awg-quick@... service not found)."""
     from hiddifypanel.models.routing import get_amneziawg_outbounds
+
     if not get_amneziawg_outbounds():
         return False
     import shutil
-    return shutil.which('awg-quick') is None or shutil.which('amneziawg-go') is None
+
+    return shutil.which("awg-quick") is None or shutil.which("amneziawg-go") is None
 
 
 def l2tp_needs_full_install() -> bool:
@@ -125,10 +131,12 @@ def l2tp_needs_full_install() -> bool:
     would try to restart daemons that were never installed."""
     if not hconfig(ConfigEnum.l2tp_enable):
         from hiddifypanel.models.routing import get_l2tp_client_outbounds
+
         if not get_l2tp_client_outbounds():
             return False
     import shutil
-    return shutil.which('ipsec') is None or shutil.which('xl2tpd') is None
+
+    return shutil.which("ipsec") is None or shutil.which("xl2tpd") is None
 
 
 def core_needs_full_install() -> bool:
@@ -145,16 +153,18 @@ def core_needs_full_install() -> bool:
     doesn't exist. Escalate to a full install so the binary actually gets
     fetched."""
     import shutil
+
     core_type = hconfig(ConfigEnum.core_type)
-    if core_type == 'singbox':
-        return shutil.which('hiddify-core') is None
-    if core_type == 'xray':
-        return shutil.which('xray') is None
+    if core_type == "singbox":
+        return shutil.which("hiddify-core") is None
+    if core_type == "xray":
+        return shutil.which("xray") is None
     return False
 
 
 def reinstall_action(complete_install=False, domain_changed=False, do_update=False):
     from hiddifypanel.panel.admin.Actions import Actions
+
     action = Actions()
     if do_update:
         return action.update()
@@ -213,36 +223,58 @@ def get_child(unique_id):
 
 
 def dump_db_to_dict():
-    return {"childs": [u.to_dict() for u in db.session.query(Child).all()],
-            "users": [u.to_dict() for u in db.session.query(User).all()],
-            "domains": [u.to_dict() for u in db.session.query(Domain).all()],
-            "proxies": [u.to_dict() for u in db.session.query(Proxy).all()],
-            # "parent_domains": [] if not hconfig(ConfigEnum.license) else [u.to_dict() for u in ParentDomain.query.all()],
-            'admin_users': [d.to_dict() for d in db.session.query(AdminUser).all()],
-            "hconfigs": [*[u.to_dict() for u in db.session.query(BoolConfig).all()],
-                         *[u.to_dict() for u in db.session.query(StrConfig).all()]]
-            }
+    return {
+        "childs": [u.to_dict() for u in db.session.query(Child).all()],
+        "users": [u.to_dict() for u in db.session.query(User).all()],
+        "domains": [u.to_dict() for u in db.session.query(Domain).all()],
+        "proxies": [u.to_dict() for u in db.session.query(Proxy).all()],
+        # "parent_domains": [] if not hconfig(ConfigEnum.license) else [u.to_dict() for u in ParentDomain.query.all()],
+        "admin_users": [d.to_dict() for d in db.session.query(AdminUser).all()],
+        "hconfigs": [
+            *[u.to_dict() for u in db.session.query(BoolConfig).all()],
+            *[u.to_dict() for u in db.session.query(StrConfig).all()],
+        ],
+    }
 
 
 def get_ids_without_parent(input_dict):
     selector = "uuid"
     # Get all parent_uuids in a set for faster lookup
-    parent_uuids = {item.get(f'parent_admin_uuid') for item in input_dict.values()
-                    if item.get(f'parent_admin_uuid') is not None
-                    and item.get(f'parent_admin_uuid') != item.get('uuid')}
+    parent_uuids = {
+        item.get(f"parent_admin_uuid")
+        for item in input_dict.values()
+        if item.get(f"parent_admin_uuid") is not None and item.get(f"parent_admin_uuid") != item.get("uuid")
+    }
     print("PARENTS", parent_uuids)
-    uuids = {v['uuid']: v for v in input_dict.values()}
+    uuids = {v["uuid"]: v for v in input_dict.values()}
     # Find all uuids that do not have a parent_uuid in the dict
-    uuids_without_parent = [key for key, item in input_dict.items()
-                            if item.get(f'parent_admin_uuid') is None
-                            or item.get(f'parent_admin_uuid') == item.get('uuid')
-                            or item[f'parent_admin_uuid'] not in uuids]
+    uuids_without_parent = [
+        key
+        for key, item in input_dict.items()
+        if item.get(f"parent_admin_uuid") is None
+        or item.get(f"parent_admin_uuid") == item.get("uuid")
+        or item[f"parent_admin_uuid"] not in uuids
+    ]
     print("abondon uuids", uuids_without_parent)
     return uuids_without_parent
 
 
-def set_db_from_json(json_data, override_child_unique_id=True, set_users=True, set_domains=True, set_proxies=True, set_settings=True, remove_domains=False, remove_users=False,
-                     override_unique_id=True, set_admins=True, override_root_admin=False, replace_owner_admin=False, fix_admin_hierarchy=True, set_child=True):
+def set_db_from_json(
+    json_data,
+    override_child_unique_id=True,
+    set_users=True,
+    set_domains=True,
+    set_proxies=True,
+    set_settings=True,
+    remove_domains=False,
+    remove_users=False,
+    override_unique_id=True,
+    set_admins=True,
+    override_root_admin=False,
+    replace_owner_admin=False,
+    fix_admin_hierarchy=True,
+    set_child=True,
+):
     new_rows = []
 
     # override root child unique id
@@ -251,11 +283,11 @@ def set_db_from_json(json_data, override_child_unique_id=True, set_users=True, s
         replace_backup_child_unique_id(json_data, backup_child_unique_id, Child.current().unique_id)
 
     # restore childs
-    if set_child and 'childs' in json_data:
-        Child.bulk_register(json_data['childs'], commit=True)
+    if set_child and "childs" in json_data:
+        Child.bulk_register(json_data["childs"], commit=True)
 
-    uuids_without_parent = get_ids_without_parent({u['uuid']: u for u in json_data.get('admin_users', [])})
-    print('uuids_without_parent===============', uuids_without_parent)
+    uuids_without_parent = get_ids_without_parent({u["uuid"]: u for u in json_data.get("admin_users", [])})
+    print("uuids_without_parent===============", uuids_without_parent)
     if replace_owner_admin and len(uuids_without_parent):
         new_owner_uuid = uuids_without_parent[0]
         old_owner = AdminUser.query.filter(AdminUser.id == 1).first()
@@ -266,42 +298,42 @@ def set_db_from_json(json_data, override_child_unique_id=True, set_users=True, s
 
     all_admins = {u.uuid: u for u in AdminUser.query.all()}
     uuids_without_parent = [uuid for uuid in uuids_without_parent if uuid not in all_admins]
-    print('uuids_not admin exist===============', uuids_without_parent)
+    print("uuids_not admin exist===============", uuids_without_parent)
 
     if "admin_users" in json_data:
-        for u in json_data['admin_users']:
-            if override_root_admin and u['uuid'] in uuids_without_parent:
-                u['uuid'] = AdminUser.current_admin_or_owner().uuid
-            if u['parent_admin_uuid'] in uuids_without_parent:
-                u['parent_admin_uuid'] = AdminUser.current_admin_or_owner().uuid
+        for u in json_data["admin_users"]:
+            if override_root_admin and u["uuid"] in uuids_without_parent:
+                u["uuid"] = AdminUser.current_admin_or_owner().uuid
+            if u["parent_admin_uuid"] in uuids_without_parent:
+                u["parent_admin_uuid"] = AdminUser.current_admin_or_owner().uuid
         # fix admins hierarchy
-        if fix_admin_hierarchy and len(json_data['admin_users']) > 2:
+        if fix_admin_hierarchy and len(json_data["admin_users"]) > 2:
             hierarchy_is_ok = False
-            for u in json_data['admin_users']:
-                if u['uuid'] == AdminUser.current_admin_or_owner().uuid:
+            for u in json_data["admin_users"]:
+                if u["uuid"] == AdminUser.current_admin_or_owner().uuid:
                     continue
-                if u['parent_admin_uuid'] == AdminUser.current_admin_or_owner().uuid:
+                if u["parent_admin_uuid"] == AdminUser.current_admin_or_owner().uuid:
                     hierarchy_is_ok = True
                     break
             if not hierarchy_is_ok:
-                json_data['admin_users'][1]['parent_admin_uuid'] = AdminUser.current_admin_or_owner().uuid
+                json_data["admin_users"][1]["parent_admin_uuid"] = AdminUser.current_admin_or_owner().uuid
 
     if "users" in json_data and override_root_admin:
-        for u in json_data['users']:
-            if u['added_by_uuid'] in uuids_without_parent:
-                u['added_by_uuid'] = AdminUser.current_admin_or_owner().uuid
+        for u in json_data["users"]:
+            if u["added_by_uuid"] in uuids_without_parent:
+                u["added_by_uuid"] = AdminUser.current_admin_or_owner().uuid
 
-    if set_admins and 'admin_users' in json_data:
-        AdminUser.bulk_register(json_data['admin_users'], commit=True)
-    if set_users and 'users' in json_data:
-        User.bulk_register(json_data['users'], commit=False, remove=remove_users)
-    if set_domains and 'domains' in json_data:
-        Domain.bulk_register(json_data['domains'], commit=False, remove=remove_domains)
+    if set_admins and "admin_users" in json_data:
+        AdminUser.bulk_register(json_data["admin_users"], commit=True)
+    if set_users and "users" in json_data:
+        User.bulk_register(json_data["users"], commit=False, remove=remove_users)
+    if set_domains and "domains" in json_data:
+        Domain.bulk_register(json_data["domains"], commit=False, remove=remove_domains)
 
-    if set_settings and 'hconfigs' in json_data:
+    if set_settings and "hconfigs" in json_data:
         bulk_register_configs(json_data["hconfigs"], commit=True, override_unique_id=override_unique_id)
-        if 'proxies' in json_data:
-            Proxy.bulk_register(json_data['proxies'], commit=False)
+        if "proxies" in json_data:
+            Proxy.bulk_register(json_data["proxies"], commit=False)
 
     ids_without_parent = get_ids_without_parent({u.id: u.to_dict() for u in AdminUser.query.all()})
     owner = AdminUser.get_super_admin()
@@ -322,18 +354,26 @@ def get_domain_btn_link(domain):
     color_cls = "info"
     if domain.mode in [DomainType.cdn, DomainType.auto_cdn_ip]:
         auto_cdn = (domain.mode == DomainType.auto_cdn_ip) or (domain.cdn_ip and "MTN" in domain.cdn_ip)
-        color_cls = "success" if auto_cdn else 'warning'
+        color_cls = "success" if auto_cdn else "warning"
         text = f'<span class="badge badge-secondary" >{"Auto" if auto_cdn else "CDN"}</span> ' + text
-    link = f'https://{domain.domain}/'
+    link = f"https://{domain.domain}/"
     res = f"<a target='_blank' href='{link}' class='btn btn-xs btn-{color_cls} ltr' ><i class='fa-solid fa-arrow-up-right-from-square d-none'></i> {text}</a>"
     return res
 
 
 def get_ssh_client_version(user):
-    return 'SSH-2.0-OpenSSH_7.4p1'
+    return "SSH-2.0-OpenSSH_7.4p1"
 
-def is_fake_domain(model:Domain):
-        return model.mode in {DomainType.fake,DomainType.reality,DomainType.special_reality_tcp,DomainType.special_reality_grpc,DomainType.special_reality_xhttp}
+
+def is_fake_domain(model: Domain):
+    return model.mode in {
+        DomainType.fake,
+        DomainType.reality,
+        DomainType.special_reality_tcp,
+        DomainType.special_reality_grpc,
+        DomainType.special_reality_xhttp,
+    }
+
 
 def get_admin_login_link(host: str, is_https: bool = True, child_id=None) -> str:
     """Plain admin panel URL (no account UUID baked in) - lands on the
@@ -349,7 +389,9 @@ def get_admin_login_link(host: str, is_https: bool = True, child_id=None) -> str
     return f"{scheme}{host}/{proxy_path}/"
 
 
-def get_account_panel_link(account: BaseAccount, host: str, is_https: bool = True, prefere_path_only: bool = False, child_id=None):
+def get_account_panel_link(
+    account: BaseAccount, host: str, is_https: bool = True, prefere_path_only: bool = False, child_id=None
+):
     if child_id is None:
         child_id = Child.current().id
     is_admin = isinstance(account, AdminUser)
@@ -359,10 +401,10 @@ def get_account_panel_link(account: BaseAccount, host: str, is_https: bool = Tru
     if basic_auth or not prefere_path_only:
         link = "https://" if is_https else "http://"
         if basic_auth:
-            link += f'{account.uuid}@'
+            link += f"{account.uuid}@"
         link += str(host)
     proxy_path = hconfig(ConfigEnum.proxy_path_admin if is_admin else ConfigEnum.proxy_path_client, child_id)
-    link += f'/{proxy_path}/'
+    link += f"/{proxy_path}/"
 
     # if child_id != 0:
     #     child = Child.by_id(child_id)
@@ -374,7 +416,7 @@ def get_account_panel_link(account: BaseAccount, host: str, is_https: bool = Tru
         if is_admin:
             link += "admin/"
         else:
-            link += f'{account.uuid}/'
+            link += f"{account.uuid}/"
     return link
 
 
@@ -401,48 +443,59 @@ def clone_model(model):
     for k in table.columns.keys():
         if k == "id":
             continue
-        setattr(new_model, f'{k}', getattr(model, k))
+        setattr(new_model, f"{k}", getattr(model, k))
 
     return new_model
 
 
 def replace_backup_child_unique_id(backupdata: dict, old_child_unique_id: str, new_child_unique_id: str):
     for k, v in backupdata.copy().items():
-        if k == 'admin_users' or k == 'users':
+        if k == "admin_users" or k == "users":
             continue
-        if k == 'childs':
+        if k == "childs":
             if len(v) < 1:
                 continue
 
-            if v[0]['unique_id'] == old_child_unique_id or v[0]['unique_id'] == 'self' or v[0]['unique_id'] == 'default':
-                v[0]['unique_id'] = new_child_unique_id
+            if (
+                v[0]["unique_id"] == old_child_unique_id
+                or v[0]["unique_id"] == "self"
+                or v[0]["unique_id"] == "default"
+            ):
+                v[0]["unique_id"] = new_child_unique_id
         else:
             for item in v:
-                if item['child_unique_id'] == old_child_unique_id or item['child_unique_id'] == 'self' or item['child_unique_id'] == 'default':
-                    item['child_unique_id'] = new_child_unique_id
+                if (
+                    item["child_unique_id"] == old_child_unique_id
+                    or item["child_unique_id"] == "self"
+                    or item["child_unique_id"] == "default"
+                ):
+                    item["child_unique_id"] = new_child_unique_id
 
 
 def get_backup_child_unique_id(backupdata: dict) -> str:
-    if len(backupdata.get('childs', [])) == 0:
+    if len(backupdata.get("childs", [])) == 0:
         return "self"
-    return backupdata['childs'][0]['unique_id']
+    return backupdata["childs"][0]["unique_id"]
 
 
 def all_configs_for_cli():
-    valid_users = [u.to_dict(dump_id=True) for u in User.query.filter((User.usage_limit > User.current_usage)).all() if u.is_active]
+    valid_users = [
+        u.to_dict(dump_id=True) for u in User.query.filter((User.usage_limit > User.current_usage)).all() if u.is_active
+    ]
     host_child_ids = [c.id for c in Child.query.filter(Child.mode == ChildMode.virtual).all()]
-    domains = Domain.query.filter(Domain.child_id.in_(host_child_ids),~Domain.domain.contains("*")).all()
+    domains = Domain.query.filter(Domain.child_id.in_(host_child_ids), ~Domain.domain.contains("*")).all()
     configs = {
         "users": valid_users,
         "domains": [u.to_dict(dump_ports=True, dump_child_id=True) for u in domains],
         # "hconfigs": get_hconfigs(json=True),
-        "chconfigs": get_hconfigs_childs(host_child_ids, json=True)
+        "chconfigs": get_hconfigs_childs(host_child_ids, json=True),
     }
 
-    def_user = User.query.filter(User.name == 'default').first() if User.query.count() == 1 else None
-    
+    def_user = User.query.filter(User.name == "default").first() if User.query.count() == 1 else None
 
-    configs['chconfigs'][0]['first_setup'] = def_user is not None and Domain.query.filter(Domain.domain.contains("sslip.io")).limit(1).count() > 0
+    configs["chconfigs"][0]["first_setup"] = (
+        def_user is not None and Domain.query.filter(Domain.domain.contains("sslip.io")).limit(1).count() > 0
+    )
 
     # Merge the UI-managed custom outbounds/routing rules (CustomOutbound,
     # CustomRoutingRule) into additional_configs_xrayjson - no longer an
@@ -452,30 +505,36 @@ def all_configs_for_cli():
     # UI; still honored for backward compatibility.
     try:
         import json
+
         db_extra = build_custom_xray_extra()
-        manual_raw = configs['chconfigs'][0].get('additional_configs_xrayjson') or ''
+        manual_raw = configs["chconfigs"][0].get("additional_configs_xrayjson") or ""
         manual = json.loads(manual_raw) if manual_raw.strip() else {}
         merged = {
-            "outbounds": (manual.get('outbounds') or []) + db_extra['outbounds'],
-            "routing_rules": (manual.get('routing_rules') or []) + db_extra['routing_rules'],
+            "outbounds": (manual.get("outbounds") or []) + db_extra["outbounds"],
+            "routing_rules": (manual.get("routing_rules") or []) + db_extra["routing_rules"],
         }
-        configs['chconfigs'][0]['additional_configs_xrayjson'] = json.dumps(merged)
+        configs["chconfigs"][0]["additional_configs_xrayjson"] = json.dumps(merged)
     except Exception:
-        logger.exception("Failed to merge custom outbounds/routing rules (non-fatal, falling back to manual field only)")
+        logger.exception(
+            "Failed to merge custom outbounds/routing rules (non-fatal, falling back to manual field only)"
+        )
 
     # Same merge, sing-box schema - see the comment above, same reasoning.
     try:
         import json
+
         db_extra_sb = build_custom_singbox_extra()
-        manual_raw_sb = configs['chconfigs'][0].get('additional_configs_singbox') or ''
+        manual_raw_sb = configs["chconfigs"][0].get("additional_configs_singbox") or ""
         manual_sb = json.loads(manual_raw_sb) if manual_raw_sb.strip() else {}
         merged_sb = {
-            "outbounds": (manual_sb.get('outbounds') or []) + db_extra_sb['outbounds'],
-            "routing_rules": (manual_sb.get('routing_rules') or []) + db_extra_sb['routing_rules'],
+            "outbounds": (manual_sb.get("outbounds") or []) + db_extra_sb["outbounds"],
+            "routing_rules": (manual_sb.get("routing_rules") or []) + db_extra_sb["routing_rules"],
         }
-        configs['chconfigs'][0]['additional_configs_singbox'] = json.dumps(merged_sb)
+        configs["chconfigs"][0]["additional_configs_singbox"] = json.dumps(merged_sb)
     except Exception:
-        logger.exception("Failed to merge custom singbox outbounds/routing rules (non-fatal, falling back to manual field only)")
+        logger.exception(
+            "Failed to merge custom singbox outbounds/routing rules (non-fatal, falling back to manual field only)"
+        )
 
     # AmneziaWG outbounds need an actual system-level WireGuard-style
     # interface brought up outside of xray/singbox (neither core speaks
@@ -484,17 +543,21 @@ def all_configs_for_cli():
     # to write one .conf + bring up one awg-quick@{interface} per row.
     try:
         amneziawg_outbounds = get_amneziawg_outbounds()
-        configs['amneziawg_outbounds'] = amneziawg_outbounds
+        configs["amneziawg_outbounds"] = amneziawg_outbounds
         # This flag also gates whether other/amneziawg's install_run() runs
         # at all (see install.sh) - broadened to also cover the client-facing
         # hiddifyawg interface (amneziawg_client_enable), not just outbound
         # chaining, since both need the exact same awg-quick/amneziawg-go
         # binaries built.
-        configs['chconfigs'][0]['has_amneziawg_outbound'] = len(amneziawg_outbounds) > 0 or bool(hconfig(ConfigEnum.amneziawg_client_enable))
+        configs["chconfigs"][0]["has_amneziawg_outbound"] = len(amneziawg_outbounds) > 0 or bool(
+            hconfig(ConfigEnum.amneziawg_client_enable)
+        )
     except Exception:
-        logger.exception("Failed to collect AmneziaWG outbounds (non-fatal, other/amneziawg/ will just see an empty list)")
-        configs['amneziawg_outbounds'] = []
-        configs['chconfigs'][0]['has_amneziawg_outbound'] = False
+        logger.exception(
+            "Failed to collect AmneziaWG outbounds (non-fatal, other/amneziawg/ will just see an empty list)"
+        )
+        configs["amneziawg_outbounds"] = []
+        configs["chconfigs"][0]["has_amneziawg_outbound"] = False
 
     # L2TP outbound chaining needs the same strongSwan+xl2tpd daemons as
     # other/l2tp's inbound side (see routing.get_l2tp_client_outbounds) - one
@@ -502,16 +565,17 @@ def all_configs_for_cli():
     # template covering both roles from one xl2tpd.conf/ipsec.conf).
     try:
         from hiddifypanel.models.routing import get_l2tp_client_outbounds
+
         l2tp_outbounds = get_l2tp_client_outbounds()
-        configs['l2tp_outbounds'] = l2tp_outbounds
+        configs["l2tp_outbounds"] = l2tp_outbounds
         # Also gates whether other/l2tp's install_run() runs at all (see
         # install.sh) - broadened to cover outbound chaining too, not just
         # the l2tp_enable inbound toggle, since both need the same packages.
-        configs['chconfigs'][0]['has_l2tp_outbound'] = len(l2tp_outbounds) > 0 or bool(hconfig(ConfigEnum.l2tp_enable))
+        configs["chconfigs"][0]["has_l2tp_outbound"] = len(l2tp_outbounds) > 0 or bool(hconfig(ConfigEnum.l2tp_enable))
     except Exception:
         logger.exception("Failed to collect L2TP outbounds (non-fatal, other/l2tp/ will just see an empty list)")
-        configs['l2tp_outbounds'] = []
-        configs['chconfigs'][0]['has_l2tp_outbound'] = bool(hconfig(ConfigEnum.l2tp_enable))
+        configs["l2tp_outbounds"] = []
+        configs["chconfigs"][0]["has_l2tp_outbound"] = bool(hconfig(ConfigEnum.l2tp_enable))
 
     # L2TP-inbound-through-an-outbound routing (Settings -> L2TP/IPsec ->
     # Route through Outbound) - see routing.get_l2tp_route_interface().
@@ -519,22 +583,22 @@ def all_configs_for_cli():
     # resolves to a live row.
     try:
         from hiddifypanel.models.routing import get_l2tp_route_interface
-        configs['l2tp_route_interface'] = get_l2tp_route_interface()
+
+        configs["l2tp_route_interface"] = get_l2tp_route_interface()
     except Exception:
         logger.exception("Failed to resolve l2tp_outbound_tag (non-fatal, other/l2tp/ will route direct)")
-        configs['l2tp_route_interface'] = None
+        configs["l2tp_route_interface"] = None
     server_ip = hutils.network.get_ip_str(4)
     owner = AdminUser.get_super_admin()
-    configs['api_key'] = owner.uuid
-    configs['api_path'] = hconfig(ConfigEnum.proxy_path_admin)
-    configs['admin_path'] = get_account_panel_link(owner, server_ip, is_https=False, prefere_path_only=True)
-    configs['panel_links'] = []
-    configs['panel_links'].append(get_account_panel_link(owner, server_ip, is_https=False))
-    configs['panel_links'].append(get_account_panel_link(owner, server_ip))
-    
+    configs["api_key"] = owner.uuid
+    configs["api_path"] = hconfig(ConfigEnum.proxy_path_admin)
+    configs["admin_path"] = get_account_panel_link(owner, server_ip, is_https=False, prefere_path_only=True)
+    configs["panel_links"] = []
+    configs["panel_links"].append(get_account_panel_link(owner, server_ip, is_https=False))
+    configs["panel_links"].append(get_account_panel_link(owner, server_ip))
+
     domains = Domain.get_domains()
     for d in domains:
-        configs['panel_links'].append(get_account_panel_link(owner, d.domain))
-    
+        configs["panel_links"].append(get_account_panel_link(owner, d.domain))
 
     return configs

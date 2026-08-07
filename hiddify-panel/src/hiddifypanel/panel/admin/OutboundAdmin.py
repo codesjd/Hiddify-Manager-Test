@@ -1,11 +1,14 @@
 import json
+
 import wtforms as wtf
-from markupsafe import Markup
 from flask_babel import lazy_gettext as _
-from .adminlte import AdminLTEModelView
+from markupsafe import Markup
+
+from hiddifypanel import hutils
 from hiddifypanel.auth import login_required
 from hiddifypanel.models import *
-from hiddifypanel import hutils
+
+from .adminlte import AdminLTEModelView
 
 
 # Renders as a plain <script> tag wherever it's placed in form_columns -
@@ -28,7 +31,7 @@ from hiddifypanel import hutils
 class _ScriptField(wtf.Field):
     widget = None
 
-    def __init__(self, label='', script='', **kwargs):
+    def __init__(self, label="", script="", **kwargs):
         super().__init__(label=label, **kwargs)
         self._script = script
 
@@ -36,7 +39,7 @@ class _ScriptField(wtf.Field):
         pass
 
     def _value(self):
-        return ''
+        return ""
 
     def __call__(self, **kwargs):
         return Markup(self._script or _PROTOCOL_FIELD_SCRIPT)
@@ -184,26 +187,80 @@ class OutboundAdmin(AdminLTEModelView):
     actually running reads the matching one, so this form isn't tied to one
     core_type.
     """
+
     column_hide_backrefs = False
-    list_template = 'model/outbound_list.html'
+    list_template = "model/outbound_list.html"
     column_list = ["tag", "protocol", "address", "port", "network", "security", "comment"]
-    form_columns = ["tag", "awg_conf", "protocol", "address", "port", "uuid_or_password", "ss_method",
-                     "peer_public_key", "preshared_key", "local_address", "dns", "jc", "jmin", "jmax",
-                     "network", "security", "sni", "ws_path", "host_header", "fingerprint", "flow", "encryption",
-                     "reality_public_key", "reality_short_id",
-                     "sockopt_mark", "sockopt_tcp_fast_open", "sockopt_tproxy", "sockopt_domain_strategy",
-                     "sockopt_dialer_proxy", "sockopt_interface", "sockopt_tcp_keep_alive_interval",
-                     "sockopt_tcp_keep_alive_idle", "sockopt_tcp_user_timeout", "sockopt_tcp_max_seg",
-                     "sockopt_tcp_window_clamp", "sockopt_tcp_mptcp", "sockopt_penetrate",
-                     "sockopt_address_port_strategy", "he_try_delay_ms", "he_prioritize_ipv6",
-                     "he_interleave", "he_max_concurrent_try",
-                     "mux_enabled", "mux_concurrency", "mux_xudp_concurrency", "mux_xudp_proxy_udp_443",
-                     "hysteria_obfs_password", "hysteria_up_mbps", "hysteria_down_mbps",
-                     "awg_h1", "awg_h2", "awg_h3", "awg_h4",
-                     "awg_s1", "awg_s2", "awg_s3", "awg_s4",
-                     "awg_i1", "awg_i2", "awg_i3", "awg_i4", "awg_i5",
-                     "tuic_congestion_control", "mieru_transport", "mieru_multiplexing",
-                     "comment", "extra_json", "protocol_field_script"]
+    form_columns = [
+        "tag",
+        "awg_conf",
+        "protocol",
+        "address",
+        "port",
+        "uuid_or_password",
+        "ss_method",
+        "peer_public_key",
+        "preshared_key",
+        "local_address",
+        "dns",
+        "jc",
+        "jmin",
+        "jmax",
+        "network",
+        "security",
+        "sni",
+        "ws_path",
+        "host_header",
+        "fingerprint",
+        "flow",
+        "encryption",
+        "reality_public_key",
+        "reality_short_id",
+        "sockopt_mark",
+        "sockopt_tcp_fast_open",
+        "sockopt_tproxy",
+        "sockopt_domain_strategy",
+        "sockopt_dialer_proxy",
+        "sockopt_interface",
+        "sockopt_tcp_keep_alive_interval",
+        "sockopt_tcp_keep_alive_idle",
+        "sockopt_tcp_user_timeout",
+        "sockopt_tcp_max_seg",
+        "sockopt_tcp_window_clamp",
+        "sockopt_tcp_mptcp",
+        "sockopt_penetrate",
+        "sockopt_address_port_strategy",
+        "he_try_delay_ms",
+        "he_prioritize_ipv6",
+        "he_interleave",
+        "he_max_concurrent_try",
+        "mux_enabled",
+        "mux_concurrency",
+        "mux_xudp_concurrency",
+        "mux_xudp_proxy_udp_443",
+        "hysteria_obfs_password",
+        "hysteria_up_mbps",
+        "hysteria_down_mbps",
+        "awg_h1",
+        "awg_h2",
+        "awg_h3",
+        "awg_h4",
+        "awg_s1",
+        "awg_s2",
+        "awg_s3",
+        "awg_s4",
+        "awg_i1",
+        "awg_i2",
+        "awg_i3",
+        "awg_i4",
+        "awg_i5",
+        "tuic_congestion_control",
+        "mieru_transport",
+        "mieru_multiplexing",
+        "comment",
+        "extra_json",
+        "protocol_field_script",
+    ]
 
     column_labels = {
         "tag": _("Tag"),
@@ -275,28 +332,56 @@ class OutboundAdmin(AdminLTEModelView):
         "extra_json": _("Advanced Override (JSON)"),
     }
     column_descriptions = dict(
-        tag=_("Unique identifier for this outbound. Reference it as the Outbound Tag in a Routing Rule to send matching traffic here."),
-        address=_("The destination server's IP or domain - e.g. another one of your own servers, for chaining, or the wireguard/amneziawg peer's Endpoint host, or the remote L2TP/IPsec server's host. Not used for freedom."),
-        uuid_or_password=_("UUID for vless/vmess, password for trojan/shadowsocks, user:pass for socks/http/naive, uuid:password for tuic, username:password for mieru, username:password for l2tp (PPP CHAP credentials), or PrivateKey for wireguard/amneziawg. For a 2022-blake3-* Encryption Method, this must be the exact-length base64 PSK that method requires, not an arbitrary password. Not used for freedom."),
-        ss_method=_("Encryption method. The 2022-blake3-* methods require the password above to be an exact-length base64 pre-shared key (16 bytes for aes-128-gcm, 32 bytes for aes-256-gcm/chacha20-poly1305) - an arbitrary password will fail to connect."),
-        peer_public_key=_("The remote peer's PublicKey - same value as [Peer] PublicKey in a WireGuard/AmneziaWG .conf."),
-        preshared_key=_("The remote peer's PresharedKey, if it has one - same value as [Peer] PresharedKey in an AmneziaWG .conf. For l2tp, this is instead the remote server's IPsec pre-shared key (leave blank for a bare L2TP tunnel with no IPsec)."),
-        local_address=_("This tunnel's own address, same as [Interface] Address in a WireGuard/AmneziaWG .conf, e.g. \"10.0.0.2/32\"."),
+        tag=_(
+            "Unique identifier for this outbound. Reference it as the Outbound Tag in a Routing Rule to send matching traffic here."
+        ),
+        address=_(
+            "The destination server's IP or domain - e.g. another one of your own servers, for chaining, or the wireguard/amneziawg peer's Endpoint host, or the remote L2TP/IPsec server's host. Not used for freedom."
+        ),
+        uuid_or_password=_(
+            "UUID for vless/vmess, password for trojan/shadowsocks, user:pass for socks/http/naive, uuid:password for tuic, username:password for mieru, username:password for l2tp (PPP CHAP credentials), or PrivateKey for wireguard/amneziawg. For a 2022-blake3-* Encryption Method, this must be the exact-length base64 PSK that method requires, not an arbitrary password. Not used for freedom."
+        ),
+        ss_method=_(
+            "Encryption method. The 2022-blake3-* methods require the password above to be an exact-length base64 pre-shared key (16 bytes for aes-128-gcm, 32 bytes for aes-256-gcm/chacha20-poly1305) - an arbitrary password will fail to connect."
+        ),
+        peer_public_key=_(
+            "The remote peer's PublicKey - same value as [Peer] PublicKey in a WireGuard/AmneziaWG .conf."
+        ),
+        preshared_key=_(
+            "The remote peer's PresharedKey, if it has one - same value as [Peer] PresharedKey in an AmneziaWG .conf. For l2tp, this is instead the remote server's IPsec pre-shared key (leave blank for a bare L2TP tunnel with no IPsec)."
+        ),
+        local_address=_(
+            'This tunnel\'s own address, same as [Interface] Address in a WireGuard/AmneziaWG .conf, e.g. "10.0.0.2/32".'
+        ),
         dns=_("Optional, same as [Interface] DNS in an AmneziaWG .conf."),
-        jc=_("AmneziaWG obfuscation - number of junk packets sent before the handshake. Leave blank for a plain (non-obfuscated) tunnel."),
+        jc=_(
+            "AmneziaWG obfuscation - number of junk packets sent before the handshake. Leave blank for a plain (non-obfuscated) tunnel."
+        ),
         jmin=_("AmneziaWG obfuscation - minimum junk packet size in bytes."),
         jmax=_("AmneziaWG obfuscation - maximum junk packet size in bytes."),
         reality_public_key=_("Required for Security=reality - the remote server's Reality public key (pbk)."),
         reality_short_id=_("Required for Security=reality - the remote server's Reality short ID (sid)."),
-        sockopt_mark=_("Linux SO_MARK (fwmark) applied to this outbound's sockets. Leave blank unless you use policy routing."),
+        sockopt_mark=_(
+            "Linux SO_MARK (fwmark) applied to this outbound's sockets. Leave blank unless you use policy routing."
+        ),
         sockopt_dialer_proxy=_("Chain through another Outbound's Tag before dialing this one."),
         sockopt_domain_strategy=_('e.g. "UseIP", "UseIPv4", "UseIPv6", "AsIs". Leave blank for the default.'),
         sockopt_interface=_("Bind outbound connections to this network interface (Linux SO_BINDTODEVICE)."),
-        hysteria_obfs_password=_("hysteria2 Salamander obfuscation password. Must match the server's obfs password. Leave blank if the server has no obfs."),
-        hysteria_up_mbps=_("Optional hysteria2 upload bandwidth hint in Mbps. Leave blank to let congestion control decide."),
-        hysteria_down_mbps=_("Optional hysteria2 download bandwidth hint in Mbps. Leave blank to let congestion control decide."),
-        awg_conf=_("Optional. Paste a complete AmneziaWG .conf here (contents of your amnezia_for_awg.conf); when set, it replaces the [Interface]/[Peer] block generated from the fields above. `Table = off` is added automatically if missing so the server default route isn't hijacked. Leave blank to build the .conf from the discrete fields instead."),
-        awg_h1=_("AmneziaWG obfuscation - replaces WireGuard's real message-1 type byte on the wire. A single value or a min-max range (e.g. \"5-10\"). Leave blank for no header obfuscation."),
+        hysteria_obfs_password=_(
+            "hysteria2 Salamander obfuscation password. Must match the server's obfs password. Leave blank if the server has no obfs."
+        ),
+        hysteria_up_mbps=_(
+            "Optional hysteria2 upload bandwidth hint in Mbps. Leave blank to let congestion control decide."
+        ),
+        hysteria_down_mbps=_(
+            "Optional hysteria2 download bandwidth hint in Mbps. Leave blank to let congestion control decide."
+        ),
+        awg_conf=_(
+            "Optional. Paste a complete AmneziaWG .conf here (contents of your amnezia_for_awg.conf); when set, it replaces the [Interface]/[Peer] block generated from the fields above. `Table = off` is added automatically if missing so the server default route isn't hijacked. Leave blank to build the .conf from the discrete fields instead."
+        ),
+        awg_h1=_(
+            'AmneziaWG obfuscation - replaces WireGuard\'s real message-1 type byte on the wire. A single value or a min-max range (e.g. "5-10"). Leave blank for no header obfuscation.'
+        ),
         awg_h2=_("AmneziaWG obfuscation - same as H1, for message type 2."),
         awg_h3=_("AmneziaWG obfuscation - same as H1, for message type 3."),
         awg_h4=_("AmneziaWG obfuscation - same as H1, for message type 4."),
@@ -309,20 +394,35 @@ class OutboundAdmin(AdminLTEModelView):
         awg_i3=_("AmneziaWG obfuscation - special-junk pattern I3."),
         awg_i4=_("AmneziaWG obfuscation - special-junk pattern I4."),
         awg_i5=_("AmneziaWG obfuscation - special-junk pattern I5."),
-        tuic_congestion_control=_("TUIC congestion control algorithm. sing-box only - xray-core has no TUIC dialer, so this outbound is dropped (blackholed) while the panel's core is Xray."),
-        mieru_transport=_("Mieru's underlying transport protocol. sing-box only - xray-core has no Mieru dialer, so this outbound is dropped (blackholed) while the panel's core is Xray."),
-        mieru_multiplexing=_("Mieru's multiplexing level - higher levels trade some latency for better throughput/obfuscation."),
-        extra_json=_('Optional. Deep-merged on top of the generated outbound JSON for anything the form above can\'t express, '
-                      'e.g. {"streamSettings": {"sockopt": {"dialerProxy": "another-tag"}}} to chain through yet another outbound.'),
+        tuic_congestion_control=_(
+            "TUIC congestion control algorithm. sing-box only - xray-core has no TUIC dialer, so this outbound is dropped (blackholed) while the panel's core is Xray."
+        ),
+        mieru_transport=_(
+            "Mieru's underlying transport protocol. sing-box only - xray-core has no Mieru dialer, so this outbound is dropped (blackholed) while the panel's core is Xray."
+        ),
+        mieru_multiplexing=_(
+            "Mieru's multiplexing level - higher levels trade some latency for better throughput/obfuscation."
+        ),
+        extra_json=_(
+            "Optional. Deep-merged on top of the generated outbound JSON for anything the form above can't express, "
+            'e.g. {"streamSettings": {"sockopt": {"dialerProxy": "another-tag"}}} to chain through yet another outbound.'
+        ),
     )
 
     form_extra_fields = {
         "ss_method": wtf.SelectField(
             _("Encryption Method (shadowsocks)"),
-            choices=[(m, m) for m in [
-                "chacha20-ietf-poly1305", "aes-256-gcm", "aes-128-gcm",
-                "2022-blake3-aes-128-gcm", "2022-blake3-aes-256-gcm", "2022-blake3-chacha20-poly1305",
-            ]],
+            choices=[
+                (m, m)
+                for m in [
+                    "chacha20-ietf-poly1305",
+                    "aes-256-gcm",
+                    "aes-128-gcm",
+                    "2022-blake3-aes-128-gcm",
+                    "2022-blake3-aes-256-gcm",
+                    "2022-blake3-chacha20-poly1305",
+                ]
+            ],
         ),
         "tuic_congestion_control": wtf.SelectField(
             _("Congestion Control (TUIC)"),
@@ -334,15 +434,21 @@ class OutboundAdmin(AdminLTEModelView):
         ),
         "mieru_multiplexing": wtf.SelectField(
             _("Multiplexing (Mieru)"),
-            choices=[(m, m) for m in [
-                "MULTIPLEXING_OFF", "MULTIPLEXING_LOW", "MULTIPLEXING_MIDDLE", "MULTIPLEXING_HIGH",
-            ]],
+            choices=[
+                (m, m)
+                for m in [
+                    "MULTIPLEXING_OFF",
+                    "MULTIPLEXING_LOW",
+                    "MULTIPLEXING_MIDDLE",
+                    "MULTIPLEXING_HIGH",
+                ]
+            ],
         ),
         "protocol_field_script": _ScriptField(label=""),
     }
 
     form_widget_args = {
-        'extra_json': {'rows': 4},
+        "extra_json": {"rows": 4},
     }
 
     # The protocol dropdown is restricted to the approved set only
@@ -355,13 +461,21 @@ class OutboundAdmin(AdminLTEModelView):
     # already available in Routing Rules. A row already saved with one of
     # those protocols is untouched; it just can't be re-selected if edited.
     _ALLOWED_PROTOCOLS = [
-        OutboundProtocol.vmess, OutboundProtocol.vless, OutboundProtocol.trojan,
-        OutboundProtocol.shadowsocks, OutboundProtocol.amneziawg, OutboundProtocol.hysteria,
-        OutboundProtocol.socks, OutboundProtocol.http, OutboundProtocol.naive,
-        OutboundProtocol.tuic, OutboundProtocol.mieru, OutboundProtocol.l2tp,
+        OutboundProtocol.vmess,
+        OutboundProtocol.vless,
+        OutboundProtocol.trojan,
+        OutboundProtocol.shadowsocks,
+        OutboundProtocol.amneziawg,
+        OutboundProtocol.hysteria,
+        OutboundProtocol.socks,
+        OutboundProtocol.http,
+        OutboundProtocol.naive,
+        OutboundProtocol.tuic,
+        OutboundProtocol.mieru,
+        OutboundProtocol.l2tp,
     ]
     form_choices = {
-        'protocol': [(p.value, p.value) for p in _ALLOWED_PROTOCOLS],
+        "protocol": [(p.value, p.value) for p in _ALLOWED_PROTOCOLS],
     }
 
     can_export = False

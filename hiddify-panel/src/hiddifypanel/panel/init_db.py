@@ -5,15 +5,13 @@ import random
 import sys
 import uuid
 
+from loguru import logger
 
 from hiddifypanel import Events, hutils
 from hiddifypanel.cache import cache
+from hiddifypanel.database import db, db_execute
 from hiddifypanel.models import *
 
-from hiddifypanel.database import db, db_execute
-
-
-from loguru import logger
 MAX_DB_VERSION = 152
 
 
@@ -54,8 +52,8 @@ def _v150(child_id):
     reliably present)."""
     keys = hutils.crypto.generate_mldsa65_keys()
     if keys:
-        add_config_if_not_exist(ConfigEnum.reality_mldsa65_seed, keys['seed'])
-        add_config_if_not_exist(ConfigEnum.reality_mldsa65_verify, keys['verify'])
+        add_config_if_not_exist(ConfigEnum.reality_mldsa65_seed, keys["seed"])
+        add_config_if_not_exist(ConfigEnum.reality_mldsa65_verify, keys["verify"])
 
 
 def _v149(child_id):
@@ -83,9 +81,18 @@ def _v148(child_id):
     option, gated on the same hysteria_enable toggle as hysteria2 (see
     get_proxies() in hutils/proxy/shared.py)."""
     add_config_if_not_exist(ConfigEnum.xray_hysteria_port, hutils.random.get_random_unused_port())
-    db.session.bulk_save_objects([
-        Proxy(l3=ProxyL3.tls, transport=ProxyTransport.custom, cdn='direct', proto=ProxyProto.hysteria, enable=True, name="Hysteria (Xray)"),
-    ])
+    db.session.bulk_save_objects(
+        [
+            Proxy(
+                l3=ProxyL3.tls,
+                transport=ProxyTransport.custom,
+                cdn="direct",
+                proto=ProxyProto.hysteria,
+                enable=True,
+                name="Hysteria (Xray)",
+            ),
+        ]
+    )
 
 
 def _v147(child_id):
@@ -118,10 +125,26 @@ def _v146(child_id):
     two-step as dnstt already requires."""
     set_hconfig(ConfigEnum.xdns_enable, False, child_id=child_id)
     set_hconfig(ConfigEnum.xicmp_enable, False, child_id=child_id)
-    db.session.bulk_save_objects([
-        Proxy(l3=ProxyL3.custom, transport=ProxyTransport.custom, cdn='direct', proto=ProxyProto.xdns, enable=True, name="XDNS"),
-        Proxy(l3=ProxyL3.custom, transport=ProxyTransport.custom, cdn='direct', proto=ProxyProto.xicmp, enable=True, name="XICMP"),
-    ])
+    db.session.bulk_save_objects(
+        [
+            Proxy(
+                l3=ProxyL3.custom,
+                transport=ProxyTransport.custom,
+                cdn="direct",
+                proto=ProxyProto.xdns,
+                enable=True,
+                name="XDNS",
+            ),
+            Proxy(
+                l3=ProxyL3.custom,
+                transport=ProxyTransport.custom,
+                cdn="direct",
+                proto=ProxyProto.xicmp,
+                enable=True,
+                name="XICMP",
+            ),
+        ]
+    )
 
 
 def _v144(child_id):
@@ -154,7 +177,13 @@ def _v144(child_id):
         set_hconfig(ConfigEnum.amneziawg_s3, str(random.randint(0, 64)), child_id=child_id)
     if not hconfig(ConfigEnum.amneziawg_s4, child_id):
         set_hconfig(ConfigEnum.amneziawg_s4, str(random.randint(0, 32)), child_id=child_id)
-    for i_key in [ConfigEnum.amneziawg_i1, ConfigEnum.amneziawg_i2, ConfigEnum.amneziawg_i3, ConfigEnum.amneziawg_i4, ConfigEnum.amneziawg_i5]:
+    for i_key in [
+        ConfigEnum.amneziawg_i1,
+        ConfigEnum.amneziawg_i2,
+        ConfigEnum.amneziawg_i3,
+        ConfigEnum.amneziawg_i4,
+        ConfigEnum.amneziawg_i5,
+    ]:
         if not hconfig(i_key, child_id):
             set_hconfig(i_key, f"<r {random.randint(16, 64)}>", child_id=child_id)
 
@@ -211,11 +240,11 @@ def _v139(child_id):
     Delete the mismatched rows; the one correctly-matching variant for
     each l3 (already seeded alongside them, e.g. "... dl=h1" for tls) is
     left untouched, as is every non-xhttp row."""
-    expected_dl = {ProxyL3.h3_quic: 'h3', ProxyL3.tls_h2: 'h2', ProxyL3.tls: 'http/1.1'}
+    expected_dl = {ProxyL3.h3_quic: "h3", ProxyL3.tls_h2: "h2", ProxyL3.tls: "http/1.1"}
     for p in Proxy.query.filter_by(transport=ProxyTransport.xhttp, child_id=child_id).all():
         if p.l3 not in expected_dl:
             continue
-        dl = (p.params or {}).get('download', {}).get('alpn')
+        dl = (p.params or {}).get("download", {}).get("alpn")
         if dl and dl != expected_dl[p.l3]:
             db.session.delete(p)
     db.session.commit()
@@ -238,19 +267,20 @@ def _v138(child_id):
     add_config_if_not_exist(ConfigEnum.tuic_congestion_control, "cubic")
     # Seed default Proxy rows for AnyTLS (direct + relay), mirroring tuic
     for cdn in [ProxyCDN.direct, ProxyCDN.relay]:
-        if not Proxy.query.filter_by(
-            proto=ProxyProto.anytls, l3=ProxyL3.tls, cdn=cdn, child_id=child_id
-        ).first():
-            db.session.add(Proxy(
-                name=f"AnyTLS{'Relay' if cdn == ProxyCDN.relay else ''}",
-                proto=ProxyProto.anytls,
-                l3=ProxyL3.tls,
-                transport=ProxyTransport.custom,
-                cdn=cdn,
-                enable=True,
-                child_id=child_id,
-            ))
+        if not Proxy.query.filter_by(proto=ProxyProto.anytls, l3=ProxyL3.tls, cdn=cdn, child_id=child_id).first():
+            db.session.add(
+                Proxy(
+                    name=f"AnyTLS{'Relay' if cdn == ProxyCDN.relay else ''}",
+                    proto=ProxyProto.anytls,
+                    l3=ProxyL3.tls,
+                    transport=ProxyTransport.custom,
+                    cdn=cdn,
+                    enable=True,
+                    child_id=child_id,
+                )
+            )
     db.session.commit()
+
 
 def _v137(child_id):
     """KCP (the vless-over-kcp transport option) is retired - its whole
@@ -422,12 +452,36 @@ def _v128(child_id):
     add_config_if_not_exist(ConfigEnum.amneziawg_jmax, "70")
 
     default_rows = [
-        Proxy(l3=ProxyL3.udp, transport=ProxyTransport.custom, cdn=ProxyCDN.direct, proto=ProxyProto.amneziawg, enable=True, name="AmneziaWG", child_id=child_id),
-        Proxy(l3=ProxyL3.udp, transport=ProxyTransport.custom, cdn=ProxyCDN.relay, proto=ProxyProto.amneziawg, enable=True, name="AmneziaWG Relay", child_id=child_id),
+        Proxy(
+            l3=ProxyL3.udp,
+            transport=ProxyTransport.custom,
+            cdn=ProxyCDN.direct,
+            proto=ProxyProto.amneziawg,
+            enable=True,
+            name="AmneziaWG",
+            child_id=child_id,
+        ),
+        Proxy(
+            l3=ProxyL3.udp,
+            transport=ProxyTransport.custom,
+            cdn=ProxyCDN.relay,
+            proto=ProxyProto.amneziawg,
+            enable=True,
+            name="AmneziaWG Relay",
+            child_id=child_id,
+        ),
     ]
     for p in default_rows:
-        is_exist = Proxy.query.filter(Proxy.name == p.name, Proxy.child_id == child_id).first() or Proxy.query.filter(
-            Proxy.l3 == p.l3, Proxy.transport == p.transport, Proxy.cdn == p.cdn, Proxy.proto == p.proto, Proxy.child_id == child_id).first()
+        is_exist = (
+            Proxy.query.filter(Proxy.name == p.name, Proxy.child_id == child_id).first()
+            or Proxy.query.filter(
+                Proxy.l3 == p.l3,
+                Proxy.transport == p.transport,
+                Proxy.cdn == p.cdn,
+                Proxy.proto == p.proto,
+                Proxy.child_id == child_id,
+            ).first()
+        )
         if not is_exist:
             db.session.add(p)
     db.session.commit()
@@ -453,6 +507,7 @@ def _v126(child_id):
     if not admin:
         return
     from werkzeug.security import generate_password_hash
+
     changed = False
     if not admin.username:
         if not AdminUser.query.filter(AdminUser.username == "admin", AdminUser.id != 1).first():
@@ -502,22 +557,31 @@ def _v120(child_id):
 
 
 def _v119(child_id):
-    set_hconfig(ConfigEnum.dnstt_resolvers,"8.8.8.8:53,8.8.4.4:53,auto")
-    
+    set_hconfig(ConfigEnum.dnstt_resolvers, "8.8.8.8:53,8.8.4.4:53,auto")
+
+
 def _v118(child_id):
     alter_column(Domain.extra_params)
     key_pair = hutils.crypto.generate_x25519_keys(False)
-    add_config_if_not_exist(ConfigEnum.dnstt_private_key, key_pair['private_key'])
-    add_config_if_not_exist(ConfigEnum.dnstt_public_key, key_pair['public_key'])
+    add_config_if_not_exist(ConfigEnum.dnstt_private_key, key_pair["private_key"])
+    add_config_if_not_exist(ConfigEnum.dnstt_public_key, key_pair["public_key"])
 
-    
 
 def _v116(child_id):
     set_hconfig(ConfigEnum.dnstt_enable, True)
-    set_hconfig(ConfigEnum.dnstt_resolvers,"8.8.8.8:53,8.8.4.4:53")
-    db.session.bulk_save_objects([
-            Proxy(l3=ProxyL3.custom, transport=ProxyTransport.custom, cdn='direct', proto=ProxyProto.dnstt, enable=True, name="DNSTT"),
-    ])
+    set_hconfig(ConfigEnum.dnstt_resolvers, "8.8.8.8:53,8.8.4.4:53")
+    db.session.bulk_save_objects(
+        [
+            Proxy(
+                l3=ProxyL3.custom,
+                transport=ProxyTransport.custom,
+                cdn="direct",
+                proto=ProxyProto.dnstt,
+                enable=True,
+                name="DNSTT",
+            ),
+        ]
+    )
 
 
 def _v115(child_id):
@@ -525,76 +589,132 @@ def _v115(child_id):
     set_hconfig(ConfigEnum.additional_configs_singbox, "")
     set_hconfig(ConfigEnum.additional_configs_xrayjson, "")
 
-    
+
 def _v114(child_id):
-    db.session.bulk_save_objects([
-        Proxy(l3=ProxyL3.tls_h2_h1, transport=ProxyTransport.custom, cdn=ProxyCDN.relay, proto=ProxyProto.naive, enable=True, name="NaiveTLS"),
-        Proxy(l3=ProxyL3.h3_quic, transport=ProxyTransport.custom, cdn=ProxyCDN.relay, proto=ProxyProto.naive, enable=True, name="NaiveQuic"),
-        Proxy(l3=ProxyL3.custom, transport=ProxyTransport.tcp, cdn=ProxyCDN.relay, proto=ProxyProto.mieru, enable=True, name="MieruTCP"),
-        Proxy(l3=ProxyL3.custom, transport=ProxyTransport.udp, cdn=ProxyCDN.relay, proto=ProxyProto.mieru, enable=True, name="MieruUDP"),
-    ]    
+    db.session.bulk_save_objects(
+        [
+            Proxy(
+                l3=ProxyL3.tls_h2_h1,
+                transport=ProxyTransport.custom,
+                cdn=ProxyCDN.relay,
+                proto=ProxyProto.naive,
+                enable=True,
+                name="NaiveTLS",
+            ),
+            Proxy(
+                l3=ProxyL3.h3_quic,
+                transport=ProxyTransport.custom,
+                cdn=ProxyCDN.relay,
+                proto=ProxyProto.naive,
+                enable=True,
+                name="NaiveQuic",
+            ),
+            Proxy(
+                l3=ProxyL3.custom,
+                transport=ProxyTransport.tcp,
+                cdn=ProxyCDN.relay,
+                proto=ProxyProto.mieru,
+                enable=True,
+                name="MieruTCP",
+            ),
+            Proxy(
+                l3=ProxyL3.custom,
+                transport=ProxyTransport.udp,
+                cdn=ProxyCDN.relay,
+                proto=ProxyProto.mieru,
+                enable=True,
+                name="MieruUDP",
+            ),
+        ]
     )
+
+
 def _v113(child_id):
     set_hconfig(ConfigEnum.telegram_lib, "telemt")
-    
+
 
 def _v111(child_id):
     set_hconfig(ConfigEnum.path_naive, hutils.random.get_random_string(7, 15))
     set_hconfig(ConfigEnum.naive_port, hutils.random.get_random_unused_port())
-    
-    set_hconfig(ConfigEnum.h2_enable,True)
+
+    set_hconfig(ConfigEnum.h2_enable, True)
 
     add_config_if_not_exist(ConfigEnum.naive_enable, True)
     add_config_if_not_exist(ConfigEnum.mieru_enable, True)
-    
 
-    if p:=hutils.random.get_random_unused_port():
-        set_hconfig(ConfigEnum.mieru_tcp_ports, ",".join([f'{p+i}' for i in range(4)]))
-    if p:=hutils.random.get_random_unused_port():
-        set_hconfig(ConfigEnum.mieru_udp_ports, ",".join([f'{p+i}' for i in range(4)]))
+    if p := hutils.random.get_random_unused_port():
+        set_hconfig(ConfigEnum.mieru_tcp_ports, ",".join([f"{p+i}" for i in range(4)]))
+    if p := hutils.random.get_random_unused_port():
+        set_hconfig(ConfigEnum.mieru_udp_ports, ",".join([f"{p+i}" for i in range(4)]))
 
-    db.session.bulk_save_objects([
-        Proxy(l3=ProxyL3.tls_h2_h1, transport=ProxyTransport.custom, cdn='direct', proto=ProxyProto.naive, enable=True, name="NaiveTLS"),
-        Proxy(l3=ProxyL3.h3_quic, transport=ProxyTransport.custom, cdn='direct', proto=ProxyProto.naive, enable=True, name="NaiveQuic"),
-        Proxy(l3=ProxyL3.custom, transport=ProxyTransport.tcp, cdn='direct', proto=ProxyProto.mieru, enable=True, name="MieruTCP"),
-        Proxy(l3=ProxyL3.custom, transport=ProxyTransport.udp, cdn='direct', proto=ProxyProto.mieru, enable=True, name="MieruUDP"),
-    ]    
+    db.session.bulk_save_objects(
+        [
+            Proxy(
+                l3=ProxyL3.tls_h2_h1,
+                transport=ProxyTransport.custom,
+                cdn="direct",
+                proto=ProxyProto.naive,
+                enable=True,
+                name="NaiveTLS",
+            ),
+            Proxy(
+                l3=ProxyL3.h3_quic,
+                transport=ProxyTransport.custom,
+                cdn="direct",
+                proto=ProxyProto.naive,
+                enable=True,
+                name="NaiveQuic",
+            ),
+            Proxy(
+                l3=ProxyL3.custom,
+                transport=ProxyTransport.tcp,
+                cdn="direct",
+                proto=ProxyProto.mieru,
+                enable=True,
+                name="MieruTCP",
+            ),
+            Proxy(
+                l3=ProxyL3.custom,
+                transport=ProxyTransport.udp,
+                cdn="direct",
+                proto=ProxyProto.mieru,
+                enable=True,
+                name="MieruUDP",
+            ),
+        ]
     )
     add_config_if_not_exist(ConfigEnum.tls_fragment_packets, "tlshello")
     add_config_if_not_exist(ConfigEnum.mieru_handshake, MieruHandshake.HANDSHAKE_NO_WAIT)
     add_config_if_not_exist(ConfigEnum.mieru_multiplexing, MieruMultiplexing.MULTIPLEXING_HIGH)
     add_config_if_not_exist(ConfigEnum.tls_ech_enable, False)
-    
+
 
 def _v108(child_id):
-    Domain.query.filter(Domain.mode==DomainType.auto_cdn_ip).update({
-        "mode":"cdn",
-        "resolve_ip":True
-    })
+    Domain.query.filter(Domain.mode == DomainType.auto_cdn_ip).update({"mode": "cdn", "resolve_ip": True})
 
 
-
-    
 def _v107(child_id):
     # set_hconfig(ConfigEnum.core_type,'xray') # disable singbox core temporary
-    if db.engine.dialect.name == 'mysql':
+    if db.engine.dialect.name == "mysql":
         execute("UPDATE proxy SET params = '{}' WHERE params is NULL;")
 
-def _v106(child_id):
-    set_hconfig(ConfigEnum.use_ip_in_config,True)
 
-    if rport:=hconfig(ConfigEnum.reality_port):
-        set_hconfig(ConfigEnum.special_port,rport)
-    StrConfig.query.filter(StrConfig.key==ConfigEnum.reality_port).delete()
-    set_hconfig(ConfigEnum.default_useragent_string,hutils.network.get_random_user_agent())
-    for d in Domain.query.filter(Domain.mode==DomainType.reality,Domain.child_id == child_id).all():
-        d.mode=DomainType.special_reality_tcp
-    set_hconfig(ConfigEnum.h2_enable,False)
+def _v106(child_id):
+    set_hconfig(ConfigEnum.use_ip_in_config, True)
+
+    if rport := hconfig(ConfigEnum.reality_port):
+        set_hconfig(ConfigEnum.special_port, rport)
+    StrConfig.query.filter(StrConfig.key == ConfigEnum.reality_port).delete()
+    set_hconfig(ConfigEnum.default_useragent_string, hutils.network.get_random_user_agent())
+    for d in Domain.query.filter(Domain.mode == DomainType.reality, Domain.child_id == child_id).all():
+        d.mode = DomainType.special_reality_tcp
+    set_hconfig(ConfigEnum.h2_enable, False)
     db.session.bulk_save_objects(get_proxy_rows_v1())
+
 
 def _v103(child_id):
 
-    add_usage_proc=    """
+    add_usage_proc = """
 DROP PROCEDURE IF EXISTS add_usage_json;
 
 CREATE PROCEDURE add_usage_json(IN usage_data JSON, IN cur_time DATETIME)
@@ -635,24 +755,23 @@ END
 
     """
 
-    if db.engine.dialect.name == 'mysql':
-        db_execute(add_usage_proc,commit=True)
-    
+    if db.engine.dialect.name == "mysql":
+        db_execute(add_usage_proc, commit=True)
+
 
 def _v101(child_id):
     add_config_if_not_exist(ConfigEnum.path_xhttp, hutils.random.get_random_string(7, 15))
     add_config_if_not_exist(ConfigEnum.xhttp_enable, False)
-    
 
 
 def _v97(child_id):
     keys = hutils.crypto.generate_ssh_host_keys()
-    set_hconfig(ConfigEnum.ssh_host_rsa_pk, keys['rsa']['pk'])
-    set_hconfig(ConfigEnum.ssh_host_rsa_pub, keys['rsa']['pub'])
-    set_hconfig(ConfigEnum.ssh_host_ed25519_pk, keys['ed25519']['pk'])
-    set_hconfig(ConfigEnum.ssh_host_ed25519_pub, keys['ed25519']['pub'])
-    set_hconfig(ConfigEnum.ssh_host_ecdsa_pk, keys['ecdsa']['pk'])
-    set_hconfig(ConfigEnum.ssh_host_ecdsa_pub, keys['ecdsa']['pub'])
+    set_hconfig(ConfigEnum.ssh_host_rsa_pk, keys["rsa"]["pk"])
+    set_hconfig(ConfigEnum.ssh_host_rsa_pub, keys["rsa"]["pub"])
+    set_hconfig(ConfigEnum.ssh_host_ed25519_pk, keys["ed25519"]["pk"])
+    set_hconfig(ConfigEnum.ssh_host_ed25519_pub, keys["ed25519"]["pub"])
+    set_hconfig(ConfigEnum.ssh_host_ecdsa_pk, keys["ecdsa"]["pk"])
+    set_hconfig(ConfigEnum.ssh_host_ecdsa_pub, keys["ecdsa"]["pub"])
 
     for a in AdminUser.query.all():
         a.password = ""
@@ -662,17 +781,31 @@ def _v97(child_id):
 
 def _v96(child_id):
     from sqlalchemy import func
-    result = (db.session.query(DailyUsage.child_id, DailyUsage.admin_id, DailyUsage.date, func.max(DailyUsage.online).label('online'), func.sum(DailyUsage.usage).label('usage'), func.count(DailyUsage.usage).label('count'), )
-              .group_by(DailyUsage.child_id, DailyUsage.admin_id, DailyUsage.date)
-              .all())
+
+    result = (
+        db.session.query(
+            DailyUsage.child_id,
+            DailyUsage.admin_id,
+            DailyUsage.date,
+            func.max(DailyUsage.online).label("online"),
+            func.sum(DailyUsage.usage).label("usage"),
+            func.count(DailyUsage.usage).label("count"),
+        )
+        .group_by(DailyUsage.child_id, DailyUsage.admin_id, DailyUsage.date)
+        .all()
+    )
 
     for r in result:
         if r.count > 1:
             # Delete existing records for this group
-            db.session.query(DailyUsage).filter(DailyUsage.child_id == r.child_id, DailyUsage.admin_id == r.admin_id, DailyUsage.date == r.date).delete()
+            db.session.query(DailyUsage).filter(
+                DailyUsage.child_id == r.child_id, DailyUsage.admin_id == r.admin_id, DailyUsage.date == r.date
+            ).delete()
 
             # Add the aggregated record
-            new_record = DailyUsage(child_id=r.child_id, admin_id=r.admin_id, date=r.date, online=r.online, usage=r.usage)
+            new_record = DailyUsage(
+                child_id=r.child_id, admin_id=r.admin_id, date=r.date, online=r.online, usage=r.usage
+            )
             db.session.add(new_record)
 
     # Commit the changes to the database
@@ -714,8 +847,8 @@ def _v85(child_id):
 
 def _v84(child_id):
     # the 2022-blake3-chacha20-poly1305 encryption method doesn't support multiuser config
-    if hconfig(ConfigEnum.shadowsocks2022_method) == '2022-blake3-chacha20-poly1305':
-        set_hconfig(ConfigEnum.shadowsocks2022_method, '2022-blake3-aes-256-gcm')
+    if hconfig(ConfigEnum.shadowsocks2022_method) == "2022-blake3-chacha20-poly1305":
+        set_hconfig(ConfigEnum.shadowsocks2022_method, "2022-blake3-aes-256-gcm")
 
 
 def _v83(child_id):
@@ -739,13 +872,13 @@ def _v81(child_id):
     # password was hashed (including a fresh install's first password set
     # through Quick Setup).
     execute("ALTER TABLE user MODIFY COLUMN password VARCHAR(255);")
-    if db.engine.dialect.name == 'mysql':
+    if db.engine.dialect.name == "mysql":
         execute("ALTER TABLE admin_user MODIFY COLUMN password VARCHAR(255);")
 
 
 def _v80(child_id):
-    set_hconfig(ConfigEnum.parent_domain, '')
-    set_hconfig(ConfigEnum.parent_admin_proxy_path, '')
+    set_hconfig(ConfigEnum.parent_domain, "")
+    set_hconfig(ConfigEnum.parent_admin_proxy_path, "")
 
 
 def _v79(child_id):
@@ -822,14 +955,14 @@ def _v69():
 
 def _v65():
     add_config_if_not_exist(ConfigEnum.mux_enable, False)
-    add_config_if_not_exist(ConfigEnum.mux_protocol, 'smux')
-    add_config_if_not_exist(ConfigEnum.mux_max_connections, '4')
-    add_config_if_not_exist(ConfigEnum.mux_min_streams, '4')
-    add_config_if_not_exist(ConfigEnum.mux_max_streams, '0')
+    add_config_if_not_exist(ConfigEnum.mux_protocol, "smux")
+    add_config_if_not_exist(ConfigEnum.mux_max_connections, "4")
+    add_config_if_not_exist(ConfigEnum.mux_min_streams, "4")
+    add_config_if_not_exist(ConfigEnum.mux_max_streams, "0")
     add_config_if_not_exist(ConfigEnum.mux_padding_enable, False)
     add_config_if_not_exist(ConfigEnum.mux_brutal_enable, False)
-    add_config_if_not_exist(ConfigEnum.mux_brutal_up_mbps, '100')
-    add_config_if_not_exist(ConfigEnum.mux_brutal_down_mbps, '100')
+    add_config_if_not_exist(ConfigEnum.mux_brutal_up_mbps, "100")
+    add_config_if_not_exist(ConfigEnum.mux_brutal_down_mbps, "100")
 
 
 def _v63():
@@ -850,9 +983,9 @@ def _v62():
 
 
 def _v61():
-    if db.engine.dialect.name == 'mysql':
+    if db.engine.dialect.name == "mysql":
         execute("ALTER TABLE user MODIFY COLUMN username VARCHAR(100);")
-    if db.engine.dialect.name == 'mysql':
+    if db.engine.dialect.name == "mysql":
         execute("ALTER TABLE user MODIFY COLUMN password VARCHAR(100);")
 
 
@@ -889,8 +1022,8 @@ def _v55():
     set_hconfig(ConfigEnum.tuic_enable, True)
     set_hconfig(ConfigEnum.hysteria_enable, True)
     Proxy.query.filter(Proxy.proto.in_(["tuic", "hysteria2", "hysteria"])).delete()
-    db.session.add(Proxy(l3='tls', transport='custom', cdn='direct', proto='tuic', enable=True, name="TUIC"))
-    db.session.add(Proxy(l3='tls', transport='custom', cdn='direct', proto='hysteria2', enable=True, name="Hysteria2"))
+    db.session.add(Proxy(l3="tls", transport="custom", cdn="direct", proto="tuic", enable=True, name="TUIC"))
+    db.session.add(Proxy(l3="tls", transport="custom", cdn="direct", proto="hysteria2", enable=True, name="Hysteria2"))
 
 
 def _v52():
@@ -925,10 +1058,12 @@ def _v47():
 def _v45():
 
     if not Proxy.query.filter(Proxy.name == "SSH").first():
-        db.session.add(Proxy(l3='ssh', transport='ssh', cdn='direct', proto='ssh', enable=True, name="SSH"))
+        db.session.add(Proxy(l3="ssh", transport="ssh", cdn="direct", proto="ssh", enable=True, name="SSH"))
 
     add_config_if_not_exist(ConfigEnum.ssh_server_port, hutils.random.get_random_unused_port())
     add_config_if_not_exist(ConfigEnum.ssh_server_enable, False)
+
+
 # def _v43():
 #     if not (Domain.query.filter(Domain.domain==hconfig(ConfigEnum.domain_fronting_domain)).first()):
 #         db.session.add(Domain(domain=hconfig(ConfigEnum.domain_fronting_domain),servernames=hconfig(ConfigEnum.domain_fronting_domain),mode=DomainType.cdn))
@@ -958,21 +1093,23 @@ def _v41():
         # Reuse the account-wide keypair/short-id _v31() already generated
         # (same values, just actually wired into the domain row) rather
         # than minting a redundant second set.
-        db.session.add(Domain(
-            domain=hconfig(ConfigEnum.reality_fallback_domain),
-            servernames=hconfig(ConfigEnum.reality_server_names),
-            mode=DomainType.reality,
-            reality_port=hutils.random.get_random_unused_port(),
-            reality_private_key=hconfig(ConfigEnum.reality_private_key),
-            reality_public_key=hconfig(ConfigEnum.reality_public_key),
-            reality_short_id=hconfig(ConfigEnum.reality_short_ids),
-        ))
+        db.session.add(
+            Domain(
+                domain=hconfig(ConfigEnum.reality_fallback_domain),
+                servernames=hconfig(ConfigEnum.reality_server_names),
+                mode=DomainType.reality,
+                reality_port=hutils.random.get_random_unused_port(),
+                reality_private_key=hconfig(ConfigEnum.reality_private_key),
+                reality_public_key=hconfig(ConfigEnum.reality_public_key),
+                reality_short_id=hconfig(ConfigEnum.reality_short_ids),
+            )
+        )
 
 
 def _v38():
     add_config_if_not_exist(ConfigEnum.dns_server, "1.1.1.1")
     add_config_if_not_exist(ConfigEnum.warp_mode, "all" if hconfig(ConfigEnum.warp_enable) else "disable")
-    add_config_if_not_exist(ConfigEnum.warp_plus_code, '')
+    add_config_if_not_exist(ConfigEnum.warp_plus_code, "")
 
 
 # def _v34():
@@ -985,13 +1122,20 @@ def _v33():
 
 
 def _v31():
-    add_config_if_not_exist(ConfigEnum.reality_short_ids, uuid.uuid4().hex[0:random.randint(1, 8) * 2])
+    add_config_if_not_exist(ConfigEnum.reality_short_ids, uuid.uuid4().hex[0 : random.randint(1, 8) * 2])
     key_pair = hutils.crypto.generate_x25519_keys()
-    add_config_if_not_exist(ConfigEnum.reality_private_key, key_pair['private_key'])
-    add_config_if_not_exist(ConfigEnum.reality_public_key, key_pair['public_key'])
+    add_config_if_not_exist(ConfigEnum.reality_private_key, key_pair["private_key"])
+    add_config_if_not_exist(ConfigEnum.reality_public_key, key_pair["public_key"])
     db.session.bulk_save_objects(get_proxy_rows_v1())
     if not (AdminUser.query.filter(AdminUser.id == 1).first()):
-        owner = AdminUser(id=1, uuid=hconfig(ConfigEnum.admin_secret), name="Owner", username="admin", mode=AdminMode.super_admin, comment="")
+        owner = AdminUser(
+            id=1,
+            uuid=hconfig(ConfigEnum.admin_secret),
+            name="Owner",
+            username="admin",
+            mode=AdminMode.super_admin,
+            comment="",
+        )
         # Fresh installs get a real, working username/password from the
         # first login (matches Quick Setup's own admin_pass default of
         # "admin" and validate_username_unique's self-exclusion, so
@@ -1001,7 +1145,7 @@ def _v31():
         # password flow with no working admin/admin login at all.
         owner.update_password("admin")
         db.session.add(owner)
-        if db.engine.dialect.name == 'mysql':
+        if db.engine.dialect.name == "mysql":
             execute("update admin_user set id=1 where name='owner'")
     for i in range(1, 10):
         for d in hutils.network.get_random_domains(50):
@@ -1044,7 +1188,7 @@ def _v20():
 
         for fd in fake_domains:
             if not Domain.query.filter(Domain.domain == fd).first():
-                db.session.add(Domain(domain=fd, mode='fake', alias='moved from domain fronting', cdn_ip=direct_host))
+                db.session.add(Domain(domain=fd, mode="fake", alias="moved from domain fronting", cdn_ip=direct_host))
 
 
 def _v19():
@@ -1107,16 +1251,42 @@ def _v1():
     db.session.flush()
 
     data = [
-
-        StrConfig(key=ConfigEnum.db_version, value=1), User(name="default", usage_limit_GB=3000, package_days=3650, mode=UserMode.weekly),
+        StrConfig(key=ConfigEnum.db_version, value=1),
+        User(name="default", usage_limit_GB=3000, package_days=3650, mode=UserMode.weekly),
         Domain(domain=external_ip, mode=DomainType.direct),
         Domain(domain=external_ip + ".sslip.io", mode=DomainType.direct),
-        StrConfig(key=ConfigEnum.admin_secret, value=admin_secret), StrConfig(key=ConfigEnum.http_ports, value="80"), StrConfig(key=ConfigEnum.tls_ports, value="443"), BoolConfig(key=ConfigEnum.first_setup, value=True), StrConfig(key=ConfigEnum.decoy_domain, value=hutils.network.get_random_decoy_domain()), StrConfig(key=ConfigEnum.proxy_path, value=hutils.random.get_random_string()), BoolConfig(key=ConfigEnum.firewall, value=False), BoolConfig(key=ConfigEnum.netdata, value=True), StrConfig(key=ConfigEnum.lang, value='en'), BoolConfig(key=ConfigEnum.block_iran_sites, value=True), BoolConfig(key=ConfigEnum.allow_invalid_sni, value=True), BoolConfig(key=ConfigEnum.kcp_enable, value=False), StrConfig(key=ConfigEnum.kcp_ports, value="88"), BoolConfig(key=ConfigEnum.auto_update, value=os.environ.get('HIDDIFY_DISABLE_UPDATE',"").lower() not in {'1','true'}), BoolConfig(key=ConfigEnum.only_ipv4, value=False), BoolConfig(key=ConfigEnum.vmess_enable, value=True), BoolConfig(key=ConfigEnum.http_proxy_enable, value=True), StrConfig(key=ConfigEnum.shared_secret, value=str(uuid.uuid4())), BoolConfig(key=ConfigEnum.telegram_enable, value=False), # StrConfig(key=ConfigEnum.telegram_secret,value=uuid.uuid4().hex), StrConfig(key=ConfigEnum.telegram_adtag, value=""), StrConfig(key=ConfigEnum.telegram_fakedomain, value=rnd_domains[1]), BoolConfig(key=ConfigEnum.ssfaketls_enable, value=False), # StrConfig(key=ConfigEnum.ssfaketls_secret,value=str(uuid.uuid4())), StrConfig(key=ConfigEnum.ssfaketls_fakedomain, value=rnd_domains[2]), BoolConfig(key=ConfigEnum.shadowtls_enable, value=False), # StrConfig(key=ConfigEnum.shadowtls_secret,value=str(uuid.uuid4())), StrConfig(key=ConfigEnum.shadowtls_fakedomain, value=rnd_domains[3]),
-        BoolConfig(key=ConfigEnum.ssr_enable, value=False), # StrConfig(key=ConfigEnum.ssr_secret,value=str(uuid.uuid4())), StrConfig(key=ConfigEnum.ssr_fakedomain, value=rnd_domains[4]),
+        StrConfig(key=ConfigEnum.admin_secret, value=admin_secret),
+        StrConfig(key=ConfigEnum.http_ports, value="80"),
+        StrConfig(key=ConfigEnum.tls_ports, value="443"),
+        BoolConfig(key=ConfigEnum.first_setup, value=True),
+        StrConfig(key=ConfigEnum.decoy_domain, value=hutils.network.get_random_decoy_domain()),
+        StrConfig(key=ConfigEnum.proxy_path, value=hutils.random.get_random_string()),
+        BoolConfig(key=ConfigEnum.firewall, value=False),
+        BoolConfig(key=ConfigEnum.netdata, value=True),
+        StrConfig(key=ConfigEnum.lang, value="en"),
+        BoolConfig(key=ConfigEnum.block_iran_sites, value=True),
+        BoolConfig(key=ConfigEnum.allow_invalid_sni, value=True),
+        BoolConfig(key=ConfigEnum.kcp_enable, value=False),
+        StrConfig(key=ConfigEnum.kcp_ports, value="88"),
+        BoolConfig(
+            key=ConfigEnum.auto_update, value=os.environ.get("HIDDIFY_DISABLE_UPDATE", "").lower() not in {"1", "true"}
+        ),
+        BoolConfig(key=ConfigEnum.only_ipv4, value=False),
+        BoolConfig(key=ConfigEnum.vmess_enable, value=True),
+        BoolConfig(key=ConfigEnum.http_proxy_enable, value=True),
+        StrConfig(key=ConfigEnum.shared_secret, value=str(uuid.uuid4())),
+        BoolConfig(
+            key=ConfigEnum.telegram_enable, value=False
+        ),  # StrConfig(key=ConfigEnum.telegram_secret,value=uuid.uuid4().hex), StrConfig(key=ConfigEnum.telegram_adtag, value=""), StrConfig(key=ConfigEnum.telegram_fakedomain, value=rnd_domains[1]), BoolConfig(key=ConfigEnum.ssfaketls_enable, value=False), # StrConfig(key=ConfigEnum.ssfaketls_secret,value=str(uuid.uuid4())), StrConfig(key=ConfigEnum.ssfaketls_fakedomain, value=rnd_domains[2]), BoolConfig(key=ConfigEnum.shadowtls_enable, value=False), # StrConfig(key=ConfigEnum.shadowtls_secret,value=str(uuid.uuid4())), StrConfig(key=ConfigEnum.shadowtls_fakedomain, value=rnd_domains[3]),
+        BoolConfig(
+            key=ConfigEnum.ssr_enable, value=False
+        ),  # StrConfig(key=ConfigEnum.ssr_secret,value=str(uuid.uuid4())), StrConfig(key=ConfigEnum.ssr_fakedomain, value=rnd_domains[4]),
         # BoolConfig(key=ConfigEnum.tuic_enable, value=False), # StrConfig(key=ConfigEnum.tuic_port, value=3048),
-        BoolConfig(key=ConfigEnum.domain_fronting_tls_enable, value=False), BoolConfig(key=ConfigEnum.domain_fronting_http_enable, value=False), StrConfig(key=ConfigEnum.domain_fronting_domain, value=""),
+        BoolConfig(key=ConfigEnum.domain_fronting_tls_enable, value=False),
+        BoolConfig(key=ConfigEnum.domain_fronting_http_enable, value=False),
+        StrConfig(key=ConfigEnum.domain_fronting_domain, value=""),
         # BoolConfig(key=ConfigEnum.torrent_block,value=False),
-        *get_proxy_rows_v1()
+        *get_proxy_rows_v1(),
     ]
     # fake_domains=['speedtest.net']
     # for fd in fake_domains:
@@ -1127,8 +1297,8 @@ def _v1():
 
 def _v7():
     try:
-        Proxy.query.filter(Proxy.name == 'tls XTLS direct trojan').delete()
-        Proxy.query.filter(Proxy.name == 'tls XTLSVision direct trojan').delete()
+        Proxy.query.filter(Proxy.name == "tls XTLS direct trojan").delete()
+        Proxy.query.filter(Proxy.name == "tls XTLSVision direct trojan").delete()
     except BaseException:
         pass
     add_config_if_not_exist(ConfigEnum.telegram_lib, "erlang")
@@ -1138,7 +1308,7 @@ def _v7():
     add_config_if_not_exist(ConfigEnum.branding_freetext, "")
     add_config_if_not_exist(ConfigEnum.v2ray_enable, False)
     add_config_if_not_exist(ConfigEnum.is_parent, False)
-    add_config_if_not_exist(ConfigEnum.parent_panel, '')
+    add_config_if_not_exist(ConfigEnum.parent_panel, "")
     add_config_if_not_exist(ConfigEnum.unique_id, str(uuid.uuid4()))
 
 
@@ -1155,7 +1325,7 @@ def _v9():
 def _v10():
     all_configs = get_hconfigs()
     execute("ALTER TABLE `str_config` RENAME TO `str_config_old`")
-    if db.engine.dialect.name == 'mysql':
+    if db.engine.dialect.name == "mysql":
         execute("ALTER TABLE `bool_config` RENAME TO `bool_config_old`")
     # db.create_all()
     rows = []
@@ -1169,122 +1339,183 @@ def _v10():
 
 
 def get_proxy_rows_v1():
-    rows = list(make_proxy_rows([
-        "h2 direct vless", 
-        # "XTLS direct vless",
-        "WS direct vless", 
-        "WS direct trojan", 
-        "WS direct vmess", 
-        "httpupgrade direct vless", 
-        # "httpupgrade direct trojan", 
-        "httpupgrade direct vmess", 
-        "xhttp direct vless", 
-        # "xhttp direct trojan", 
-        "xhttp direct vmess", 
-        "tcp direct vless",
-        "tcp direct trojan",
-        "tcp direct vmess",
-        "grpc direct vless",
-        "grpc direct trojan",
-        "grpc direct vmess",
-        "faketls direct ss",
-        "WS direct v2ray",
-        "h2 relay vless",
-        # "XTLS relay vless",
-        "WS relay vless",
-        "WS relay trojan",
-        "WS relay vmess",
-        "httpupgrade relay vless",
-        # "httpupgrade relay trojan",
-        "httpupgrade relay vmess",
-        
-        "xhttp relay vless",
-        # "xhttp relay trojan",
-        "xhttp relay vmess",
-        
-        "tcp relay vless",
-        "tcp relay trojan",
-        "tcp relay vmess",
-        "grpc relay vless",
-        "grpc relay trojan",
-        "grpc relay vmess",
-        "faketls relay ss",
-        "WS relay v2ray",
-        
-        # "restls1_2 direct ss",
-        # "restls1_3 direct ss",
-        # "tcp direct ssr",
-        "WS CDN v2ray",
-        "WS CDN vless",
-        "WS CDN trojan",
-        "WS CDN vmess",
-        "httpupgrade CDN vless",
-        # "httpupgrade CDN trojan",
-        "httpupgrade CDN vmess",
-        
-        "xhttp CDN vless",
-        # "xhttp CDN trojan",
-        "xhttp CDN vmess",
-        
-        
-        "grpc CDN vless",
-        "grpc CDN trojan",
-        "grpc CDN vmess",
-        
-    ]))
-    rows.append(Proxy(l3=ProxyL3.custom, transport=ProxyTransport.shadowsocks, cdn='direct', proto='ss', enable=True, name="ShadowSocks2022"))
-    rows.append(Proxy(l3=ProxyL3.custom, transport=ProxyTransport.shadowsocks, cdn='relay', proto='ss', enable=True, name="ShadowSocks2022 Relay"))
+    rows = list(
+        make_proxy_rows(
+            [
+                "h2 direct vless",
+                # "XTLS direct vless",
+                "WS direct vless",
+                "WS direct trojan",
+                "WS direct vmess",
+                "httpupgrade direct vless",
+                # "httpupgrade direct trojan",
+                "httpupgrade direct vmess",
+                "xhttp direct vless",
+                # "xhttp direct trojan",
+                "xhttp direct vmess",
+                "tcp direct vless",
+                "tcp direct trojan",
+                "tcp direct vmess",
+                "grpc direct vless",
+                "grpc direct trojan",
+                "grpc direct vmess",
+                "faketls direct ss",
+                "WS direct v2ray",
+                "h2 relay vless",
+                # "XTLS relay vless",
+                "WS relay vless",
+                "WS relay trojan",
+                "WS relay vmess",
+                "httpupgrade relay vless",
+                # "httpupgrade relay trojan",
+                "httpupgrade relay vmess",
+                "xhttp relay vless",
+                # "xhttp relay trojan",
+                "xhttp relay vmess",
+                "tcp relay vless",
+                "tcp relay trojan",
+                "tcp relay vmess",
+                "grpc relay vless",
+                "grpc relay trojan",
+                "grpc relay vmess",
+                "faketls relay ss",
+                "WS relay v2ray",
+                # "restls1_2 direct ss",
+                # "restls1_3 direct ss",
+                # "tcp direct ssr",
+                "WS CDN v2ray",
+                "WS CDN vless",
+                "WS CDN trojan",
+                "WS CDN vmess",
+                "httpupgrade CDN vless",
+                # "httpupgrade CDN trojan",
+                "httpupgrade CDN vmess",
+                "xhttp CDN vless",
+                # "xhttp CDN trojan",
+                "xhttp CDN vmess",
+                "grpc CDN vless",
+                "grpc CDN trojan",
+                "grpc CDN vmess",
+            ]
+        )
+    )
+    rows.append(
+        Proxy(
+            l3=ProxyL3.custom,
+            transport=ProxyTransport.shadowsocks,
+            cdn="direct",
+            proto="ss",
+            enable=True,
+            name="ShadowSocks2022",
+        )
+    )
+    rows.append(
+        Proxy(
+            l3=ProxyL3.custom,
+            transport=ProxyTransport.shadowsocks,
+            cdn="relay",
+            proto="ss",
+            enable=True,
+            name="ShadowSocks2022 Relay",
+        )
+    )
 
-    rows.append(Proxy(l3=ProxyL3.tls, transport=ProxyTransport.shadowtls, cdn='direct', proto='ss', enable=True, name="ShadowTLS"))
-    rows.append(Proxy(l3=ProxyL3.tls, transport=ProxyTransport.shadowtls, cdn='relay', proto='ss', enable=True, name="ShadowTLS Relay"))
-    rows.append(Proxy(l3='ssh', transport='ssh', cdn='direct', proto='ssh', enable=True, name="SSH"))
-    rows.append(Proxy(l3='ssh', transport=ProxyTransport.ssh, cdn=ProxyCDN.relay, proto=ProxyProto.ssh, enable=True, name="SSH Relay"))
+    rows.append(
+        Proxy(
+            l3=ProxyL3.tls, transport=ProxyTransport.shadowtls, cdn="direct", proto="ss", enable=True, name="ShadowTLS"
+        )
+    )
+    rows.append(
+        Proxy(
+            l3=ProxyL3.tls,
+            transport=ProxyTransport.shadowtls,
+            cdn="relay",
+            proto="ss",
+            enable=True,
+            name="ShadowTLS Relay",
+        )
+    )
+    rows.append(Proxy(l3="ssh", transport="ssh", cdn="direct", proto="ssh", enable=True, name="SSH"))
+    rows.append(
+        Proxy(
+            l3="ssh",
+            transport=ProxyTransport.ssh,
+            cdn=ProxyCDN.relay,
+            proto=ProxyProto.ssh,
+            enable=True,
+            name="SSH Relay",
+        )
+    )
 
-    rows.append(Proxy(l3='tls', transport='custom', cdn='direct', proto='tuic', enable=True, name="TUIC"))
-    rows.append(Proxy(l3='tls', transport='custom', cdn='relay', proto='tuic', enable=True, name="TUIC Relay"))
-    rows.append(Proxy(l3='tls', transport='custom', cdn='direct', proto='hysteria2', enable=True, name="Hysteria2"))
-    rows.append(Proxy(l3='tls', transport='custom', cdn='relay', proto='hysteria2', enable=True, name="Hysteria2 Relay"))
-    rows.append(Proxy(l3=ProxyL3.udp, transport=ProxyTransport.custom, cdn=ProxyCDN.direct, proto=ProxyProto.wireguard, enable=True, name="WireGuard"))
-    rows.append(Proxy(l3=ProxyL3.udp, transport=ProxyTransport.custom, cdn=ProxyCDN.relay, proto=ProxyProto.wireguard, enable=True, name="WireGuard Relay"))
+    rows.append(Proxy(l3="tls", transport="custom", cdn="direct", proto="tuic", enable=True, name="TUIC"))
+    rows.append(Proxy(l3="tls", transport="custom", cdn="relay", proto="tuic", enable=True, name="TUIC Relay"))
+    rows.append(Proxy(l3="tls", transport="custom", cdn="direct", proto="hysteria2", enable=True, name="Hysteria2"))
+    rows.append(
+        Proxy(l3="tls", transport="custom", cdn="relay", proto="hysteria2", enable=True, name="Hysteria2 Relay")
+    )
+    rows.append(
+        Proxy(
+            l3=ProxyL3.udp,
+            transport=ProxyTransport.custom,
+            cdn=ProxyCDN.direct,
+            proto=ProxyProto.wireguard,
+            enable=True,
+            name="WireGuard",
+        )
+    )
+    rows.append(
+        Proxy(
+            l3=ProxyL3.udp,
+            transport=ProxyTransport.custom,
+            cdn=ProxyCDN.relay,
+            proto=ProxyProto.wireguard,
+            enable=True,
+            name="WireGuard Relay",
+        )
+    )
     for p in rows:
-        is_exist = Proxy.query.filter(Proxy.name == p.name).first() or Proxy.query.filter(
-            Proxy.l3 == p.l3, Proxy.transport == p.transport, Proxy.cdn == p.cdn, Proxy.proto == p.proto).first()
+        is_exist = (
+            Proxy.query.filter(Proxy.name == p.name).first()
+            or Proxy.query.filter(
+                Proxy.l3 == p.l3, Proxy.transport == p.transport, Proxy.cdn == p.cdn, Proxy.proto == p.proto
+            ).first()
+        )
         if not is_exist:
             yield p
 
 
 def make_proxy_rows(cfgs):
-    # "h3_quic", 
+    # "h3_quic",
     for l3 in [ProxyL3.h3_quic, "tls_h2", "tls", "http", "reality"]:
         for c in cfgs:
             transport, cdn, proto = c.split(" ")
             if transport != ProxyTransport.xhttp and l3 == ProxyL3.h3_quic:
                 continue
-            if l3 in ["kcp", 'reality'] and cdn != "direct":
+            if l3 in ["kcp", "reality"] and cdn != "direct":
                 continue
-            if l3 == "reality" and ((transport not in ['tcp', 'grpc', 'XTLS',ProxyTransport.xhttp]) or proto != 'vless'):
+            if l3 == "reality" and (
+                (transport not in ["tcp", "grpc", "XTLS", ProxyTransport.xhttp]) or proto != "vless"
+            ):
                 continue
-            if proto == "trojan" and l3 not in ["tls", 'xtls', 'tls_h2', 'h3_quic']:
+            if proto == "trojan" and l3 not in ["tls", "xtls", "tls_h2", "h3_quic"]:
                 continue
             if transport in ["grpc", "XTLS", "faketls"] and l3 == "http":
                 continue
             if transport in ["h2"] and l3 != "reality":
                 continue
-            if l3 in [ProxyL3.h3_quic,ProxyL3.tls_h2] and transport in [ProxyTransport.httpupgrade, ProxyTransport.WS]:
+            if l3 in [ProxyL3.h3_quic, ProxyL3.tls_h2] and transport in [ProxyTransport.httpupgrade, ProxyTransport.WS]:
                 continue
-
-            
 
             # if l3 == "tls_h2" and transport =="grpc":
             #     continue
             enable = l3 != "http" or proto == "vmess"
-            enable = enable and (transport != 'tcp' or l3=="reality")
-            name = f'{l3} {c}'
+            enable = enable and (transport != "tcp" or l3 == "reality")
+            name = f"{l3} {c}"
             # is_exist = Proxy.query.filter(Proxy.name == name).first() or Proxy.query.filter(            #     Proxy.l3 == l3, Proxy.transport == transport, Proxy.cdn == cdn, Proxy.proto == proto).first()
             # if not is_exist:
-            params_list=[('',{})]
+            params_list = [("", {})]
 
-            if transport=="xhttp" and l3 not in [ProxyL3.reality,ProxyL3.http]:
+            if transport == "xhttp" and l3 not in [ProxyL3.reality, ProxyL3.http]:
                 # The download-channel alpn must match this row's own l3,
                 # not every possible alpn - seeding all three (h1/h2/h3) for
                 # every l3 produced e.g. a "tls" (h1) row whose download
@@ -1292,12 +1523,20 @@ def make_proxy_rows(cfgs):
                 # negotiated h3, silently contradicting the row's own l3
                 # label. Only the one variant that actually matches this
                 # row's l3 is generated.
-                dl = 'h3' if l3 == ProxyL3.h3_quic else ('h2' if l3 == 'tls_h2' else 'http/1.1')
-                name_postfix = f' dl={dl}'.replace("http/1.1", 'h1')
-                params_list = [(name_postfix, {'download': {'alpn': dl}})]
+                dl = "h3" if l3 == ProxyL3.h3_quic else ("h2" if l3 == "tls_h2" else "http/1.1")
+                name_postfix = f" dl={dl}".replace("http/1.1", "h1")
+                params_list = [(name_postfix, {"download": {"alpn": dl}})]
 
-            for name_postfix,params in params_list:
-                yield Proxy(l3=l3, transport=transport, cdn=cdn, proto=proto, enable=enable, name=name+name_postfix, params=params)
+            for name_postfix, params in params_list:
+                yield Proxy(
+                    l3=l3,
+                    transport=transport,
+                    cdn=cdn,
+                    proto=proto,
+                    enable=enable,
+                    name=name + name_postfix,
+                    params=params,
+                )
 
 
 def add_config_if_not_exist(key: "ConfigEnum", val: str | int, child_id: int | None = None):
@@ -1313,9 +1552,9 @@ def add_column(column):
     try:
         column_type = column.type.compile(db.engine.dialect)
 
-        if db.engine.dialect.name == 'mysql':
-            if db.engine.dialect.name == 'mysql':
-                db_execute(f'ALTER TABLE {column.table.name} ADD COLUMN {column.name} {column_type}', commit=True)
+        if db.engine.dialect.name == "mysql":
+            if db.engine.dialect.name == "mysql":
+                db_execute(f"ALTER TABLE {column.table.name} ADD COLUMN {column.name} {column_type}", commit=True)
     except BaseException:
         pass
 
@@ -1324,9 +1563,9 @@ def alter_column(column):
     try:
         column_type = column.type.compile(db.engine.dialect)
 
-        if db.engine.dialect.name == 'mysql':
-            if db.engine.dialect.name == 'mysql':
-                db_execute(f'ALTER TABLE {column.table.name} MODIFY COLUMN {column.name} {column_type}', commit=True)
+        if db.engine.dialect.name == "mysql":
+            if db.engine.dialect.name == "mysql":
+                db_execute(f"ALTER TABLE {column.table.name} MODIFY COLUMN {column.name} {column_type}", commit=True)
     except BaseException:
         pass
 
@@ -1335,29 +1574,28 @@ def execute(query: str):
     try:
         return db_execute(query)
     except BaseException as e:
-        logger.debug(f'migrating_db: {e}')
+        logger.debug(f"migrating_db: {e}")
         pass
 
 
 def add_new_enum_values():
-    if db.engine.dialect.name != 'mysql':
+    if db.engine.dialect.name != "mysql":
         return
-    columns = [
-        Proxy.l3, Proxy.proto, Proxy.cdn, Proxy.transport, User.mode, Domain.mode, BoolConfig.key, StrConfig.key
-    ]
+    columns = [Proxy.l3, Proxy.proto, Proxy.cdn, Proxy.transport, User.mode, Domain.mode, BoolConfig.key, StrConfig.key]
     from sqlalchemy import text
+
     for col in columns:
         enum_class = col.type.enum_class
         column_name = col.name
         table_name = col.table
 
         # Get the existing values in the enum
-        existing_values = [f'{e}' if isinstance(e, ConfigEnum) else e.value for e in enum_class]
+        existing_values = [f"{e}" if isinstance(e, ConfigEnum) else e.value for e in enum_class]
 
         # Get the values in the enum column in the database
         # result = db.engine.execute(f"SELECT DISTINCT `{column_name}` FROM {table_name}")
         # db_values = {row[0] for row in result}
-        
+
         result = db.session.execute(text(f"SHOW COLUMNS FROM {table_name} LIKE :col;"), {"col": column_name}).fetchall()
         db_values = []
 
@@ -1376,37 +1614,41 @@ def add_new_enum_values():
 
         # Add the new value to the enum column in the database
         # enumstr = ','.join([f"'{a}'" for a in [*existing_values, *old_values]])
-        enumstr = ','.join([f"'{a}'" for a in [*existing_values]])
-        expired_enumstr = ','.join([f"'{a}'" for a in [*old_values]])
+        enumstr = ",".join([f"'{a}'" for a in [*existing_values]])
+        expired_enumstr = ",".join([f"'{a}'" for a in [*old_values]])
         if expired_enumstr:
-            if db.engine.dialect.name == 'mysql':
+            if db.engine.dialect.name == "mysql":
                 db_execute(f"delete from {table_name} where `{column_name}` in ({expired_enumstr});", commit=True)
-        if db.engine.dialect.name == 'mysql':
+        if db.engine.dialect.name == "mysql":
             db_execute(f"ALTER TABLE {table_name} MODIFY COLUMN `{column_name}` ENUM({enumstr});", commit=True)
 
 
-def current_db_version()->int:
+def current_db_version() -> int:
     try:
-        if db_version:=db.session.execute(db.text("select value from str_config where `key`='db_version'")).fetchall():
+        if db_version := db.session.execute(
+            db.text("select value from str_config where `key`='db_version'")
+        ).fetchall():
             return int(db_version[0][0])
     except:
         pass
     logger.warning("db version not found")
     return 0
 
-def is_db_latest()->bool:
-    return current_db_version()==latest_db_version()
+
+def is_db_latest() -> bool:
+    return current_db_version() == latest_db_version()
+
 
 def latest_db_version():
     for ver in range(MAX_DB_VERSION, 1, -1):
-        db_action = sys.modules[__name__].__dict__.get(f'_v{ver}', None)
+        db_action = sys.modules[__name__].__dict__.get(f"_v{ver}", None)
         if db_action:
             return ver
     return 0
 
 
 def upgrade_database():
-    panel_root = '/opt/hiddify-manager/hiddify-panel/'
+    panel_root = "/opt/hiddify-manager/hiddify-panel/"
     backup_root = f"{panel_root}backup/"
     sqlite_db = f"{panel_root}hiddifypanel.db"
     if not os.path.isdir(backup_root) or len(os.listdir(backup_root)) == 0:
@@ -1416,14 +1658,33 @@ def upgrade_database():
         return
     if os.path.isfile(sqlite_db):
         logger.info("Finding Old Version Database... importing configs from latest backup")
-        newest_file = max([(f, os.path.getmtime(os.path.join(backup_root, f)))
-                          for f in os.listdir(backup_root) if os.path.isfile(os.path.join(backup_root, f))], key=lambda x: x[1])[0]
-        with open(f'{backup_root}{newest_file}', 'r') as f:
+        newest_file = max(
+            [
+                (f, os.path.getmtime(os.path.join(backup_root, f)))
+                for f in os.listdir(backup_root)
+                if os.path.isfile(os.path.join(backup_root, f))
+            ],
+            key=lambda x: x[1],
+        )[0]
+        with open(f"{backup_root}{newest_file}", "r") as f:
             logger.info(f"importing configs from {newest_file}")
             json_data = json.load(f)
             from hiddifypanel.panel import hiddify
-            hiddify.set_db_from_json(json_data, set_users=True, set_domains=True, remove_domains=True, remove_users=True, set_settings=True, override_unique_id=True, set_admins=True, override_root_admin=True, override_child_unique_id=0, replace_owner_admin=True)
-            db_version = int([d['value'] for d in json_data['hconfigs'] if d['key'] == "db_version"][0])
+
+            hiddify.set_db_from_json(
+                json_data,
+                set_users=True,
+                set_domains=True,
+                remove_domains=True,
+                remove_users=True,
+                set_settings=True,
+                override_unique_id=True,
+                set_admins=True,
+                override_root_admin=True,
+                override_child_unique_id=0,
+                replace_owner_admin=True,
+            )
+            db_version = int([d["value"] for d in json_data["hconfigs"] if d["key"] == "db_version"][0])
             os.rename(sqlite_db, sqlite_db + ".old")
             set_hconfig(ConfigEnum.db_version, db_version, commit=True)
 
@@ -1452,7 +1713,9 @@ def _ensure_mieru_naive_relay_variants():
         for proto, transport, name, l3 in wanted:
             exists = Proxy.query.filter_by(proto=proto, transport=transport, cdn=ProxyCDN.relay, child_id=0).first()
             if not exists:
-                to_add.append(Proxy(l3=l3, transport=transport, cdn=ProxyCDN.relay, proto=proto, enable=True, name=name))
+                to_add.append(
+                    Proxy(l3=l3, transport=transport, cdn=ProxyCDN.relay, proto=proto, enable=True, name=name)
+                )
         if to_add:
             db.session.bulk_save_objects(to_add)
             db.session.commit()
@@ -1480,14 +1743,16 @@ def _ensure_anytls_proxy_rows():
         for cdn in [ProxyCDN.direct, ProxyCDN.relay]:
             exists = Proxy.query.filter_by(proto=ProxyProto.anytls, l3=ProxyL3.tls, cdn=cdn, child_id=0).first()
             if not exists:
-                to_add.append(Proxy(
-                    name=f"AnyTLS{'Relay' if cdn == ProxyCDN.relay else ''}",
-                    proto=ProxyProto.anytls,
-                    l3=ProxyL3.tls,
-                    transport=ProxyTransport.custom,
-                    cdn=cdn,
-                    enable=True,
-                ))
+                to_add.append(
+                    Proxy(
+                        name=f"AnyTLS{'Relay' if cdn == ProxyCDN.relay else ''}",
+                        proto=ProxyProto.anytls,
+                        l3=ProxyL3.tls,
+                        transport=ProxyTransport.custom,
+                        cdn=cdn,
+                        enable=True,
+                    )
+                )
         if to_add:
             db.session.bulk_save_objects(to_add)
             db.session.commit()
@@ -1532,13 +1797,13 @@ def _ensure_v138_hconfigs_backfilled():
 # same list (can't import across those two modules without a cycle, so
 # it's duplicated rather than shared - keep both in sync if this changes).
 _DOMAIN_PORT_FIELDS = (
-    ('hysteria_port', 'internal_port_hysteria2'),
-    ('tuic_port', 'internal_port_tuic'),
-    ('naive_port', 'internal_port_naive'),
-    ('anytls_port', 'internal_port_anytls'),
-    ('dnstt_port', 'internal_port_dnstt'),
-    ('xdns_port', 'internal_port_xdns'),
-    ('xicmp_port', 'internal_port_xicmp'),
+    ("hysteria_port", "internal_port_hysteria2"),
+    ("tuic_port", "internal_port_tuic"),
+    ("naive_port", "internal_port_naive"),
+    ("anytls_port", "internal_port_anytls"),
+    ("dnstt_port", "internal_port_dnstt"),
+    ("xdns_port", "internal_port_xdns"),
+    ("xicmp_port", "internal_port_xicmp"),
 )
 
 
@@ -1619,24 +1884,30 @@ def _ensure_default_proxy_rows():
 
 
 import sys
+
 from loguru import logger
+
+
 def init_db():
     db.create_all()
-    
+
     from hiddifypanel.database import reconcile_schema
+
     try:
         if not reconcile_schema():
             logger.error("Schema reconciliation failed. Halting startup.")
             sys.exit(1)
     except ImportError:
         logger.warning("Alembic not installed — skipping schema reconciliation.")
-        
+
     try:
-        from alembic.config import Config
-        from alembic import command
         # Find the root of the project to locate alembic.ini
         import os
+
+        from alembic import command
+        from alembic.config import Config
         from flask import current_app
+
         root_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(current_app.root_path))))
         ini_path = os.path.join(root_dir, "alembic.ini")
         if os.path.exists(ini_path):
@@ -1663,7 +1934,7 @@ def init_db():
         tmp_uuid = str(uuid.uuid4())
         db.session.add(Child(id=0, unique_id=tmp_uuid, name="Root"))
         db.session.commit()
-        if db.engine.dialect.name == 'mysql':
+        if db.engine.dialect.name == "mysql":
             db_execute("update child set id=0 where unique_id=:u", u=tmp_uuid, commit=True)
         child = Child.by_id(0)
         # Fresh install only (this branch never runs again once the Child
@@ -1679,6 +1950,7 @@ def init_db():
     db.session.commit()
 
     from flask import g
+
     for child in Child.query.filter(Child.mode == ChildMode.virtual).all():
         g.child = child
         db_version = int(hconfig(ConfigEnum.db_version, child.id) or 0)
@@ -1694,7 +1966,7 @@ def init_db():
             if ver <= db_version:
                 continue
 
-            db_action = sys.modules[__name__].__dict__.get(f'_v{ver}', None)
+            db_action = sys.modules[__name__].__dict__.get(f"_v{ver}", None)
             if not db_action or (start_version == 0 and ver == 10):
                 continue
 
@@ -1732,29 +2004,29 @@ def migrate(db_version):
         execute('update str_config set `key`="path_xhttp" where `key`="path_splithttp";')
         execute("UPDATE proxy SET transport = 'xhttp' WHERE transport = 'splithttp';")
     if db_version < 97:
-        if db.engine.dialect.name == 'mysql':
-            execute('ALTER TABLE str_config MODIFY value VARCHAR(3072);')
+        if db.engine.dialect.name == "mysql":
+            execute("ALTER TABLE str_config MODIFY value VARCHAR(3072);")
     if db_version < 82:
-        if db.engine.dialect.name == 'mysql':
-            execute('ALTER TABLE child DROP INDEX `name`;')
+        if db.engine.dialect.name == "mysql":
+            execute("ALTER TABLE child DROP INDEX `name`;")
     if db_version < 77:
-        if db.engine.dialect.name == 'mysql':
-            execute('ALTER TABLE user_detail DROP COLUMN connected_ips;')
-        if db.engine.dialect.name == 'mysql':
+        if db.engine.dialect.name == "mysql":
+            execute("ALTER TABLE user_detail DROP COLUMN connected_ips;")
+        if db.engine.dialect.name == "mysql":
             execute('update user_detail set connected_devices="" where connected_devices IS NULL')
 
     if db_version < 70:
-        if db.engine.dialect.name == 'mysql':
-            execute('CREATE INDEX date ON daily_usage (date);')
-            execute('CREATE INDEX username ON user (username);')
-            execute('CREATE INDEX username ON admin_user (username);')
-            execute('CREATE INDEX telegram_id ON user (telegram_id);')
-            execute('CREATE INDEX telegram_id ON admin_user (telegram_id);')
-            execute('ALTER TABLE proxy DROP INDEX `name`;')
+        if db.engine.dialect.name == "mysql":
+            execute("CREATE INDEX date ON daily_usage (date);")
+            execute("CREATE INDEX username ON user (username);")
+            execute("CREATE INDEX username ON admin_user (username);")
+            execute("CREATE INDEX telegram_id ON user (telegram_id);")
+            execute("CREATE INDEX telegram_id ON admin_user (telegram_id);")
+            execute("ALTER TABLE proxy DROP INDEX `name`;")
 
-        if db.engine.dialect.name == 'mysql':
+        if db.engine.dialect.name == "mysql":
             execute("ALTER TABLE user MODIFY COLUMN telegram_id BIGINT;")
-        if db.engine.dialect.name == 'mysql':
+        if db.engine.dialect.name == "mysql":
             execute("ALTER TABLE admin_user MODIFY COLUMN telegram_id BIGINT;")
 
         # aaa
@@ -1774,8 +2046,10 @@ def migrate(db_version):
         # add_column(Domain.extra_params)
 
     if db_version < 52:
-        if db.engine.dialect.name == 'mysql':
-            execute(f'update domain set mode="sub_link_only", sub_link_only=false where sub_link_only = true or mode=1  or mode="1"')
+        if db.engine.dialect.name == "mysql":
+            execute(
+                f'update domain set mode="sub_link_only", sub_link_only=false where sub_link_only = true or mode=1  or mode="1"'
+            )
         execute(f'update domain set mode="direct", sub_link_only=false where mode=0  or mode="0"')
         execute(f'update proxy set transport="WS" where transport = "ws"')
         execute(f'update admin_user set mode="agent" where mode = "slave"')
@@ -1810,30 +2084,30 @@ def migrate(db_version):
         # add_column(User.lang)
 
         if len(Domain.query.all()) != 0 and BoolConfig.query.count() == 0:
-            execute(f'DROP TABLE bool_config')
-            execute(f'ALTER TABLE bool_config_old RENAME TO bool_config')
+            execute(f"DROP TABLE bool_config")
+            execute(f"ALTER TABLE bool_config_old RENAME TO bool_config")
         if len(Domain.query.all()) != 0 and StrConfig.query.count() == 0:
-            if db.engine.dialect.name == 'mysql':
-                execute(f'DROP TABLE str_config')
-            execute(f'ALTER TABLE str_config_old RENAME TO str_config')
+            if db.engine.dialect.name == "mysql":
+                execute(f"DROP TABLE str_config")
+            execute(f"ALTER TABLE str_config_old RENAME TO str_config")
 
-        if db.engine.dialect.name == 'mysql':
-            execute('ALTER TABLE user RENAME COLUMN monthly_usage_limit_GB TO usage_limit_GB')
-        execute(f'update admin_user set parent_admin_id=1 where parent_admin_id is NULL and 1!=id')
-        execute(f'update admin_user set max_users=100,max_active_users=100 where max_users is NULL')
-        execute(f'update dailyusage set child_id=0 where child_id is NULL')
-        execute(f'update dailyusage set admin_id=1 where admin_id is NULL')
-        execute(f'update dailyusage set admin_id=1 where admin_id = 0')
-        execute(f'update user set added_by=1 where added_by = 1')
+        if db.engine.dialect.name == "mysql":
+            execute("ALTER TABLE user RENAME COLUMN monthly_usage_limit_GB TO usage_limit_GB")
+        execute(f"update admin_user set parent_admin_id=1 where parent_admin_id is NULL and 1!=id")
+        execute(f"update admin_user set max_users=100,max_active_users=100 where max_users is NULL")
+        execute(f"update dailyusage set child_id=0 where child_id is NULL")
+        execute(f"update dailyusage set admin_id=1 where admin_id is NULL")
+        execute(f"update dailyusage set admin_id=1 where admin_id = 0")
+        execute(f"update user set added_by=1 where added_by = 1")
         execute(f'update user set enable=True, mode="no_reset" where enable is NULL')
         execute(f'update user set enable=False, mode="no_reset" where mode = "disable"')
-        execute(f'update user set added_by=1 where added_by is NULL')
-        execute(f'update user set max_ips=10000 where max_ips is NULL')
-        execute(f'update str_config set child_id=0 where child_id is NULL')
-        execute(f'update bool_config set child_id=0 where child_id is NULL')
-        execute(f'update domain set child_id=0 where child_id is NULL')
-        execute(f'update domain set sub_link_only=False where sub_link_only is NULL')
-        execute(f'update proxy set child_id=0 where child_id is NULL')
+        execute(f"update user set added_by=1 where added_by is NULL")
+        execute(f"update user set max_ips=10000 where max_ips is NULL")
+        execute(f"update str_config set child_id=0 where child_id is NULL")
+        execute(f"update bool_config set child_id=0 where child_id is NULL")
+        execute(f"update domain set child_id=0 where child_id is NULL")
+        execute(f"update domain set sub_link_only=False where sub_link_only is NULL")
+        execute(f"update proxy set child_id=0 where child_id is NULL")
 
     add_new_enum_values()
 
@@ -1841,4 +2115,3 @@ def migrate(db_version):
 
     upgrade_database()
     db.session.commit()
-

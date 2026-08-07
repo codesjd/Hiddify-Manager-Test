@@ -1,57 +1,61 @@
 import json
-from flask import render_template, g
-from hiddifypanel import hutils
-from hiddifypanel.models import ProxyTransport, ProxyL3, ProxyProto, Domain, User
+
+from flask import g, render_template
 from flask_babel import gettext as _
-from hiddifypanel.models import hconfig, ConfigEnum
-from .xray import is_muxable_agent, OUTBOUND_LEVEL
+
+from hiddifypanel import hutils
+from hiddifypanel.models import ConfigEnum, Domain, ProxyL3, ProxyProto, ProxyTransport, User, hconfig
+
+from .xray import OUTBOUND_LEVEL, is_muxable_agent
 
 
 def configs_as_json(domains: list[Domain], user: User, expire_days: int, remarks: str) -> list:
-    '''Returns xray configs as json'''
+    """Returns xray configs as json"""
     all_configs = []
 
     # region show usage
-    if hconfig(ConfigEnum.show_usage_in_sublink) and not g.user_agent.get('is_hiddify'):
+    if hconfig(ConfigEnum.show_usage_in_sublink) and not g.user_agent.get("is_hiddify"):
         # determine usages
-        tag = '⏳ ' if user.is_active else '✖ '
+        tag = "⏳ " if user.is_active else "✖ "
         if user.usage_limit_GB < 1000:
             tag += f'{round(user.current_usage_GB,3)}/{str(user.usage_limit_GB).replace(".0","")}GB'
         elif user.usage_limit_GB < 100000:
             tag += f'{round(user.current_usage_GB/1000,3)}/{str(round(user.usage_limit_GB/1000,1)).replace(".0","")}TB'
         else:
-            tag += '#No Usage Limit'
-        tag += ' 📅 '
+            tag += "#No Usage Limit"
+        tag += " 📅 "
         if expire_days < 1000:
-            tag += _(f'%(expire_days)s days', expire_days=expire_days)
+            tag += _(f"%(expire_days)s days", expire_days=expire_days)
         else:
-            tag += '#No Time Limit'
+            tag += "#No Time Limit"
         tag = tag.strip()
 
         # add usage as a config
-        all_configs.append(
-            null_config(tag)
-        )
+        all_configs.append(null_config(tag))
     # endregion
 
     if not user.is_active:
         # region show status (active/disable)
-        tag = '✖ ' + (hutils.encode.url_encode('بسته شما به پایان رسید')
-                      if hconfig(ConfigEnum.lang) == 'fa' else 'Package Ended')
-        # add user status
-        all_configs.append(
-            null_config(tag)
+        tag = "✖ " + (
+            hutils.encode.url_encode("بسته شما به پایان رسید") if hconfig(ConfigEnum.lang) == "fa" else "Package Ended"
         )
+        # add user status
+        all_configs.append(null_config(tag))
         # endregion
     else:
         # TODO: seperate codes to small functions
         # TODO: check what are unsupported protocols in other apps
-        unsupported_protos:set[ProxyProto] = set()
-        unsupported_transport:set[ProxyTransport] = set()
-        if g.user_agent.get('is_v2rayng'):
+        unsupported_protos: set[ProxyProto] = set()
+        unsupported_transport: set[ProxyTransport] = set()
+        if g.user_agent.get("is_v2rayng"):
             # TODO: ensure which protocols are not supported in v2rayng
-            unsupported_protos = {ProxyProto.hysteria, ProxyProto.hysteria2,
-                                  ProxyProto.tuic, ProxyProto.ssr, ProxyProto.ssh}
+            unsupported_protos = {
+                ProxyProto.hysteria,
+                ProxyProto.hysteria2,
+                ProxyProto.tuic,
+                ProxyProto.ssr,
+                ProxyProto.ssh,
+            }
             if not hutils.flask.is_client_version(hutils.flask.ClientVersion.v2ryang, 1, 8, 18):
                 unsupported_transport = {ProxyTransport.httpupgrade}
                 unsupported_protos.update({ProxyProto.wireguard})
@@ -60,16 +64,15 @@ def configs_as_json(domains: list[Domain], user: User, expire_days: int, remarks
         # https://github.com/2dust/v2rayNG/pull/2827#issue-2127534078
         outbounds = []
         for proxy in hutils.proxy.get_valid_proxies(domains):
-            if proxy['proto'] in unsupported_protos:
+            if proxy["proto"] in unsupported_protos:
                 continue
-            if proxy['transport'] in unsupported_transport:
+            if proxy["transport"] in unsupported_transport:
                 continue
             outbound = to_xray(proxy)
             if len(outbound):
                 outbounds.append(outbound)
 
-        base_config = json.loads(render_template(
-            'base_xray_config.json.j2', remarks=remarks))
+        base_config = json.loads(render_template("base_xray_config.json.j2", remarks=remarks))
         # base_xray_config.json.j2's catch-all routing rule always sends
         # traffic to an outbound literally tagged "proxy" - the actual
         # proxy outbound built above keeps its own descriptive tag (used
@@ -79,13 +82,13 @@ def configs_as_json(domains: list[Domain], user: User, expire_days: int, remarks
         if len(outbounds) > 1:
             for out in outbounds:
                 base = dict(base_config)
-                base['remarks'] = out['tag']
-                base['outbounds'] = [{**out, 'tag': 'proxy'}] + base_config['outbounds']
+                base["remarks"] = out["tag"]
+                base["outbounds"] = [{**out, "tag": "proxy"}] + base_config["outbounds"]
                 all_configs.append(base)
 
         elif len(outbounds) == 1:  # single outbound
-            outbounds[0]['tag'] = 'proxy'
-            base_config['outbounds'].insert(0, outbounds[0])
+            outbounds[0]["tag"] = "proxy"
+            base_config["outbounds"].insert(0, outbounds[0])
             all_configs = [base_config]
         # len(outbounds) == 0 (active user, but every proxy was filtered out
         # or unsupported by this client) falls through to the empty-return
@@ -124,8 +127,17 @@ def to_xray(proxy: dict) -> dict:
     # trojan/etc - they get their own independent links (see to_link()
     # elsewhere) instead of being bundled into this combined subscription
     # format, same reasoning as the sing-box subscription's exclusion list.
-    if proxy['proto'] in {ProxyProto.naive, ProxyProto.mieru, ProxyProto.anytls, ProxyProto.tuic, ProxyProto.hysteria2,
-                          ProxyProto.hysteria, ProxyProto.ssh, ProxyProto.dnstt, ProxyProto.amneziawg}:
+    if proxy["proto"] in {
+        ProxyProto.naive,
+        ProxyProto.mieru,
+        ProxyProto.anytls,
+        ProxyProto.tuic,
+        ProxyProto.hysteria2,
+        ProxyProto.hysteria,
+        ProxyProto.ssh,
+        ProxyProto.dnstt,
+        ProxyProto.amneziawg,
+    }:
         return {}
     # ShadowTLS rides on ProxyProto.ss (same as plain Shadowsocks/SS-2022,
     # differentiated only by transport=='shadowtls'), so it isn't caught by
@@ -138,27 +150,27 @@ def to_xray(proxy: dict) -> dict:
     # connectable, since there's no ShadowTLS server on the other end of a
     # bare TLS handshake. Plain Shadowsocks/SS-2022 (transport=='shadowsocks')
     # is unaffected - Xray-core supports 2022-blake3 ciphers natively.
-    if proxy['transport'] == 'shadowtls':
+    if proxy["transport"] == "shadowtls":
         return {}
     outbound = {
-        'tag': f'{proxy["extra_info"]} {proxy["name"]}',
-        'protocol': str(proxy['proto']),
-        'settings': {},
-        'streamSettings': {},
+        "tag": f'{proxy["extra_info"]} {proxy["name"]}',
+        "protocol": str(proxy["proto"]),
+        "settings": {},
+        "streamSettings": {},
         # 'mux': {  # default value
         #     # 'enabled': False,
         #     # 'concurrency': -1
         # }
     }
 
-    outbound['protocol'] = 'shadowsocks' if outbound['protocol'] == 'ss' else outbound['protocol']
+    outbound["protocol"] = "shadowsocks" if outbound["protocol"] == "ss" else outbound["protocol"]
     # xdns/xicmp are ProxyProto values for admin-toggle/domain-mode-matching
     # purposes only (see is_proxy_valid()) - the wire protocol Xray-core
     # actually speaks underneath the finalmask is plain vless, same as any
     # other vless proxy. Emitting "protocol": "xdns"/"xicmp" literally isn't
     # a real Xray-core protocol at all and fails config parsing outright.
-    if proxy['proto'] in (ProxyProto.xdns, ProxyProto.xicmp):
-        outbound['protocol'] = 'vless'
+    if proxy["proto"] in (ProxyProto.xdns, ProxyProto.xicmp):
+        outbound["protocol"] = "vless"
     # add multiplex to outbound
     add_multiplex(outbound, proxy)
 
@@ -170,42 +182,44 @@ def to_xray(proxy: dict) -> dict:
 
     return outbound
 
+
 # region proto settings
 
 
 def add_proto_settings(base: dict, proxy: dict):
-    if proxy['proto'] == ProxyProto.wireguard:
+    if proxy["proto"] == ProxyProto.wireguard:
         add_wireguard_settings(base, proxy)
-    elif proxy['proto'] == ProxyProto.amneziawg:
+    elif proxy["proto"] == ProxyProto.amneziawg:
         add_wireguard_settings(base, proxy)
-    elif proxy['proto'] == ProxyProto.ss:
+    elif proxy["proto"] == ProxyProto.ss:
         add_shadowsocks_settings(base, proxy)
-    elif proxy['proto'] == ProxyProto.vless:
+    elif proxy["proto"] == ProxyProto.vless:
         add_vless_settings(base, proxy)
-    elif proxy['proto'] in (ProxyProto.xdns, ProxyProto.xicmp):
+    elif proxy["proto"] in (ProxyProto.xdns, ProxyProto.xicmp):
         # Underlying protocol is vless (see to_xray()'s protocol override
         # above) - address/port/uuid all come from the same proxy dict
         # fields any other vless proxy uses.
         add_vless_settings(base, proxy)
-    elif proxy['proto'] == ProxyProto.vmess:
+    elif proxy["proto"] == ProxyProto.vmess:
         add_vmess_settings(base, proxy)
-    elif proxy['proto'] == ProxyProto.trojan:
-        proxy['password'] = proxy['uuid']
+    elif proxy["proto"] == ProxyProto.trojan:
+        proxy["password"] = proxy["uuid"]
         add_trojan_settings(base, proxy)
 
 
 def add_wireguard_settings(base: dict, proxy: dict):
 
-    base['settings']['secretKey'] = proxy['wg_pk']
-    base['settings']['reversed'] = [0, 0, 0]
-    base['settings']['mtu'] = 1380  # optional
-    base['settings']['peers'] = [{
-        'endpoint': f'{proxy["server"]}:{int(proxy["port"])}',
-        'publicKey': proxy["wg_server_pub"],
-        "preSharedKey": proxy['wg_psk']
-
-        # 'allowedIPs':'', 'preSharedKey':'', 'keepAlive':'' # optionals
-    }]
+    base["settings"]["secretKey"] = proxy["wg_pk"]
+    base["settings"]["reversed"] = [0, 0, 0]
+    base["settings"]["mtu"] = 1380  # optional
+    base["settings"]["peers"] = [
+        {
+            "endpoint": f'{proxy["server"]}:{int(proxy["port"])}',
+            "publicKey": proxy["wg_server_pub"],
+            "preSharedKey": proxy["wg_psk"],
+            # 'allowedIPs':'', 'preSharedKey':'', 'keepAlive':'' # optionals
+        }
+    ]
 
     # optionals
     # base['settings']['address'] = [f'{proxy["wg_ipv4"]}/32',f'{proxy["wg_ipv6"]}/128']
@@ -214,97 +228,93 @@ def add_wireguard_settings(base: dict, proxy: dict):
 
 
 def add_vless_settings(base: dict, proxy: dict):
-    base['settings']['vnext'] = [
+    base["settings"]["vnext"] = [
         {
-            'address': proxy['server'],
-            'port': proxy['port'],
+            "address": proxy["server"],
+            "port": proxy["port"],
             "users": [
                 {
-                    'id': proxy['uuid'],
-                    'encryption': 'none',
+                    "id": proxy["uuid"],
+                    "encryption": "none",
                     # 'security': 'auto',
-                    'flow': proxy.get('flow',''),
-                    'level': OUTBOUND_LEVEL
+                    "flow": proxy.get("flow", ""),
+                    "level": OUTBOUND_LEVEL,
                 }
-            ]
+            ],
         }
     ]
 
 
 def add_vmess_settings(base: dict, proxy: dict):
-    base['settings']['vnext'] = [
+    base["settings"]["vnext"] = [
         {
-            "address": proxy['server'],
-            "port": proxy['port'],
-            "users": [
-                {
-                    "id": proxy['uuid'],
-                    "security": proxy['cipher'],
-                    "level": OUTBOUND_LEVEL
-                }
-            ]
+            "address": proxy["server"],
+            "port": proxy["port"],
+            "users": [{"id": proxy["uuid"], "security": proxy["cipher"], "level": OUTBOUND_LEVEL}],
         }
     ]
 
 
 def add_trojan_settings(base: dict, proxy: dict):
-    base['settings']['servers'] = [
+    base["settings"]["servers"] = [
         {
             # 'email': proxy['uuid'], optional
-            'address': proxy['server'],
-            'port': proxy['port'],
-            'password': proxy['password'],
-            'level': OUTBOUND_LEVEL
+            "address": proxy["server"],
+            "port": proxy["port"],
+            "password": proxy["password"],
+            "level": OUTBOUND_LEVEL,
         }
     ]
 
 
 def add_shadowsocks_settings(base: dict, proxy: dict):
-    base['settings']['servers'] = [
+    base["settings"]["servers"] = [
         {
-            'address': proxy['server'],
-            'port': proxy['port'],
-            'method': proxy['cipher'],
-            'password': proxy['password'],
-            'uot': True,
-            'level': OUTBOUND_LEVEL
+            "address": proxy["server"],
+            "port": proxy["port"],
+            "method": proxy["cipher"],
+            "password": proxy["password"],
+            "uot": True,
+            "level": OUTBOUND_LEVEL,
             # 'email': '', optional
         }
     ]
+
 
 # endregion
 
 
 # region stream settings
 
+
 def _add_security(base_dict, proxy, tls_info=None):
     if not tls_info:
         tls_info = proxy
 
     ss = base_dict
-    ss['security'] = 'none'  # default
+    ss["security"] = "none"  # default
 
     # security
-    if 'reality' in tls_info['mode']:
-        ss['security'] = 'reality'
-    elif proxy['l3'] in [ProxyL3.tls, ProxyL3.tls_h2, ProxyL3.tls_h2_h1, ProxyL3.h3_quic, ProxyL3.reality]:
-        ss['security'] = 'tls'
+    if "reality" in tls_info["mode"]:
+        ss["security"] = "reality"
+    elif proxy["l3"] in [ProxyL3.tls, ProxyL3.tls_h2, ProxyL3.tls_h2_h1, ProxyL3.h3_quic, ProxyL3.reality]:
+        ss["security"] = "tls"
 
     # network and transport settings
     # THE CURRENT CODE WORKS BUT THE CORRECT CONDITINO SHOULD BE THIS:
     # ss['security'] == 'tls' or 'xtls' -----> ss['security'] in ['tls','xtls']
     # TODO: FIX THE CONDITION AND TEST CONFIGS ON THE CLIENT SIDE
-    if ss['security'] == 'reality':
+    if ss["security"] == "reality":
         # ss['network'] = proxy['transport']
         add_reality_stream(ss, proxy, tls_info)
-    elif ss['security'] in ['tls', "xtls"] and proxy['proto'] != ProxyProto.ss:
-        ss['tlsSettings'] = {
-            'serverName': tls_info['sni'],
-            'fingerprint': proxy.get('fingerprint'),
+    elif ss["security"] in ["tls", "xtls"] and proxy["proto"] != ProxyProto.ss:
+        ss["tlsSettings"] = {
+            "serverName": tls_info["sni"],
+            "fingerprint": proxy.get("fingerprint"),
             # alpn can be multi-valued ("h2,http/1.1" for the tls_h2_h1 L3);
             # wrapping the raw string in a list produced one bogus ALPN entry
             # "h2,http/1.1" instead of two. Split like singbox.py does.
-            'alpn': tls_info['alpn'].split(','),
+            "alpn": tls_info["alpn"].split(","),
             # 'minVersion': '1.2',
             # 'disableSystemRoot': '',
             # 'enableSessionResumption': '',
@@ -324,18 +334,18 @@ def _add_security(base_dict, proxy, tls_info=None):
         # this proxy falls back to normal cert validation (fails to *connect*
         # for a genuinely self-signed/mismatched cert, self-healing once the
         # cache populates) instead of poisoning config parsing for everyone.
-        if tls_info['allow_insecure'] and tls_info.get('pinned_cert_sha256'):
-            ss['tlsSettings']['pinnedPeerCertSha256'] = tls_info['pinned_cert_sha256']
-        if proxy.get('ech'):
-            ss['tlsSettings']['echConfigList'] = [proxy['ech']]
+        if tls_info["allow_insecure"] and tls_info.get("pinned_cert_sha256"):
+            ss["tlsSettings"]["pinnedPeerCertSha256"] = tls_info["pinned_cert_sha256"]
+        if proxy.get("ech"):
+            ss["tlsSettings"]["echConfigList"] = [proxy["ech"]]
 
 
 def add_stream_settings(base: dict, proxy: dict):
-    ss = base['streamSettings']
+    ss = base["streamSettings"]
 
     _add_security(ss, proxy, proxy)
 
-    if proxy['proto'] in (ProxyProto.xdns, ProxyProto.xicmp):
+    if proxy["proto"] in (ProxyProto.xdns, ProxyProto.xicmp):
         # finalmask masks (XTLS/Xray-core#5560/#5633) only ever attach to
         # mKCP transport (Xray-core docs: "header/seed fields removed, use
         # FinalMask instead") - never xhttp/ws/grpc/tcp, and never TLS
@@ -345,98 +355,93 @@ def add_stream_settings(base: dict, proxy: dict):
         add_mask_finalmask_stream(ss, proxy)
         return
 
-    if proxy['l3'] == ProxyL3.kcp:
-        ss['network'] = 'kcp'
+    if proxy["l3"] == ProxyL3.kcp:
+        ss["network"] = "kcp"
         add_kcp_stream(ss, proxy)
 
-    if proxy['l3'] == ProxyL3.h3_quic:
+    if proxy["l3"] == ProxyL3.h3_quic:
         add_quic_stream(ss, proxy)
 
-    if (proxy['transport'] == 'tcp' and ss['security'] != 'reality') or (ss['security'] == 'none' and proxy['transport'] not in ('httpupgrade', 'ws') and proxy['proto'] != ProxyProto.ss):
-        ss['network'] = proxy['transport']
+    if (proxy["transport"] == "tcp" and ss["security"] != "reality") or (
+        ss["security"] == "none" and proxy["transport"] not in ("httpupgrade", "ws") and proxy["proto"] != ProxyProto.ss
+    ):
+        ss["network"] = proxy["transport"]
         add_tcp_stream(ss, proxy)
-    if proxy['transport'] == ProxyTransport.h2 and ss['security'] == 'none' and ss['security'] != 'reality':
-        ss['network'] = proxy['transport']
+    if proxy["transport"] == ProxyTransport.h2 and ss["security"] == "none" and ss["security"] != "reality":
+        ss["network"] = proxy["transport"]
         add_http_stream(ss, proxy)
-    if proxy['transport'] == ProxyTransport.grpc:
-        ss['network'] = proxy['transport']
+    if proxy["transport"] == ProxyTransport.grpc:
+        ss["network"] = proxy["transport"]
         add_grpc_stream(ss, proxy)
-    if proxy['transport'] == ProxyTransport.httpupgrade:
-        ss['network'] = proxy['transport']
+    if proxy["transport"] == ProxyTransport.httpupgrade:
+        ss["network"] = proxy["transport"]
         add_httpupgrade_stream(ss, proxy)
-    if proxy['transport'] == ProxyTransport.xhttp:
-        ss['network'] = proxy['transport']
-        ss['transport'] = "xhttp"
+    if proxy["transport"] == ProxyTransport.xhttp:
+        ss["network"] = proxy["transport"]
+        ss["transport"] = "xhttp"
         add_xhttp_stream(ss, proxy)
-    if proxy['transport'] == 'ws':
-        ss['network'] = proxy['transport']
+    if proxy["transport"] == "ws":
+        ss["network"] = proxy["transport"]
         add_ws_stream(ss, proxy)
 
-    if proxy['proto'] == ProxyProto.ss:
-        ss['network'] = 'tcp'
+    if proxy["proto"] == ProxyProto.ss:
+        ss["network"] = "tcp"
 
     # tls fragmentaion
     add_tls_fragmentation_stream_settings(base, proxy)
 
 
 def add_tcp_stream(ss: dict, proxy: dict):
-    
-    if proxy.get('params',{}).get('headers',{}).get("type",'')=='none' or proxy['l3'] != ProxyL3.http:
-        ss['tcpSettings'] = {
-            'header':{'type':'none'}
-        }
-    else:    
-        ss['tcpSettings'] = {
-            'header': {
-                'type': 'http',
-                'request': {
-                    'path': [proxy['path']],
-                    'method': 'GET',
+
+    if proxy.get("params", {}).get("headers", {}).get("type", "") == "none" or proxy["l3"] != ProxyL3.http:
+        ss["tcpSettings"] = {"header": {"type": "none"}}
+    else:
+        ss["tcpSettings"] = {
+            "header": {
+                "type": "http",
+                "request": {
+                    "path": [proxy["path"]],
+                    "method": "GET",
                     "headers": {
-                        "Host": [proxy.get('host')],
-                        "User-Agent": [proxy.get('params',{}).get('headers',{}).get('User-Agent')],
+                        "Host": [proxy.get("host")],
+                        "User-Agent": [proxy.get("params", {}).get("headers", {}).get("User-Agent")],
                         "Accept-Encoding": ["gzip, deflate"],
                         "Connection": ["keep-alive"],
-                        "Pragma": proxy.get('params',{}).get('headers',{}).get('Pragma')
+                        "Pragma": proxy.get("params", {}).get("headers", {}).get("Pragma"),
                     },
-
-                }
+                },
             }
         }
     # ss['tcpSettings']['header']['request']['headers']
 
 
-
 def add_http_stream(ss: dict, proxy: dict):
-    ss['httpSettings'] = {
-        'host': proxy['host'],
-        'path': proxy['path'],
+    ss["httpSettings"] = {
+        "host": proxy["host"],
+        "path": proxy["path"],
         # 'read_idle_timeout': 10,  # default disabled
         # 'health_check_timeout': 15,  # default is 15
         # 'method': 'PUT',  # default is 15
         # 'headers': {
-
         # }
     }
 
 
 def add_ws_stream(ss: dict, proxy: dict):
-    ss['wsSettings'] = {
-        'path': proxy['path'],
-        'headers': {
-            "Host": proxy['host']
-        }
+    ss["wsSettings"] = {
+        "path": proxy["path"],
+        "headers": {"Host": proxy["host"]},
         # 'acceptProxyProtocol': False,
     }
 
 
 def add_grpc_stream(ss: dict, proxy: dict):
-    ss['grpcSettings'] = {
+    ss["grpcSettings"] = {
         # proxy['path'] is equal toproxy['grpc_service_name']
-        'serviceName': proxy['path'],
+        "serviceName": proxy["path"],
         # by default, the health check is not enabled. may solve some "connection drop" issues
-        'idle_timeout': 115,
-        'health_check_timeout': 20,  # default is 20
+        "idle_timeout": 115,
+        "health_check_timeout": 20,  # default is 20
         # 'initial_windows_size': 0,  # 0 means disabled. greater than 65535 means Dynamic Window mechanism will be disabled
         # 'permit_without_stream': False, # health check performed when there are no sub-connections
         # 'multiMode': false, # experimental
@@ -444,36 +449,36 @@ def add_grpc_stream(ss: dict, proxy: dict):
 
 
 def add_httpupgrade_stream(ss: dict, proxy: dict):
-    ss['httpupgradeSettings'] = {
-        'path': proxy['path'],
-        'host': proxy['host'],
+    ss["httpupgradeSettings"] = {
+        "path": proxy["path"],
+        "host": proxy["host"],
         # 'acceptProxyProtocol': '', for inbounds only
     }
 
 
 def add_xhttp_stream(ss: dict, proxy: dict):
-    if ss['transport'] == "xhttp" and g.user_agent.get(hutils.flask.ClientVersion.hiddify_next) and not hutils.flask.is_client_version(hutils.flask.ClientVersion.hiddify_next, 3, 0, 0):
-        ss['transport'] = "splithttp"
-        ss['splithttpSettings'] = {
-            'path': proxy['path'],
-            'host': proxy['host'],
-            "headers": proxy['params'].get('headers', {})
+    if (
+        ss["transport"] == "xhttp"
+        and g.user_agent.get(hutils.flask.ClientVersion.hiddify_next)
+        and not hutils.flask.is_client_version(hutils.flask.ClientVersion.hiddify_next, 3, 0, 0)
+    ):
+        ss["transport"] = "splithttp"
+        ss["splithttpSettings"] = {
+            "path": proxy["path"],
+            "host": proxy["host"],
+            "headers": proxy["params"].get("headers", {}),
         }
     else:
         _add_xhttp_details(ss, proxy)
 
-        
-
 
 def _add_xhttp_details(ss: dict, proxy: dict):
-    ss['network'] = "xhttp"
-    ss['xhttpSettings'] = {
-        'path': proxy['path'],
-        'host': proxy['host'],
-        'mode':proxy['xhttp_mode'],
-        "extra": {
-            "headers": proxy['params'].get('headers', {})
-        },
+    ss["network"] = "xhttp"
+    ss["xhttpSettings"] = {
+        "path": proxy["path"],
+        "host": proxy["host"],
+        "mode": proxy["xhttp_mode"],
+        "extra": {"headers": proxy["params"].get("headers", {})},
         # Matches the server inbound's own xPaddingBytes (xray/configs/
         # common/streams/xhttp.pj2) - a top-level field, not nested under
         # "extra" like headers above. infra/conf's Int32Range.UnmarshalJSON
@@ -496,25 +501,22 @@ def _add_xhttp_details(ss: dict, proxy: dict):
         # field download doesn't set falls back to the parent's, and any
         # field it does set (sni/host/server/mode/alpn, the whole point of
         # having a separate download domain) still wins.
-        dl = {**proxy, **proxy['download']}
-        dl.pop('download', None)
+        dl = {**proxy, **proxy["download"]}
+        dl.pop("download", None)
 
-        dlsettings = {
-            "address": dl.get("server"),
-            "port": proxy['port']
-        }
+        dlsettings = {"address": dl.get("server"), "port": proxy["port"]}
         _add_xhttp_details(dlsettings, dl)
         _add_security(dlsettings, proxy, dl)
 
-        ss['xhttpSettings']['extra']['downloadSettings']=dlsettings
+        ss["xhttpSettings"]["extra"]["downloadSettings"] = dlsettings
 
 
 def add_kcp_stream(ss: dict, proxy: dict):
     # TODO: fix server side configs first
-    ss['kcpSettings'] = {}
+    ss["kcpSettings"] = {}
     return
-    ss['kcpSettings'] = {
-        'seed': proxy['path'],
+    ss["kcpSettings"] = {
+        "seed": proxy["path"],
         # 'mtu': 1350, # optional, default value is written
         # 'tti': 50, # optional, default value is written
         # 'uplinkCapacity': 5, # optional, default value is written
@@ -543,8 +545,8 @@ def add_mask_finalmask_stream(ss: dict, proxy: dict):
     # server-only (see xray/configs/05_inbounds_05_xdns.json.j2). Each
     # resolver string must be "<domain>[:method]+udp://<host>:<port>"
     # (parseResolver() in xdns/spec.go).
-    ss['network'] = 'mkcp'
-    if proxy['proto'] == ProxyProto.xdns:
+    ss["network"] = "mkcp"
+    if proxy["proto"] == ProxyProto.xdns:
         # 500 used to be hardcoded here regardless of the domain's
         # extra_params.mtu override (unlike the server-side inbound
         # template, which already respected it) - and 500 itself is above
@@ -559,42 +561,46 @@ def add_mask_finalmask_stream(ss: dict, proxy: dict):
         # in practice (200 still intermittently overflowed it). proxy.get(
         # 'mtu') picks up a per-domain override the same way the server
         # side already does via apply_domain_overrides().
-        ss['kcpSettings'] = {
-            'mtu': proxy.get('mtu') or 132,
-            'tti': 20,
-            'uplinkCapacity': 5,
-            'downlinkCapacity': 20,
-            'congestion': False,
+        ss["kcpSettings"] = {
+            "mtu": proxy.get("mtu") or 132,
+            "tti": 20,
+            "uplinkCapacity": 5,
+            "downlinkCapacity": 20,
+            "congestion": False,
         }
-        resolvers = proxy.get('resolvers') or ['8.8.8.8:53']
-        xdns_domain = proxy['xdns_domain']
-        ss['finalmask'] = {
-            'udp': [{
-                'type': 'xdns',
-                'settings': {
-                    'resolvers': [f'{xdns_domain}+udp://{r}' for r in resolvers],
+        resolvers = proxy.get("resolvers") or ["8.8.8.8:53"]
+        xdns_domain = proxy["xdns_domain"]
+        ss["finalmask"] = {
+            "udp": [
+                {
+                    "type": "xdns",
+                    "settings": {
+                        "resolvers": [f"{xdns_domain}+udp://{r}" for r in resolvers],
+                    },
                 }
-            }]
+            ]
         }
-    elif proxy['proto'] == ProxyProto.xicmp:
-        ss['kcpSettings'] = {
-            'mtu': 1200,
-            'tti': 20,
-            'uplinkCapacity': 5,
-            'downlinkCapacity': 20,
-            'congestion': False,
+    elif proxy["proto"] == ProxyProto.xicmp:
+        ss["kcpSettings"] = {
+            "mtu": 1200,
+            "tti": 20,
+            "uplinkCapacity": 5,
+            "downlinkCapacity": 20,
+            "congestion": False,
         }
-        ss['finalmask'] = {
-            'udp': [{
-                'type': 'xicmp',
-                'settings': {
-                    # true: unprivileged UDP-datagram socket, the client-side
-                    # default per xicmp/client.go (server needs the real raw
-                    # socket instead - see the inbound template's dgram=false).
-                    'dgram': True,
-                    'ips': [],
+        ss["finalmask"] = {
+            "udp": [
+                {
+                    "type": "xicmp",
+                    "settings": {
+                        # true: unprivileged UDP-datagram socket, the client-side
+                        # default per xicmp/client.go (server needs the real raw
+                        # socket instead - see the inbound template's dgram=false).
+                        "dgram": True,
+                        "ips": [],
+                    },
                 }
-            }]
+            ]
         }
 
 
@@ -602,66 +608,61 @@ def add_quic_stream(ss: dict, proxy: dict):
     # TODO: fix server side configs first
     return
 
-    ss['quicSettings'] = {
-        'security': 'chacha20-poly1305',
-        'key': proxy['path'],
-        'header': {
-            'type': 'none'
-        }
-    }
+    ss["quicSettings"] = {"security": "chacha20-poly1305", "key": proxy["path"], "header": {"type": "none"}}
 
 
 def add_reality_stream(ss: dict, proxy: dict, domain_info: dict):
-    ss['realitySettings'] = {
-        'serverName': domain_info['sni'],
-        'fingerprint': proxy['fingerprint'],
-        'shortId': domain_info['reality_short_id'],
-        'publicKey': domain_info['reality_pbk'],
-        'show': False,
+    ss["realitySettings"] = {
+        "serverName": domain_info["sni"],
+        "fingerprint": proxy["fingerprint"],
+        "shortId": domain_info["reality_short_id"],
+        "publicKey": domain_info["reality_pbk"],
+        "show": False,
     }
     # ML-DSA-65 PQ signature verify value - omitted (not sent as an empty
     # string) when unset, matching the server's own mldsa65Seed omission
     # (xray/configs/05_inbounds_02_reality_main.json.j2) - Xray-core
     # clients treat a missing mldsa65Verify as "no PQ check", same as an
     # absent field on the server side.
-    if domain_info.get('reality_mldsa65_verify'):
-        ss['realitySettings']['mldsa65Verify'] = domain_info['reality_mldsa65_verify']
+    if domain_info.get("reality_mldsa65_verify"):
+        ss["realitySettings"]["mldsa65Verify"] = domain_info["reality_mldsa65_verify"]
 
 
 def add_tls_fragmentation_stream_settings(base: dict, proxy: dict):
-    '''Adds tls fragment in the outbounds if tls fragmentation is enabled'''
-    if base['streamSettings']['security'] in ['tls', 'reality']:
-        if proxy.get('tls_fragment_enable'):
-            base['streamSettings']['sockopt'] = {
-                'dialerProxy': 'fragment',
-                'tcpKeepAliveIdle': 100,
+    """Adds tls fragment in the outbounds if tls fragmentation is enabled"""
+    if base["streamSettings"]["security"] in ["tls", "reality"]:
+        if proxy.get("tls_fragment_enable"):
+            base["streamSettings"]["sockopt"] = {
+                "dialerProxy": "fragment",
+                "tcpKeepAliveIdle": 100,
                 # recommended to be enabled with "tcpMptcp": true.
-                'tcpNoDelay': True,
-                "mark": 255
+                "tcpNoDelay": True,
+                "mark": 255,
                 # 'tcpFastOpen': True, # the system default setting be used.
                 # 'tcpKeepAliveInterval': 0, # 0 means default GO lang settings, -1 means not enable
                 # 'tcpcongestion': bbr, # Not configuring means using the system default value
                 # 'tcpMptcp': True, # need to be enabled in both server and client configuration (not supported by panel yet)
             }
 
+
 # endregion
 
 
 def add_multiplex(base: dict, proxy: dict):
-    if proxy.get('mux_enable') != "xray" or not is_muxable_agent(proxy):
+    if proxy.get("mux_enable") != "xray" or not is_muxable_agent(proxy):
         return
 
-    concurrency = proxy['mux_max_connections']
+    concurrency = proxy["mux_max_connections"]
     if concurrency and concurrency > 0:
-        base['mux'] = {'enabled': True,
-                       'concurrency': concurrency,
-                       'xudpConcurrency': concurrency,
-                       'xudpProxyUDP443': 'reject',
-                       }
+        base["mux"] = {
+            "enabled": True,
+            "concurrency": concurrency,
+            "xudpConcurrency": concurrency,
+            "xudpProxyUDP443": "reject",
+        }
 
 
 def null_config(tag: str) -> dict:
-    base_config = json.loads(render_template(
-        'base_xray_config.json.j2', remarks=tag))
-    base_config['outbounds'][0]["protocol"] = "blackhole"
+    base_config = json.loads(render_template("base_xray_config.json.j2", remarks=tag))
+    base_config["outbounds"][0]["protocol"] = "blackhole"
     return base_config

@@ -1,5 +1,7 @@
-from .login import LoginView
 from apiflask import APIBlueprint
+
+from .login import LoginView
+
 bp = APIBlueprint("common_bp", __name__, url_prefix="/<proxy_path>/", template_folder="templates", enable_openapi=False)
 
 

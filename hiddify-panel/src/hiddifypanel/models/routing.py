@@ -1,6 +1,7 @@
-from strenum import StrEnum
 from enum import auto
-from sqlalchemy import Column, String, Integer, Boolean, Enum, ForeignKey, Text
+
+from sqlalchemy import Boolean, Column, Enum, ForeignKey, Integer, String, Text
+from strenum import StrEnum
 
 from hiddifypanel.database import db
 
@@ -75,39 +76,40 @@ class CustomOutbound(db.Model):  # type: ignore
     generated outbound object - same escape-hatch pattern as
     Domain.extra_params.
     """
+
     id = Column(Integer, primary_key=True, autoincrement=True)
-    child_id = Column(Integer, ForeignKey('child.id'), default=0)
+    child_id = Column(Integer, ForeignKey("child.id"), default=0)
     enable = Column(Boolean, default=True, nullable=False)
     tag = Column(String(100), nullable=False, unique=True)
     protocol = Column(Enum(OutboundProtocol), nullable=False, default=OutboundProtocol.vless)
-    address = Column(String(300), nullable=True, default='')
+    address = Column(String(300), nullable=True, default="")
     port = Column(Integer, nullable=True, default=443)
-    uuid_or_password = Column(String(300), nullable=True, default='')
+    uuid_or_password = Column(String(300), nullable=True, default="")
     network = Column(Enum(OutboundNetwork), nullable=False, default=OutboundNetwork.tcp)
     security = Column(Enum(OutboundSecurity), nullable=False, default=OutboundSecurity.tls)
-    sni = Column(String(300), nullable=True, default='')
-    ws_path = Column(String(300), nullable=True, default='')
+    sni = Column(String(300), nullable=True, default="")
+    ws_path = Column(String(300), nullable=True, default="")
     # Host header for ws/httpupgrade/xhttp (usually the CDN's origin
     # hostname, separate from the TLS SNI) and uTLS fingerprint for
     # tls/reality - both extremely common on real vless/vmess share links,
     # so they get dedicated fields instead of forcing every import through
     # extra_json.
-    host_header = Column(String(300), nullable=True, default='')
-    fingerprint = Column(String(50), nullable=True, default='')
+    host_header = Column(String(300), nullable=True, default="")
+    fingerprint = Column(String(50), nullable=True, default="")
     # vless-only xtls flow control, e.g. "xtls-rprx-vision".
-    flow = Column(String(50), nullable=True, default='')
+    flow = Column(String(50), nullable=True, default="")
     # vless-only encryption (e.g. "none", or a post-quantum ML-KEM option) -
     # was hardcoded to "none" below; xray-core actually reads this per-user.
-    encryption = Column(String(100), nullable=True, default='none')
+    encryption = Column(String(100), nullable=True, default="none")
     # REALITY needs the server's actual public key/short id to connect at
     # all - these were missing entirely (to_xray_dict()/to_singbox_dict()
     # only ever sent serverName/fingerprint), making every "reality"
     # security outbound unusable regardless of what else was configured.
-    reality_public_key = Column(String(100), nullable=True, default='')
-    reality_short_id = Column(String(50), nullable=True, default='')
+    reality_public_key = Column(String(100), nullable=True, default="")
+    reality_short_id = Column(String(50), nullable=True, default="")
     # shadowsocks cipher - was hardcoded to chacha20-ietf-poly1305
     # regardless of what the real upstream server actually uses.
-    ss_method = Column(String(50), nullable=True, default='chacha20-ietf-poly1305')
+    ss_method = Column(String(50), nullable=True, default="chacha20-ietf-poly1305")
 
     # Xray-core's sockopt block (real, documented fields - shared verbatim
     # across every stream-based protocol, xray-core doesn't vary this by
@@ -115,10 +117,10 @@ class CustomOutbound(db.Model):  # type: ignore
     # meaningful non-default value for several of these (e.g. mark, tcp_fast_open).
     sockopt_mark = Column(Integer, nullable=True)
     sockopt_tcp_fast_open = Column(Boolean, nullable=True)
-    sockopt_tproxy = Column(String(20), nullable=True, default='')  # "off"/"redirect"/"tproxy"
-    sockopt_domain_strategy = Column(String(30), nullable=True, default='')
-    sockopt_dialer_proxy = Column(String(100), nullable=True, default='')
-    sockopt_interface = Column(String(50), nullable=True, default='')
+    sockopt_tproxy = Column(String(20), nullable=True, default="")  # "off"/"redirect"/"tproxy"
+    sockopt_domain_strategy = Column(String(30), nullable=True, default="")
+    sockopt_dialer_proxy = Column(String(100), nullable=True, default="")
+    sockopt_interface = Column(String(50), nullable=True, default="")
     sockopt_tcp_keep_alive_interval = Column(Integer, nullable=True)
     sockopt_tcp_keep_alive_idle = Column(Integer, nullable=True)
     sockopt_tcp_user_timeout = Column(Integer, nullable=True)
@@ -126,7 +128,7 @@ class CustomOutbound(db.Model):  # type: ignore
     sockopt_tcp_window_clamp = Column(Integer, nullable=True)
     sockopt_tcp_mptcp = Column(Boolean, nullable=True)
     sockopt_penetrate = Column(Boolean, nullable=True)
-    sockopt_address_port_strategy = Column(String(30), nullable=True, default='')
+    sockopt_address_port_strategy = Column(String(30), nullable=True, default="")
     # Happy Eyeballs (RFC 8305) dual-stack dial racing - xray-core's own
     # sockopt.happyEyeballs sub-object.
     he_try_delay_ms = Column(Integer, nullable=True)
@@ -138,16 +140,18 @@ class CustomOutbound(db.Model):  # type: ignore
     mux_enabled = Column(Boolean, nullable=True, default=False)
     mux_concurrency = Column(Integer, nullable=True)
     mux_xudp_concurrency = Column(Integer, nullable=True)
-    mux_xudp_proxy_udp_443 = Column(String(20), nullable=True, default='')  # "reject"/"allow"/"skip"
+    mux_xudp_proxy_udp_443 = Column(String(20), nullable=True, default="")  # "reject"/"allow"/"skip"
     # wireguard/amneziawg peer fields. address/port above double as the
     # Endpoint host/port and uuid_or_password as the local PrivateKey for
     # both protocols (same convention xray/singbox already use elsewhere in
     # this file), these four are the rest of a [Peer]/[Interface] pair that
     # didn't have dedicated columns before.
-    peer_public_key = Column(String(100), nullable=True, default='')
-    preshared_key = Column(String(100), nullable=True, default='')
-    local_address = Column(String(300), nullable=True, default='')  # client-side [Interface] Address, e.g. "10.0.0.2/32"
-    dns = Column(String(300), nullable=True, default='')
+    peer_public_key = Column(String(100), nullable=True, default="")
+    preshared_key = Column(String(100), nullable=True, default="")
+    local_address = Column(
+        String(300), nullable=True, default=""
+    )  # client-side [Interface] Address, e.g. "10.0.0.2/32"
+    dns = Column(String(300), nullable=True, default="")
     # AmneziaWG-only obfuscation params (junk packet count/min/max size) -
     # meaningless for plain "wireguard", only read by the amneziawg branch.
     jc = Column(Integer, nullable=True)
@@ -159,37 +163,37 @@ class CustomOutbound(db.Model):  # type: ignore
     # emitted verbatim into the [Interface] block of the generated .conf;
     # blank = don't emit that line at all. Named exactly as the AmneziaWG
     # spec does (case-sensitive on wire).
-    awg_s1 = Column(String(200), nullable=True, default='')
-    awg_s2 = Column(String(200), nullable=True, default='')
-    awg_s3 = Column(String(200), nullable=True, default='')
-    awg_s4 = Column(String(200), nullable=True, default='')
-    awg_i1 = Column(Text, nullable=True, default='')
-    awg_i2 = Column(Text, nullable=True, default='')
-    awg_i3 = Column(Text, nullable=True, default='')
-    awg_i4 = Column(Text, nullable=True, default='')
-    awg_i5 = Column(Text, nullable=True, default='')
+    awg_s1 = Column(String(200), nullable=True, default="")
+    awg_s2 = Column(String(200), nullable=True, default="")
+    awg_s3 = Column(String(200), nullable=True, default="")
+    awg_s4 = Column(String(200), nullable=True, default="")
+    awg_i1 = Column(Text, nullable=True, default="")
+    awg_i2 = Column(Text, nullable=True, default="")
+    awg_i3 = Column(Text, nullable=True, default="")
+    awg_i4 = Column(Text, nullable=True, default="")
+    awg_i5 = Column(Text, nullable=True, default="")
     # AmneziaWG-only: H1-H4 replace WireGuard's real message-type bytes on
     # the wire (part of the same obfuscation scheme as Jc/Jmin/Jmax above).
     # AmneziaWG accepts either a single value or an "x-y" range here - we
     # store/emit whatever string the admin provides verbatim, same as
     # awg_s1-4/awg_i1-5 above.
-    awg_h1 = Column(String(50), nullable=True, default='')
-    awg_h2 = Column(String(50), nullable=True, default='')
-    awg_h3 = Column(String(50), nullable=True, default='')
-    awg_h4 = Column(String(50), nullable=True, default='')
+    awg_h1 = Column(String(50), nullable=True, default="")
+    awg_h2 = Column(String(50), nullable=True, default="")
+    awg_h3 = Column(String(50), nullable=True, default="")
+    awg_h4 = Column(String(50), nullable=True, default="")
     # Optional: raw AmneziaWG .conf paste. When non-empty, this replaces the
     # generated [Interface]/[Peer] entirely in render_amneziawg_conf() -
     # the escape hatch for admins who already have a working .conf and don't
     # want to translate every field into the form's discrete inputs (address/
     # port/uuid/peer_public_key/etc). The form's structured fields still act
     # as convenient defaults if the paste field is left blank.
-    awg_conf = Column(Text, nullable=True, default='')
+    awg_conf = Column(Text, nullable=True, default="")
     # hysteria2-only. password reuses uuid_or_password; server/port reuse
     # address/port; sni reuses the shared sni field. These three cover the
     # rest of a hysteria2 outbound: Salamander obfuscation password (blank =
     # no obfs) and the optional client bandwidth hints (0/blank = omit, let
     # hysteria2's congestion control decide).
-    hysteria_obfs_password = Column(String(200), nullable=True, default='')
+    hysteria_obfs_password = Column(String(200), nullable=True, default="")
     hysteria_up_mbps = Column(Integer, nullable=True)
     hysteria_down_mbps = Column(Integer, nullable=True)
     # TUIC-only (sing-box outbound; xray-core has no TUIC dialer, same
@@ -197,15 +201,15 @@ class CustomOutbound(db.Model):  # type: ignore
     # "uuid:password" (TUIC authenticates with both together, unlike a
     # single secret) - same user:pass convention already used for
     # socks/http/naive.
-    tuic_congestion_control = Column(String(20), nullable=True, default='cubic')
+    tuic_congestion_control = Column(String(20), nullable=True, default="cubic")
     # Mieru-only (sing-box outbound; same xray blackhole treatment).
     # uuid_or_password holds "username:password" here too.
-    mieru_transport = Column(String(10), nullable=True, default='tcp')
-    mieru_multiplexing = Column(String(30), nullable=True, default='MULTIPLEXING_LOW')
-    comment = Column(String(300), nullable=True, default='')
+    mieru_transport = Column(String(10), nullable=True, default="tcp")
+    mieru_multiplexing = Column(String(30), nullable=True, default="MULTIPLEXING_LOW")
+    comment = Column(String(300), nullable=True, default="")
     # Advanced escape hatch: raw JSON merged on top of the generated
     # outbound dict (e.g. {"streamSettings": {"grpcSettings": {...}}}).
-    extra_json = Column(Text, nullable=True, default='{}')
+    extra_json = Column(Text, nullable=True, default="{}")
 
     @property
     def amneziawg_interface(self) -> str:
@@ -246,10 +250,10 @@ class CustomOutbound(db.Model):  # type: ignore
         # awg-quick installs a default route through this interface and
         # takes the server offline (same disaster the from-scratch branch
         # below already guards against).
-        pasted = (self.awg_conf or '').strip()
+        pasted = (self.awg_conf or "").strip()
         if pasted:
-            if 'table' not in pasted.lower():
-                pasted = pasted.replace('[Interface]', '[Interface]\nTable = off', 1)
+            if "table" not in pasted.lower():
+                pasted = pasted.replace("[Interface]", "[Interface]\nTable = off", 1)
             return pasted.rstrip() + "\n"
 
         lines = [
@@ -271,9 +275,19 @@ class CustomOutbound(db.Model):  # type: ignore
         # them (blank = don't add the line at all, since AmneziaWG rejects
         # empty values for these).
         for name, value in [
-            ("H1", self.awg_h1), ("H2", self.awg_h2), ("H3", self.awg_h3), ("H4", self.awg_h4),
-            ("S1", self.awg_s1), ("S2", self.awg_s2), ("S3", self.awg_s3), ("S4", self.awg_s4),
-            ("I1", self.awg_i1), ("I2", self.awg_i2), ("I3", self.awg_i3), ("I4", self.awg_i4), ("I5", self.awg_i5),
+            ("H1", self.awg_h1),
+            ("H2", self.awg_h2),
+            ("H3", self.awg_h3),
+            ("H4", self.awg_h4),
+            ("S1", self.awg_s1),
+            ("S2", self.awg_s2),
+            ("S3", self.awg_s3),
+            ("S4", self.awg_s4),
+            ("I1", self.awg_i1),
+            ("I2", self.awg_i2),
+            ("I3", self.awg_i3),
+            ("I4", self.awg_i4),
+            ("I5", self.awg_i5),
         ]:
             if value:
                 lines.append(f"{name} = {value}")
@@ -361,13 +375,23 @@ class CustomOutbound(db.Model):  # type: ignore
             # this row's own fields (see render_amneziawg_conf()), xray-
             # core's Linux SO_BINDTODEVICE equivalent to sing-box's
             # bind_interface. No network/security apply.
-            return {"tag": self.tag, "protocol": "freedom", "settings": {}, "streamSettings": {"sockopt": {"interface": self.amneziawg_interface}}}
+            return {
+                "tag": self.tag,
+                "protocol": "freedom",
+                "settings": {},
+                "streamSettings": {"sockopt": {"interface": self.amneziawg_interface}},
+            }
 
         if self.protocol == OutboundProtocol.l2tp:
             # Neither core dials L2TP - same freedom+bind-to-interface
             # treatment as amneziawg above, bound to the client tunnel
             # other/l2tp/run.sh.j2 brings up for this row.
-            return {"tag": self.tag, "protocol": "freedom", "settings": {}, "streamSettings": {"sockopt": {"interface": self.l2tp_interface}}}
+            return {
+                "tag": self.tag,
+                "protocol": "freedom",
+                "settings": {},
+                "streamSettings": {"sockopt": {"interface": self.l2tp_interface}},
+            }
 
         if self.protocol == OutboundProtocol.hysteria:
             # xray-core has no hysteria/hysteria2 outbound at all. Both cores'
@@ -404,13 +428,26 @@ class CustomOutbound(db.Model):  # type: ignore
                 user["security"] = "auto"
             settings = {"vnext": [{"address": self.address or "", "port": self.port or 443, "users": [user]}]}
         elif self.protocol == OutboundProtocol.trojan:
-            settings = {"servers": [{"address": self.address or "", "port": self.port or 443, "password": self.uuid_or_password or ""}]}
+            settings = {
+                "servers": [
+                    {"address": self.address or "", "port": self.port or 443, "password": self.uuid_or_password or ""}
+                ]
+            }
         elif self.protocol == OutboundProtocol.shadowsocks:
-            settings = {"servers": [{"address": self.address or "", "port": self.port or 443, "password": self.uuid_or_password or "", "method": self.ss_method or "chacha20-ietf-poly1305"}]}
+            settings = {
+                "servers": [
+                    {
+                        "address": self.address or "",
+                        "port": self.port or 443,
+                        "password": self.uuid_or_password or "",
+                        "method": self.ss_method or "chacha20-ietf-poly1305",
+                    }
+                ]
+            }
         elif self.protocol in (OutboundProtocol.socks, OutboundProtocol.http):
             server = {"address": self.address or "", "port": self.port or 1080}
             if self.uuid_or_password:
-                user, _, pw = self.uuid_or_password.partition(':')
+                user, _, pw = self.uuid_or_password.partition(":")
                 server["users"] = [{"user": user, "pass": pw}]
             settings = {"servers": [server]}
         elif self.protocol == OutboundProtocol.wireguard:
@@ -476,7 +513,7 @@ class CustomOutbound(db.Model):  # type: ignore
         if mux:
             out["mux"] = mux
 
-        if self.extra_json and self.extra_json.strip() not in ('', '{}'):
+        if self.extra_json and self.extra_json.strip() not in ("", "{}"):
             try:
                 extra = json.loads(self.extra_json)
                 out = _deep_merge(out, extra)
@@ -529,7 +566,7 @@ class CustomOutbound(db.Model):  # type: ignore
             out["tls"] = tls
             dial = self._singbox_dial_fields()
             out.update(dial)
-            if self.extra_json and self.extra_json.strip() not in ('', '{}'):
+            if self.extra_json and self.extra_json.strip() not in ("", "{}"):
                 try:
                     out = _deep_merge(out, json.loads(self.extra_json))
                 except Exception:
@@ -544,13 +581,13 @@ class CustomOutbound(db.Model):  # type: ignore
             out["server"] = self.address or ""
             out["server_port"] = self.port or 443
             if self.uuid_or_password:
-                user, _, pw = self.uuid_or_password.partition(':')
+                user, _, pw = self.uuid_or_password.partition(":")
                 out["username"] = user
                 out["password"] = pw
             out["tls"] = {"enabled": True, "server_name": self.sni or self.address or ""}
             dial = self._singbox_dial_fields()
             out.update(dial)
-            if self.extra_json and self.extra_json.strip() not in ('', '{}'):
+            if self.extra_json and self.extra_json.strip() not in ("", "{}"):
                 try:
                     out = _deep_merge(out, json.loads(self.extra_json))
                 except Exception:
@@ -566,14 +603,14 @@ class CustomOutbound(db.Model):  # type: ignore
             out["server"] = self.address or ""
             out["server_port"] = self.port or 443
             if self.uuid_or_password:
-                uuid, _, password = self.uuid_or_password.partition(':')
+                uuid, _, password = self.uuid_or_password.partition(":")
                 out["uuid"] = uuid
                 out["password"] = password
             out["congestion_control"] = self.tuic_congestion_control or "cubic"
             out["tls"] = {"enabled": True, "server_name": self.sni or self.address or ""}
             dial = self._singbox_dial_fields()
             out.update(dial)
-            if self.extra_json and self.extra_json.strip() not in ('', '{}'):
+            if self.extra_json and self.extra_json.strip() not in ("", "{}"):
                 try:
                     out = _deep_merge(out, json.loads(self.extra_json))
                 except Exception:
@@ -587,14 +624,14 @@ class CustomOutbound(db.Model):  # type: ignore
             out["server"] = self.address or ""
             out["server_port"] = self.port or 2999
             if self.uuid_or_password:
-                username, _, password = self.uuid_or_password.partition(':')
+                username, _, password = self.uuid_or_password.partition(":")
                 out["username"] = username
                 out["password"] = password
             out["transport"] = self.mieru_transport or "tcp"
             out["multiplexing"] = self.mieru_multiplexing or "MULTIPLEXING_LOW"
             dial = self._singbox_dial_fields()
             out.update(dial)
-            if self.extra_json and self.extra_json.strip() not in ('', '{}'):
+            if self.extra_json and self.extra_json.strip() not in ("", "{}"):
                 try:
                     out = _deep_merge(out, json.loads(self.extra_json))
                 except Exception:
@@ -614,9 +651,12 @@ class CustomOutbound(db.Model):  # type: ignore
             out["local_address"] = [self.local_address] if self.local_address else ["10.0.0.2/32"]
         else:
             type_map = {
-                OutboundProtocol.vless: "vless", OutboundProtocol.vmess: "vmess",
-                OutboundProtocol.trojan: "trojan", OutboundProtocol.shadowsocks: "shadowsocks",
-                OutboundProtocol.socks: "socks", OutboundProtocol.http: "http",
+                OutboundProtocol.vless: "vless",
+                OutboundProtocol.vmess: "vmess",
+                OutboundProtocol.trojan: "trojan",
+                OutboundProtocol.shadowsocks: "shadowsocks",
+                OutboundProtocol.socks: "socks",
+                OutboundProtocol.http: "http",
             }
             out["type"] = type_map[self.protocol]
             out["server"] = self.address or ""
@@ -636,7 +676,7 @@ class CustomOutbound(db.Model):  # type: ignore
                 out["method"] = self.ss_method or "chacha20-ietf-poly1305"
             elif self.protocol in (OutboundProtocol.socks, OutboundProtocol.http):
                 if self.uuid_or_password:
-                    user, _, pw = self.uuid_or_password.partition(':')
+                    user, _, pw = self.uuid_or_password.partition(":")
                     out["username"] = user
                     out["password"] = pw
 
@@ -680,7 +720,7 @@ class CustomOutbound(db.Model):  # type: ignore
         dial = self._singbox_dial_fields()
         out.update(dial)
 
-        if self.extra_json and self.extra_json.strip() not in ('', '{}'):
+        if self.extra_json and self.extra_json.strip() not in ("", "{}"):
             try:
                 extra = json.loads(self.extra_json)
                 out = _deep_merge(out, extra)
@@ -716,13 +756,19 @@ class CustomOutbound(db.Model):  # type: ignore
 
 
 _LINK_NETWORK_MAP = {
-    'ws': OutboundNetwork.ws, 'grpc': OutboundNetwork.grpc,
-    'httpupgrade': OutboundNetwork.httpupgrade, 'xhttp': OutboundNetwork.xhttp,
-    'tcp': OutboundNetwork.tcp, 'raw': OutboundNetwork.tcp,
+    "ws": OutboundNetwork.ws,
+    "grpc": OutboundNetwork.grpc,
+    "httpupgrade": OutboundNetwork.httpupgrade,
+    "xhttp": OutboundNetwork.xhttp,
+    "tcp": OutboundNetwork.tcp,
+    "raw": OutboundNetwork.tcp,
 }
 _LINK_SECURITY_MAP = {
-    'none': OutboundSecurity.none, '': OutboundSecurity.none, 'tls': OutboundSecurity.tls,
-    'reality': OutboundSecurity.reality, 'xtls': OutboundSecurity.tls,
+    "none": OutboundSecurity.none,
+    "": OutboundSecurity.none,
+    "tls": OutboundSecurity.tls,
+    "reality": OutboundSecurity.reality,
+    "xtls": OutboundSecurity.tls,
 }
 
 
@@ -730,14 +776,15 @@ def _b64_maybe(s: str) -> str:
     """Decode a base64/base64url blob to text, or return it unchanged if it
     isn't base64 (share links mix plain and base64-encoded userinfo)."""
     import base64
+
     s = s.strip()
     try:
-        padded = s + '=' * (-len(s) % 4)
-        decoded = base64.urlsafe_b64decode(padded).decode('utf-8')
+        padded = s + "=" * (-len(s) % 4)
+        decoded = base64.urlsafe_b64decode(padded).decode("utf-8")
         # Only treat as base64 if the result is printable text - a plain
         # "method:password" also happens to be valid base64 alphabet, but
         # decoding it yields garbage bytes, so fall back to the original.
-        if decoded and all(c.isprintable() or c in '\t' for c in decoded):
+        if decoded and all(c.isprintable() or c in "\t" for c in decoded):
             return decoded
     except Exception:
         pass
@@ -745,12 +792,12 @@ def _b64_maybe(s: str) -> str:
 
 
 def _split_hostport(hostport: str, default_port: int) -> tuple:
-    hostport = hostport.strip().strip('/')
-    if hostport.startswith('['):  # bracketed IPv6
-        host, _, rest = hostport[1:].partition(']')
-        port = rest.lstrip(':')
+    hostport = hostport.strip().strip("/")
+    if hostport.startswith("["):  # bracketed IPv6
+        host, _, rest = hostport[1:].partition("]")
+        port = rest.lstrip(":")
         return host, int(port) if port.isdigit() else default_port
-    host, _, port = hostport.rpartition(':')
+    host, _, port = hostport.rpartition(":")
     if not host:  # no colon -> whole thing is the host
         return hostport, default_port
     return host, int(port) if port.isdigit() else default_port
@@ -766,25 +813,27 @@ def parse_share_link(link: str) -> dict:
     caller (OutboundAdmin.on_model_change) turns that into a form
     ValidationError. AmneziaWG has no share-link format; it's imported from a
     .conf, handled separately."""
-    link = (link or '').strip()
+    link = (link or "").strip()
     if not link:
-        raise ValueError('empty link')
-    scheme = link.split('://', 1)[0].lower() if '://' in link else ''
-    if scheme == 'vless':
+        raise ValueError("empty link")
+    scheme = link.split("://", 1)[0].lower() if "://" in link else ""
+    if scheme == "vless":
         return parse_vless_link(link)
-    if scheme == 'vmess':
+    if scheme == "vmess":
         return parse_vmess_link(link)
-    if scheme == 'trojan':
+    if scheme == "trojan":
         return parse_trojan_link(link)
-    if scheme == 'ss':
+    if scheme == "ss":
         return parse_ss_link(link)
-    if scheme in ('socks', 'socks5'):
+    if scheme in ("socks", "socks5"):
         return parse_socks_http_link(link, OutboundProtocol.socks)
-    if scheme == 'http':
+    if scheme == "http":
         return parse_socks_http_link(link, OutboundProtocol.http)
-    if scheme in ('hysteria2', 'hy2'):
+    if scheme in ("hysteria2", "hy2"):
         return parse_hysteria2_link(link)
-    raise ValueError('Unsupported link type "%s://". Supported: vless, vmess, trojan, ss, socks, http, hysteria2.' % scheme)
+    raise ValueError(
+        'Unsupported link type "%s://". Supported: vless, vmess, trojan, ss, socks, http, hysteria2.' % scheme
+    )
 
 
 def parse_vless_link(link: str) -> dict:
@@ -796,41 +845,41 @@ def parse_vless_link(link: str) -> dict:
     the caller (OutboundAdmin.on_model_change) turns that into a form
     ValidationError.
     """
-    from urllib.parse import urlparse, parse_qs, unquote
+    from urllib.parse import parse_qs, unquote, urlparse
 
-    link = (link or '').strip()
-    if not link.lower().startswith('vless://'):
-        raise ValueError('Only vless:// links are supported')
+    link = (link or "").strip()
+    if not link.lower().startswith("vless://"):
+        raise ValueError("Only vless:// links are supported")
 
     parsed = urlparse(link)
     if not parsed.username:
-        raise ValueError('Link is missing the UUID (vless://UUID@host:port...)')
+        raise ValueError("Link is missing the UUID (vless://UUID@host:port...)")
     if not parsed.hostname:
-        raise ValueError('Link is missing the server address')
+        raise ValueError("Link is missing the server address")
 
     # parse_qs already percent-decodes both keys and values.
     q = {k: v[0] for k, v in parse_qs(parsed.query).items()}
 
-    network_key = (q.get('type') or 'tcp').lower()
-    security_key = (q.get('security') or 'none').lower()
-    path = q.get('serviceName') if network_key == 'grpc' else q.get('path')
+    network_key = (q.get("type") or "tcp").lower()
+    security_key = (q.get("security") or "none").lower()
+    path = q.get("serviceName") if network_key == "grpc" else q.get("path")
 
     return {
-        'protocol': OutboundProtocol.vless,
-        'address': parsed.hostname,
-        'port': parsed.port or 443,
-        'uuid_or_password': parsed.username,
-        'network': _LINK_NETWORK_MAP.get(network_key, OutboundNetwork.tcp),
-        'security': _LINK_SECURITY_MAP.get(security_key, OutboundSecurity.none),
-        'sni': q.get('sni', ''),
-        'ws_path': path or '',
-        'host_header': q.get('host', ''),
-        'fingerprint': q.get('fp', ''),
-        'flow': q.get('flow', ''),
-        'encryption': q.get('encryption', 'none'),
-        'reality_public_key': q.get('pbk', ''),
-        'reality_short_id': q.get('sid', ''),
-        'comment': unquote(parsed.fragment) if parsed.fragment else '',
+        "protocol": OutboundProtocol.vless,
+        "address": parsed.hostname,
+        "port": parsed.port or 443,
+        "uuid_or_password": parsed.username,
+        "network": _LINK_NETWORK_MAP.get(network_key, OutboundNetwork.tcp),
+        "security": _LINK_SECURITY_MAP.get(security_key, OutboundSecurity.none),
+        "sni": q.get("sni", ""),
+        "ws_path": path or "",
+        "host_header": q.get("host", ""),
+        "fingerprint": q.get("fp", ""),
+        "flow": q.get("flow", ""),
+        "encryption": q.get("encryption", "none"),
+        "reality_public_key": q.get("pbk", ""),
+        "reality_short_id": q.get("sid", ""),
+        "comment": unquote(parsed.fragment) if parsed.fragment else "",
     }
 
 
@@ -838,63 +887,65 @@ def parse_vmess_link(link: str) -> dict:
     """vmess:// links are base64-encoded JSON (the v2rayN format)."""
     import base64
     import json
-    b64 = link[len('vmess://'):].strip()
-    b64 += '=' * (-len(b64) % 4)
+
+    b64 = link[len("vmess://") :].strip()
+    b64 += "=" * (-len(b64) % 4)
     try:
-        data = json.loads(base64.b64decode(b64).decode('utf-8', 'ignore'))
+        data = json.loads(base64.b64decode(b64).decode("utf-8", "ignore"))
     except Exception:
-        raise ValueError('vmess link is not valid base64-encoded JSON')
+        raise ValueError("vmess link is not valid base64-encoded JSON")
     if not isinstance(data, dict):
-        raise ValueError('vmess link JSON is not an object')
-    if not data.get('add'):
+        raise ValueError("vmess link JSON is not an object")
+    if not data.get("add"):
         raise ValueError('vmess link is missing the server address ("add")')
 
-    net = str(data.get('net', 'tcp')).lower()
-    tls = str(data.get('tls', '')).lower()
+    net = str(data.get("net", "tcp")).lower()
+    tls = str(data.get("tls", "")).lower()
     try:
-        port = int(data.get('port') or 443)
+        port = int(data.get("port") or 443)
     except (TypeError, ValueError):
         port = 443
     return {
-        'protocol': OutboundProtocol.vmess,
-        'address': data.get('add', ''),
-        'port': port,
-        'uuid_or_password': data.get('id', ''),
-        'network': _LINK_NETWORK_MAP.get(net, OutboundNetwork.tcp),
-        'security': _LINK_SECURITY_MAP.get(tls, OutboundSecurity.none),
-        'sni': data.get('sni') or data.get('host', ''),
-        'ws_path': data.get('path', ''),
-        'host_header': data.get('host', ''),
-        'fingerprint': data.get('fp', ''),
-        'comment': data.get('ps', ''),
+        "protocol": OutboundProtocol.vmess,
+        "address": data.get("add", ""),
+        "port": port,
+        "uuid_or_password": data.get("id", ""),
+        "network": _LINK_NETWORK_MAP.get(net, OutboundNetwork.tcp),
+        "security": _LINK_SECURITY_MAP.get(tls, OutboundSecurity.none),
+        "sni": data.get("sni") or data.get("host", ""),
+        "ws_path": data.get("path", ""),
+        "host_header": data.get("host", ""),
+        "fingerprint": data.get("fp", ""),
+        "comment": data.get("ps", ""),
     }
 
 
 def parse_trojan_link(link: str) -> dict:
     """trojan://password@host:port?type=..&security=..&sni=..#name"""
-    from urllib.parse import urlparse, parse_qs, unquote
+    from urllib.parse import parse_qs, unquote, urlparse
+
     parsed = urlparse(link)
     if not parsed.hostname:
-        raise ValueError('trojan link is missing the server address')
+        raise ValueError("trojan link is missing the server address")
     if not parsed.username:
-        raise ValueError('trojan link is missing the password (trojan://password@host:port)')
+        raise ValueError("trojan link is missing the password (trojan://password@host:port)")
     q = {k: v[0] for k, v in parse_qs(parsed.query).items()}
-    network_key = (q.get('type') or 'tcp').lower()
+    network_key = (q.get("type") or "tcp").lower()
     # trojan is TLS by default (that's its whole point); only "none" turns it off.
-    security_key = (q.get('security') or 'tls').lower()
-    path = q.get('serviceName') if network_key == 'grpc' else q.get('path')
+    security_key = (q.get("security") or "tls").lower()
+    path = q.get("serviceName") if network_key == "grpc" else q.get("path")
     return {
-        'protocol': OutboundProtocol.trojan,
-        'address': parsed.hostname,
-        'port': parsed.port or 443,
-        'uuid_or_password': unquote(parsed.username),
-        'network': _LINK_NETWORK_MAP.get(network_key, OutboundNetwork.tcp),
-        'security': _LINK_SECURITY_MAP.get(security_key, OutboundSecurity.tls),
-        'sni': q.get('sni', ''),
-        'ws_path': path or '',
-        'host_header': q.get('host', ''),
-        'fingerprint': q.get('fp', ''),
-        'comment': unquote(parsed.fragment) if parsed.fragment else '',
+        "protocol": OutboundProtocol.trojan,
+        "address": parsed.hostname,
+        "port": parsed.port or 443,
+        "uuid_or_password": unquote(parsed.username),
+        "network": _LINK_NETWORK_MAP.get(network_key, OutboundNetwork.tcp),
+        "security": _LINK_SECURITY_MAP.get(security_key, OutboundSecurity.tls),
+        "sni": q.get("sni", ""),
+        "ws_path": path or "",
+        "host_header": q.get("host", ""),
+        "fingerprint": q.get("fp", ""),
+        "comment": unquote(parsed.fragment) if parsed.fragment else "",
     }
 
 
@@ -902,86 +953,89 @@ def parse_ss_link(link: str) -> dict:
     """shadowsocks ss:// - both the SIP002 (userinfo base64, host in clear)
     and the legacy fully-base64 forms."""
     from urllib.parse import unquote
-    body = link[len('ss://'):]
-    name = ''
-    if '#' in body:
-        body, frag = body.split('#', 1)
+
+    body = link[len("ss://") :]
+    name = ""
+    if "#" in body:
+        body, frag = body.split("#", 1)
         name = unquote(frag)
-    if '?' in body:  # drop plugin/query part - not modelled here
-        body = body.split('?', 1)[0]
+    if "?" in body:  # drop plugin/query part - not modelled here
+        body = body.split("?", 1)[0]
     body = body.strip()
 
-    if '@' in body:
-        userinfo, hostport = body.rsplit('@', 1)
+    if "@" in body:
+        userinfo, hostport = body.rsplit("@", 1)
         creds = _b64_maybe(userinfo)
         host, port = _split_hostport(hostport, 443)
     else:
         dec = _b64_maybe(body)
-        creds, _, hostport = dec.rpartition('@')
+        creds, _, hostport = dec.rpartition("@")
         if not hostport:
-            raise ValueError('ss link is not in a recognized shadowsocks format')
+            raise ValueError("ss link is not in a recognized shadowsocks format")
         host, port = _split_hostport(hostport, 443)
-    method, _, password = creds.partition(':')
+    method, _, password = creds.partition(":")
     if not host or not method:
-        raise ValueError('ss link is missing method/host')
+        raise ValueError("ss link is missing method/host")
     return {
-        'protocol': OutboundProtocol.shadowsocks,
-        'address': host,
-        'port': port,
-        'uuid_or_password': password,
-        'ss_method': method,
-        'network': OutboundNetwork.tcp,
-        'security': OutboundSecurity.none,
-        'comment': name,
+        "protocol": OutboundProtocol.shadowsocks,
+        "address": host,
+        "port": port,
+        "uuid_or_password": password,
+        "ss_method": method,
+        "network": OutboundNetwork.tcp,
+        "security": OutboundSecurity.none,
+        "comment": name,
     }
 
 
-def parse_socks_http_link(link: str, proto: 'OutboundProtocol') -> dict:
+def parse_socks_http_link(link: str, proto: "OutboundProtocol") -> dict:
     """socks:// / socks5:// / http:// upstream proxy links. Userinfo may be
     plain user:pass or a base64 blob of the same."""
-    from urllib.parse import urlparse, unquote
+    from urllib.parse import unquote, urlparse
+
     parsed = urlparse(link)
     host = parsed.hostname
     if not host:
-        raise ValueError('proxy link is missing the server address')
+        raise ValueError("proxy link is missing the server address")
     default_port = 1080 if proto == OutboundProtocol.socks else 8080
     port = parsed.port or default_port
-    user = unquote(parsed.username) if parsed.username else ''
-    pw = unquote(parsed.password) if parsed.password else ''
+    user = unquote(parsed.username) if parsed.username else ""
+    pw = unquote(parsed.password) if parsed.password else ""
     if user and not pw:  # some links base64 the whole "user:pass" as the username
         decoded = _b64_maybe(user)
-        if ':' in decoded:
-            user, _, pw = decoded.partition(':')
-    uop = f'{user}:{pw}' if (user or pw) else ''
+        if ":" in decoded:
+            user, _, pw = decoded.partition(":")
+    uop = f"{user}:{pw}" if (user or pw) else ""
     return {
-        'protocol': proto,
-        'address': host,
-        'port': port,
-        'uuid_or_password': uop,
-        'network': OutboundNetwork.tcp,
-        'security': OutboundSecurity.none,
-        'comment': unquote(parsed.fragment) if parsed.fragment else '',
+        "protocol": proto,
+        "address": host,
+        "port": port,
+        "uuid_or_password": uop,
+        "network": OutboundNetwork.tcp,
+        "security": OutboundSecurity.none,
+        "comment": unquote(parsed.fragment) if parsed.fragment else "",
     }
 
 
 def parse_hysteria2_link(link: str) -> dict:
     """hysteria2:// / hy2://auth@host:port?obfs=salamander&obfs-password=..&sni=..#name"""
-    from urllib.parse import urlparse, parse_qs, unquote
+    from urllib.parse import parse_qs, unquote, urlparse
+
     parsed = urlparse(link)
     if not parsed.hostname:
-        raise ValueError('hysteria2 link is missing the server address')
+        raise ValueError("hysteria2 link is missing the server address")
     q = {k: v[0] for k, v in parse_qs(parsed.query).items()}
-    obfs_pw = q.get('obfs-password', '') if (q.get('obfs', '').lower() == 'salamander') else ''
+    obfs_pw = q.get("obfs-password", "") if (q.get("obfs", "").lower() == "salamander") else ""
     return {
-        'protocol': OutboundProtocol.hysteria,
-        'address': parsed.hostname,
-        'port': parsed.port or 443,
-        'uuid_or_password': unquote(parsed.username) if parsed.username else '',
-        'sni': q.get('sni', ''),
-        'hysteria_obfs_password': obfs_pw,
-        'network': OutboundNetwork.tcp,
-        'security': OutboundSecurity.none,
-        'comment': unquote(parsed.fragment) if parsed.fragment else '',
+        "protocol": OutboundProtocol.hysteria,
+        "address": parsed.hostname,
+        "port": parsed.port or 443,
+        "uuid_or_password": unquote(parsed.username) if parsed.username else "",
+        "sni": q.get("sni", ""),
+        "hysteria_obfs_password": obfs_pw,
+        "network": OutboundNetwork.tcp,
+        "security": OutboundSecurity.none,
+        "comment": unquote(parsed.fragment) if parsed.fragment else "",
     }
 
 
@@ -990,36 +1044,39 @@ class CustomRoutingRule(db.Model):  # type: ignore
     first), and always BEFORE Hiddify's own built-in catch-all rule so a
     custom rule always gets a chance to match first.
     """
+
     id = Column(Integer, primary_key=True, autoincrement=True)
-    child_id = Column(Integer, ForeignKey('child.id'), default=0)
+    child_id = Column(Integer, ForeignKey("child.id"), default=0)
     enable = Column(Boolean, default=True, nullable=False)
     priority = Column(Integer, default=100, nullable=False)
     outbound_tag = Column(String(100), nullable=False)
-    domains = Column(Text, nullable=True, default='')   # newline-separated, e.g. domain:example.com / geosite:netflix
-    ips = Column(Text, nullable=True, default='')        # newline-separated, e.g. 1.2.3.4 / geoip:ir
-    port = Column(String(100), nullable=True, default='')  # e.g. "443" or "1000-2000"
-    network = Column(String(20), nullable=True, default='')  # "", "tcp", "udp", "tcp,udp"
+    domains = Column(Text, nullable=True, default="")  # newline-separated, e.g. domain:example.com / geosite:netflix
+    ips = Column(Text, nullable=True, default="")  # newline-separated, e.g. 1.2.3.4 / geoip:ir
+    port = Column(String(100), nullable=True, default="")  # e.g. "443" or "1000-2000"
+    network = Column(String(20), nullable=True, default="")  # "", "tcp", "udp", "tcp,udp"
     # comma-separated xray inbound tags (see get_available_inbound_tags()) -
     # matches traffic by which inbound it arrived on, instead of/alongside
     # domain or IP.
-    inbound_tags = Column(Text, nullable=True, default='')
+    inbound_tags = Column(Text, nullable=True, default="")
     # Additional xray/singbox routing match conditions (from the reference
     # routing form): source IP/CIDR, source port, sniffed protocol, and
     # inbound auth user/email. All optional - blank = not part of the match.
-    source_ips = Column(Text, nullable=True, default='')      # newline-separated, e.g. geoip:ir / 1.2.3.0/24
-    source_port = Column(String(100), nullable=True, default='')  # e.g. "443" or "1000-2000"
-    protocols = Column(String(100), nullable=True, default='')    # comma-separated sniffed protocols: http,tls,bittorrent,quic
-    user_emails = Column(Text, nullable=True, default='')     # newline/comma-separated inbound user emails
-    comment = Column(String(300), nullable=True, default='')
+    source_ips = Column(Text, nullable=True, default="")  # newline-separated, e.g. geoip:ir / 1.2.3.0/24
+    source_port = Column(String(100), nullable=True, default="")  # e.g. "443" or "1000-2000"
+    protocols = Column(
+        String(100), nullable=True, default=""
+    )  # comma-separated sniffed protocols: http,tls,bittorrent,quic
+    user_emails = Column(Text, nullable=True, default="")  # newline/comma-separated inbound user emails
+    comment = Column(String(300), nullable=True, default="")
 
     def to_xray_dict(self) -> dict:
         rule: dict = {"type": "field", "outboundTag": self.outbound_tag}
-        domains = [d.strip() for d in (self.domains or '').splitlines() if d.strip()]
-        ips = [i.strip() for i in (self.ips or '').splitlines() if i.strip()]
-        inbound_tags = [t.strip() for t in (self.inbound_tags or '').split(',') if t.strip()]
-        source_ips = [s.strip() for s in (self.source_ips or '').splitlines() if s.strip()]
-        protocols = [p.strip() for p in (self.protocols or '').split(',') if p.strip()]
-        users = [u.strip() for u in (self.user_emails or '').replace(',', '\n').splitlines() if u.strip()]
+        domains = [d.strip() for d in (self.domains or "").splitlines() if d.strip()]
+        ips = [i.strip() for i in (self.ips or "").splitlines() if i.strip()]
+        inbound_tags = [t.strip() for t in (self.inbound_tags or "").split(",") if t.strip()]
+        source_ips = [s.strip() for s in (self.source_ips or "").splitlines() if s.strip()]
+        protocols = [p.strip() for p in (self.protocols or "").split(",") if p.strip()]
+        users = [u.strip() for u in (self.user_emails or "").replace(",", "\n").splitlines() if u.strip()]
         if inbound_tags:
             rule["inboundTag"] = inbound_tags
         if domains:
@@ -1048,12 +1105,12 @@ class CustomRoutingRule(db.Model):  # type: ignore
         whichever tags don't apply to the currently-active core (e.g. xray-
         only tags while running singbox) simply never match anything."""
         rule: dict = {"outbound": self.outbound_tag}
-        domains = [d.strip() for d in (self.domains or '').splitlines() if d.strip()]
-        ips = [i.strip() for i in (self.ips or '').splitlines() if i.strip()]
-        inbound_tags = [t.strip() for t in (self.inbound_tags or '').split(',') if t.strip()]
-        source_ips = [s.strip() for s in (self.source_ips or '').splitlines() if s.strip()]
-        protocols = [p.strip() for p in (self.protocols or '').split(',') if p.strip()]
-        users = [u.strip() for u in (self.user_emails or '').replace(',', '\n').splitlines() if u.strip()]
+        domains = [d.strip() for d in (self.domains or "").splitlines() if d.strip()]
+        ips = [i.strip() for i in (self.ips or "").splitlines() if i.strip()]
+        inbound_tags = [t.strip() for t in (self.inbound_tags or "").split(",") if t.strip()]
+        source_ips = [s.strip() for s in (self.source_ips or "").splitlines() if s.strip()]
+        protocols = [p.strip() for p in (self.protocols or "").split(",") if p.strip()]
+        users = [u.strip() for u in (self.user_emails or "").replace(",", "\n").splitlines() if u.strip()]
         if inbound_tags:
             rule["inbound"] = inbound_tags
         if domains:
@@ -1090,10 +1147,10 @@ def get_available_inbound_tags() -> list[tuple[str, str]]:
     already know from Inbound Overrides, not an opaque protocol/transport
     summary.
     """
+    from hiddifypanel.models.child import Child
     from hiddifypanel.models.config import hconfig
     from hiddifypanel.models.config_enum import ConfigEnum
     from hiddifypanel.models.domain import Domain, DomainType
-    from hiddifypanel.models.child import Child
     from hiddifypanel.models.proxy import Proxy
 
     child_id = Child.current().id
@@ -1105,9 +1162,9 @@ def get_available_inbound_tags() -> list[tuple[str, str]]:
         transport = str(p.transport).lower()
         l3 = str(p.l3).lower()
         # reality per-domain inbounds are keyed on Domain + port, not Proxy.
-        if 'reality' in l3:
+        if "reality" in l3:
             return None
-        if proto in ('vless', 'vmess', 'trojan') and transport in ('xhttp', 'ws', 'grpc', 'tcp', 'httpupgrade'):
+        if proto in ("vless", "vmess", "trojan") and transport in ("xhttp", "ws", "grpc", "tcp", "httpupgrade"):
             # Mirrors the exact gating in {xray,singbox}/configs/
             # 05_inbounds_new.json.j2: xhttp only exists under the xray
             # core (singbox's own template explicitly excludes it), every
@@ -1115,29 +1172,31 @@ def get_available_inbound_tags() -> list[tuple[str, str]]:
             # active; both also require the protocol's and stream's own
             # global *_enable toggle. A Proxy row with enable=True doesn't
             # by itself mean the shared inbound it rides actually exists.
-            if transport == 'xhttp' and core_type != 'xray':
+            if transport == "xhttp" and core_type != "xray":
                 return None
-            if transport != 'xhttp' and core_type not in ('xray', 'singbox'):
+            if transport != "xhttp" and core_type not in ("xray", "singbox"):
                 return None
-            if not (hconfig(getattr(ConfigEnum, f'{proto}_enable'), child_id) and
-                    hconfig(getattr(ConfigEnum, f'{transport}_enable'), child_id)):
+            if not (
+                hconfig(getattr(ConfigEnum, f"{proto}_enable"), child_id)
+                and hconfig(getattr(ConfigEnum, f"{transport}_enable"), child_id)
+            ):
                 return None
-            return f'v10-{proto}-{transport}'
-        if proto == 'vless' and transport == 'tcp' and 'kcp' in l3:
+            return f"v10-{proto}-{transport}"
+        if proto == "vless" and transport == "tcp" and "kcp" in l3:
             if not hconfig(ConfigEnum.kcp_enable, child_id):
                 return None
-            return 'kcp'
-        if proto == 'mieru' and transport in ('tcp', 'udp'):
+            return "kcp"
+        if proto == "mieru" and transport in ("tcp", "udp"):
             # singbox/configs/05_inbounds_mieru.json.j2 also requires the
             # matching port list to be non-empty, not just mieru_enable.
-            ports_key = ConfigEnum.mieru_tcp_ports if transport == 'tcp' else ConfigEnum.mieru_udp_ports
+            ports_key = ConfigEnum.mieru_tcp_ports if transport == "tcp" else ConfigEnum.mieru_udp_ports
             if not (hconfig(ConfigEnum.mieru_enable, child_id) and hconfig(ports_key, child_id)):
                 return None
-            return f'v10-mieru-{transport}'
-        if proto == 'naive':
+            return f"v10-mieru-{transport}"
+        if proto == "naive":
             if not hconfig(ConfigEnum.naive_enable, child_id):
                 return None
-            return 'v10-naive'
+            return "v10-naive"
         # tuic/hysteria2/naive-quic per-domain inbounds are keyed on Domain
         # + port too (Domain.internal_port_tuic/hysteria2/naive), not Proxy.
         return None
@@ -1151,24 +1210,24 @@ def get_available_inbound_tags() -> list[tuple[str, str]]:
     # domain, unlike everything else). Same source as before.
     if hconfig(ConfigEnum.reality_enable, child_id):
         reality_streams = {
-            DomainType.special_reality_tcp: 'tcp',
-            DomainType.special_reality_xhttp: 'xhttp',
-            DomainType.special_reality_grpc: 'grpc',
+            DomainType.special_reality_tcp: "tcp",
+            DomainType.special_reality_xhttp: "xhttp",
+            DomainType.special_reality_grpc: "grpc",
         }
         for d in Domain.query.filter(Domain.child_id == child_id, Domain.mode.in_(list(reality_streams.keys()))).all():
             if not d.internal_port_special:
                 continue
             stream = reality_streams[d.mode]
-            choices.append((f'realityin_{stream}_{d.internal_port_special}', f'{d.domain} - reality {stream}'))
+            choices.append((f"realityin_{stream}_{d.internal_port_special}", f"{d.domain} - reality {stream}"))
 
     # Per-domain non-reality inbounds: tuic / hysteria2 / naive-quic.
     for d in Domain.query.filter(Domain.child_id == child_id).all():
         if hconfig(ConfigEnum.tuic_enable, child_id) and d.internal_port_tuic:
-            choices.append((f'tuic_in_{d.internal_port_tuic}', f'{d.domain} - tuic'))
+            choices.append((f"tuic_in_{d.internal_port_tuic}", f"{d.domain} - tuic"))
         if hconfig(ConfigEnum.hysteria_enable, child_id) and d.internal_port_hysteria2:
-            choices.append((f'hysteria_in_{d.internal_port_hysteria2}', f'{d.domain} - hysteria2'))
+            choices.append((f"hysteria_in_{d.internal_port_hysteria2}", f"{d.domain} - hysteria2"))
         if hconfig(ConfigEnum.naive_enable, child_id) and d.internal_port_naive:
-            choices.append((f'v10-naive-quic{d.internal_port_naive}', f'{d.domain} - naive quic'))
+            choices.append((f"v10-naive-quic{d.internal_port_naive}", f"{d.domain} - naive quic"))
 
     return choices
 
@@ -1188,14 +1247,14 @@ def build_custom_xray_extra() -> dict:
     shape that xray/configs/06_outbounds.json.j2 and 03_routing.json.j2
     already know how to merge in."""
     from hiddifypanel.models.child import Child
+
     child_id = Child.current().id
-    outbounds = [
-        o.to_xray_dict()
-        for o in CustomOutbound.query.filter_by(child_id=child_id, enable=True).all()
-    ]
+    outbounds = [o.to_xray_dict() for o in CustomOutbound.query.filter_by(child_id=child_id, enable=True).all()]
     rules = [
         r.to_xray_dict()
-        for r in CustomRoutingRule.query.filter_by(child_id=child_id, enable=True).order_by(CustomRoutingRule.priority.asc()).all()
+        for r in CustomRoutingRule.query.filter_by(child_id=child_id, enable=True)
+        .order_by(CustomRoutingRule.priority.asc())
+        .all()
     ]
     return {"outbounds": outbounds, "routing_rules": rules}
 
@@ -1209,14 +1268,14 @@ def build_custom_singbox_extra() -> dict:
     is actually needed, so switching core_type doesn't require re-entering
     anything."""
     from hiddifypanel.models.child import Child
+
     child_id = Child.current().id
-    outbounds = [
-        o.to_singbox_dict()
-        for o in CustomOutbound.query.filter_by(child_id=child_id, enable=True).all()
-    ]
+    outbounds = [o.to_singbox_dict() for o in CustomOutbound.query.filter_by(child_id=child_id, enable=True).all()]
     rules = [
         r.to_singbox_dict()
-        for r in CustomRoutingRule.query.filter_by(child_id=child_id, enable=True).order_by(CustomRoutingRule.priority.asc()).all()
+        for r in CustomRoutingRule.query.filter_by(child_id=child_id, enable=True)
+        .order_by(CustomRoutingRule.priority.asc())
+        .all()
     ]
     return {"outbounds": outbounds, "routing_rules": rules}
 
@@ -1229,6 +1288,7 @@ def get_amneziawg_outbounds() -> list[dict]:
     all_configs_for_cli() -> current.json -> common/jinja.py, exactly like
     `users`/`domains` already are for other templates."""
     from hiddifypanel.models.child import Child
+
     child_id = Child.current().id
     rows = CustomOutbound.query.filter_by(child_id=child_id, protocol=OutboundProtocol.amneziawg, enable=True).all()
     return [{"interface": o.amneziawg_interface, "conf": o.render_amneziawg_conf()} for o in rows]
@@ -1240,18 +1300,21 @@ def get_l2tp_client_outbounds() -> list[dict]:
     (interface "l2tpc{id}") that xray/singbox's outbound then binds to -
     same read path as get_amneziawg_outbounds() above."""
     from hiddifypanel.models.child import Child
+
     child_id = Child.current().id
     rows = CustomOutbound.query.filter_by(child_id=child_id, protocol=OutboundProtocol.l2tp, enable=True).all()
     result = []
     for o in rows:
-        username, _, password = (o.uuid_or_password or '').partition(':')
-        result.append({
-            "interface": o.l2tp_interface,
-            "address": o.address or '',
-            "username": username,
-            "password": password,
-            "psk": o.preshared_key or '',
-        })
+        username, _, password = (o.uuid_or_password or "").partition(":")
+        result.append(
+            {
+                "interface": o.l2tp_interface,
+                "address": o.address or "",
+                "username": username,
+                "password": password,
+                "psk": o.preshared_key or "",
+            }
+        )
     return result
 
 

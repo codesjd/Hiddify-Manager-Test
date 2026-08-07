@@ -1,11 +1,11 @@
+from datetime import datetime, timedelta
+
 from babel.dates import format_timedelta as babel_format_timedelta
-from datetime import datetime
-from datetime import timedelta
 from flask import g
+from flask_babel import gettext as _
 
 from hiddifypanel.models.config import hconfig
 from hiddifypanel.models.config_enum import ConfigEnum
-from flask_babel import gettext as _
 
 
 def is_int(input: str) -> bool:
@@ -17,7 +17,7 @@ def is_int(input: str) -> bool:
 
 
 def to_int(s: str | None) -> int | None:
-    '''Returns 0 if <s> is not a number'''
+    """Returns 0 if <s> is not a number"""
     if not s:
         return None
     try:
@@ -32,7 +32,7 @@ def date_to_json(d: datetime) -> str | None:
 
 def json_to_date(date_str: str) -> datetime | str:
     try:
-        return datetime.strptime(date_str, '%Y-%m-%d')
+        return datetime.strptime(date_str, "%Y-%m-%d")
     except BaseException:
         return date_str
 
@@ -44,7 +44,7 @@ def time_to_json(d: datetime) -> str | None:
 def __fix_time_format(time_str):
     'Convert "1-00-00 00:00:00" to "0001-00-00 00:00:00"'
     t = time_str
-    char_index = t.find('-')
+    char_index = t.find("-")
     year_part = t[:char_index]
 
     if len(year_part) < 4:

@@ -10,37 +10,45 @@ exactly like every existing caller behaved before this module existed. It's
 fine to occasionally do more work than strictly necessary; it is not fine to
 silently skip a subsystem that actually needed touching.
 """
+
 from strenum import StrEnum
 
-from hiddifypanel.models import ConfigEnum, ConfigCategory, hconfig, set_hconfig
+from hiddifypanel.models import ConfigCategory, ConfigEnum, hconfig, set_hconfig
 
 
 class Subsystem(StrEnum):
     """Canonical subsystem tokens - each one is exactly the first argument
     install.sh's install_run() is called with for that subsystem, so the
     shell side needs zero translation."""
-    xray = 'xray'
-    singbox = 'singbox'
-    haproxy = 'haproxy'
-    acme = 'acme.sh'
-    nginx = 'nginx'
-    wireguard = 'other/wireguard'
-    amneziawg = 'other/amneziawg'
-    ssh = 'other/ssh'
-    dnstt = 'other/dnstt'
-    telegram = 'other/telegram'
-    ssfaketls = 'other/ssfaketls'
-    hiddifycli = 'other/hiddify-cli'
-    l2tp = 'other/l2tp'
+
+    xray = "xray"
+    singbox = "singbox"
+    haproxy = "haproxy"
+    acme = "acme.sh"
+    nginx = "nginx"
+    wireguard = "other/wireguard"
+    amneziawg = "other/amneziawg"
+    ssh = "other/ssh"
+    dnstt = "other/dnstt"
+    telegram = "other/telegram"
+    ssfaketls = "other/ssfaketls"
+    hiddifycli = "other/hiddify-cli"
+    l2tp = "other/l2tp"
 
 
 # Domain records aren't ConfigEnum-backed (see DomainAdmin), but this is the
 # fixed subsystem set any domain create/update/delete affects: haproxy's
 # per-domain fronts/backends, acme's cert issuance, nginx's acme-challenge
 # config, and both cores' inbound templates (which bake domain values in).
-DOMAIN_CHANGE_SUBSYSTEMS = frozenset({
-    Subsystem.haproxy, Subsystem.acme, Subsystem.nginx, Subsystem.xray, Subsystem.singbox,
-})
+DOMAIN_CHANGE_SUBSYSTEMS = frozenset(
+    {
+        Subsystem.haproxy,
+        Subsystem.acme,
+        Subsystem.nginx,
+        Subsystem.xray,
+        Subsystem.singbox,
+    }
+)
 
 # RoutingRule/Outbound/InboundOverride/per-Proxy-row changes: all four are
 # proxy-core concepts (routing rules, outbounds, inbound overrides, and
@@ -58,13 +66,25 @@ OUTBOUND_CHANGE_SUBSYSTEMS = frozenset({Subsystem.xray, Subsystem.singbox, Subsy
 # own templates - both get touched (whichever core is actually active does
 # the real work; the other one's install_run just re-confirms it's stopped,
 # which is cheap).
-_PROTOCOL_CATEGORIES = frozenset({
-    ConfigCategory.proxies, ConfigCategory.tls, ConfigCategory.tls_trick,
-    ConfigCategory.mux, ConfigCategory.http, ConfigCategory.mieru,
-    ConfigCategory.shadowtls, ConfigCategory.restls, ConfigCategory.tuic,
-    ConfigCategory.hysteria, ConfigCategory.ssr, ConfigCategory.kcp,
-    ConfigCategory.reality, ConfigCategory.shadowsocks, ConfigCategory.domain_fronting,
-})
+_PROTOCOL_CATEGORIES = frozenset(
+    {
+        ConfigCategory.proxies,
+        ConfigCategory.tls,
+        ConfigCategory.tls_trick,
+        ConfigCategory.mux,
+        ConfigCategory.http,
+        ConfigCategory.mieru,
+        ConfigCategory.shadowtls,
+        ConfigCategory.restls,
+        ConfigCategory.tuic,
+        ConfigCategory.hysteria,
+        ConfigCategory.ssr,
+        ConfigCategory.kcp,
+        ConfigCategory.reality,
+        ConfigCategory.shadowsocks,
+        ConfigCategory.domain_fronting,
+    }
+)
 
 CATEGORY_SUBSYSTEMS: dict[ConfigCategory, frozenset[str]] = {
     ConfigCategory.wireguard: frozenset({Subsystem.wireguard}),
@@ -147,10 +167,10 @@ def get_pending_subsystems() -> set[str] | None:
     """None means the next Apply Configs must be full-width (no narrow scope
     is known yet, or an unmapped change wiped out any earlier narrow scope).
     A non-empty set means it's safe to touch only those subsystems."""
-    raw = (hconfig(ConfigEnum.pending_apply_subsystems) or '').strip()
+    raw = (hconfig(ConfigEnum.pending_apply_subsystems) or "").strip()
     if not raw:
         return None
-    return {s for s in raw.split(',') if s}
+    return {s for s in raw.split(",") if s}
 
 
 def mark_dirty(subsystems: frozenset[str] | set[str] | None) -> None:
@@ -160,13 +180,13 @@ def mark_dirty(subsystems: frozenset[str] | set[str] | None) -> None:
     scope (correct: we can no longer vouch that only the old narrow set is
     enough, since something-we-don't-understand also changed)."""
     if subsystems is None:
-        set_hconfig(ConfigEnum.pending_apply_subsystems, '')
+        set_hconfig(ConfigEnum.pending_apply_subsystems, "")
         return
     if not subsystems:
         return
     current = get_pending_subsystems() or set()
     updated = current | set(subsystems)
-    set_hconfig(ConfigEnum.pending_apply_subsystems, ','.join(sorted(updated)))
+    set_hconfig(ConfigEnum.pending_apply_subsystems, ",".join(sorted(updated)))
 
 
 def clear_applied_subsystems(applied: frozenset[str] | set[str] | None) -> None:
@@ -180,9 +200,9 @@ def clear_applied_subsystems(applied: frozenset[str] | set[str] | None) -> None:
     different change that happened while this apply was already running
     survives for the next one."""
     if applied is None:
-        set_hconfig(ConfigEnum.pending_apply_subsystems, '')
+        set_hconfig(ConfigEnum.pending_apply_subsystems, "")
         return
     current = get_pending_subsystems()
     if not current:
         return
-    set_hconfig(ConfigEnum.pending_apply_subsystems, ','.join(sorted(current - set(applied))))
+    set_hconfig(ConfigEnum.pending_apply_subsystems, ",".join(sorted(current - set(applied))))
