@@ -542,6 +542,6 @@ def get_and_merge_urls(urls:list[str], max_workers=8):
 def parse_json(s:str):
     try:
         return json.loads(s)
-    except:
+    except Exception:
         pass
     return {}

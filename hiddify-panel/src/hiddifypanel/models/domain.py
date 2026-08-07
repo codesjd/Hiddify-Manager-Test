@@ -145,7 +145,7 @@ class Domain(db.Model):
     def to_dict(self, dump_ports=False, dump_child_id=False):
         try:
             extra=json.loads(self.extra_params or "{}")
-        except:
+        except Exception:
             extra={}
         data = {
             'domain': self.domain.lower(),

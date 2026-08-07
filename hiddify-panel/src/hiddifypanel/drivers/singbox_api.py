@@ -19,7 +19,7 @@ class SingboxApi(DriverABS):
             try:
                 if hconfig(ConfigEnum(f)):
                     return True
-            except:
+            except Exception:
                 pass
         return False
 

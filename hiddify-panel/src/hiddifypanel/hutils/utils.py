@@ -52,7 +52,7 @@ def is_panel_outdated() -> bool:
             if latest_v := get_latest_release_version('hiddifypanel'):
                 if compare_versions(latest_v, current_version) == 1:
                     return True
-    except:
+    except Exception:
         pass
     return False
 

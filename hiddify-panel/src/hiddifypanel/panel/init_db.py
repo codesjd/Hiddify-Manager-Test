@@ -1389,7 +1389,7 @@ def current_db_version()->int:
     try:
         if db_version:=db.session.execute(db.text("select value from str_config where `key`='db_version'")).fetchall():
             return int(db_version[0][0])
-    except:
+    except Exception:
         pass
     logger.warning("db version not found")
     return 0

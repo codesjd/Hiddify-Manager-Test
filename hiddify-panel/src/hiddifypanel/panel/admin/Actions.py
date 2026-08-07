@@ -122,7 +122,7 @@ class Actions(FlaskView):
                 try:
                     if ip:=int(p):
                         r.add(ip)
-                except:
+                except Exception:
                     pass
             return list(r)
         return {"tcp":to_int(tcp_ports),"udp":to_int(udp_ports)}

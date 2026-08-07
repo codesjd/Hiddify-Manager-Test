@@ -152,7 +152,7 @@ def invalidate_pinned_cert_cache(host: str, port: int = 443):
 def _get_domain_ips_cached_raw(domain: str, retry: int = 0) -> Set[Union[ipaddress.IPv4Address, ipaddress.IPv6Address]]:
     try:
         return {ipaddress.ip_address(domain)}
-    except:
+    except Exception:
         return get_domain_ips(domain,retry)
 
 
@@ -510,7 +510,7 @@ def get_ip_asn(ip: ipaddress.IPv4Address | ipaddress.IPv6Address | str) -> str:
         if asn := IPASN.get(str(ip)):
             return str(asn.get('autonomous_system_organization', ''))
         return ''
-    except:
+    except Exception:
         return ''
 
 
@@ -527,7 +527,7 @@ def is_ip(input: str):
     try:
         _ = ipaddress.ip_address(input)
         return True
-    except:
+    except Exception:
         return False
 
 
@@ -597,7 +597,7 @@ def all_public_ports():
                 try:
                     if ip:=int(p):
                         r[ip]=v
-                except:
+                except Exception:
                     pass
             return {k:v for k,v in sorted(r.items())}
         return {"tcp":to_int(tcp_ports),"udp":to_int(udp_ports)}
