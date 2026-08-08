@@ -1,0 +1,11 @@
+{
+  "name": "Hiddify Manager",
+  "install": ".cursor/scripts/cloud-agent-install.sh",
+  "start": ".cursor/scripts/cloud-agent-start.sh",
+  "terminals": [
+    {
+      "name": "panel",
+      "command": "cd hiddify-panel/src && source .venv/bin/activate && export HIDDIFY_CFG_PATH=/opt/hiddify-manager/hiddify-panel/app.cfg FLASK_APP=wsgi.py FLASK_DEBUG=1 && python -m flask run --host=0.0.0.0 --port=9000"
+    }
+  ]
+}
