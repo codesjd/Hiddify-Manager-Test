@@ -314,8 +314,22 @@ class DomainAdmin(AdminLTEModelView):
             ).first() is not None
         return form
 
-    # TODO: refactor this function
     def on_model_change(self, form, model, is_created):
+        self._sanitize_model(model)
+        self._clear_inapplicable_fields(model, is_created)
+        self._validate_basic(model, is_created)
+
+        server_ips = self._validate_and_update_ips(model)
+        self._handle_cdn_ip(model, server_ips)
+
+        # Update show domains
+        if len(model.show_domains) == Domain.query.count():
+            model.show_domains = []
+
+        self._handle_mode_specific_settings(model, server_ips, is_created)
+        self._trigger_config_update(model, is_created)
+
+    def _sanitize_model(self, model):
         # Sanitize domain input
         model.domain = (model.domain or '').lower().strip()
         # A domain's cert can be mid-issuance right when it's added/edited
@@ -325,9 +339,11 @@ class DomainAdmin(AdminLTEModelView):
         # first touched for up to 300s afterward - see get_pinned_cert_sha256.
         if model.domain:
             hutils.network.invalidate_pinned_cert_cache(model.domain)
-        if model.download_domain and model.domain==model.download_domain.domain:
-            model.download_domain_id=None
-            model.download_domain=None
+        if model.download_domain and model.domain == model.download_domain.domain:
+            model.download_domain_id = None
+            model.download_domain = None
+
+    def _clear_inapplicable_fields(self, model, is_created):
         # REALITY's port/keys/short id are meaningless (and hidden - see
         # flaskadmin-layout.html) for every other mode. Also guards against
         # create_form()'s GET-time preview values above ending up saved onto
@@ -340,12 +356,19 @@ class DomainAdmin(AdminLTEModelView):
             model.reality_short_id = None
         self._clear_inapplicable_ports(model)
         self._auto_assign_ports(model, is_created)
-        # Basic validation
+
+    def _validate_basic(self, model, is_created):
         if model.domain == '' and model.mode != DomainType.fake:
             raise ValidationError(_("domain.empty.allowed_for_fake_only"))
 
-        self._validate_not_used_before(model,is_created)
+        self._validate_not_used_before(model, is_created)
         self._validate_port_exclusivity(model)
+
+        # Validate domain based on mode
+        if "*" in model.domain and model.mode not in [DomainType.cdn, DomainType.auto_cdn_ip]:
+            raise ValidationError(_("Domain can not be resolved! there is a problem in your domain"))
+
+    def _validate_and_update_ips(self, model):
         ipv4_list = hutils.network.get_ips(4)
         ipv6_list = hutils.network.get_ips(6)
         server_ips = [*ipv4_list, *ipv6_list]
@@ -353,17 +376,15 @@ class DomainAdmin(AdminLTEModelView):
         if not server_ips:
             raise ValidationError(_("Couldn't find your ip addresses"))
 
-        # Validate domain based on mode
-        if "*" in model.domain and model.mode not in [DomainType.cdn, DomainType.auto_cdn_ip]:
-            raise ValidationError(_("Domain can not be resolved! there is a problem in your domain"))
-
-        cloudflare_updated=self._update_cloudflare(model, ipv4_list,ipv6_list)
+        cloudflare_updated = self._update_cloudflare(model, ipv4_list, ipv6_list)
         
         if not cloudflare_updated:
             self._validate_domain_ips(model, server_ips)
 
-        # Handle CDN IP settings
-        if  model.mode == DomainType.direct and model.cdn_ip:
+        return server_ips
+
+    def _handle_cdn_ip(self, model, server_ips):
+        if model.mode == DomainType.direct and model.cdn_ip:
             model.cdn_ip = ""
             raise ValidationError(_("Specifying CDN IP is only valid for CDN mode"))
             
@@ -375,22 +396,17 @@ class DomainAdmin(AdminLTEModelView):
                 hutils.network.auto_ip_selector.get_clean_ip(str(model.cdn_ip))
             except Exception:
                 raise ValidationError(_("Error in auto cdn format"))
-                    
-        # Update show domains
-        if len(model.show_domains) == Domain.query.count():
-            model.show_domains = []
-                
-        # Handle mode-specific settings
+
+    def _handle_mode_specific_settings(self, model, server_ips, is_created):
         if model.mode == DomainType.old_xtls_direct and not hconfig(ConfigEnum.xtls_enable):
             set_hconfig(ConfigEnum.xtls_enable, True)
             hutils.proxy.get_proxies.invalidate_all()
-        elif "reality" in  model.mode:
+        elif "reality" in model.mode:
             self._validate_reality_settings(model, server_ips, is_created)
-                
-            # Signal config update if needed
+
+    def _trigger_config_update(self, model, is_created):
         old_db_domain = Domain.by_domain(model.domain)
         if is_created or not old_db_domain or old_db_domain.mode != model.mode:
-            # return hiddify.reinstall_action(complete_install=False, domain_changed=True)
             hutils.apply_scope.mark_dirty(hutils.apply_scope.DOMAIN_CHANGE_SUBSYSTEMS)
             hutils.flask.flash_config_success(restart_mode=ApplyMode.apply_config, domain_changed=True)
         elif any(sa_inspect(model).attrs[attr].history.has_changes()
