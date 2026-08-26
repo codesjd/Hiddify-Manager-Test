@@ -285,15 +285,14 @@ def _add_security(base_dict, proxy, tls_info=None):
     ss['security'] = 'none'  # default
 
     # security
-    if 'reality' in tls_info['mode']:
+    if proxy.get('security'):
+        ss['security'] = proxy['security']
+    elif 'reality' in tls_info['mode']:
         ss['security'] = 'reality'
     elif proxy['l3'] in [ProxyL3.tls, ProxyL3.tls_h2, ProxyL3.tls_h2_h1, ProxyL3.h3_quic, ProxyL3.reality]:
         ss['security'] = 'tls'
 
     # network and transport settings
-    # THE CURRENT CODE WORKS BUT THE CORRECT CONDITINO SHOULD BE THIS:
-    # ss['security'] == 'tls' or 'xtls' -----> ss['security'] in ['tls','xtls']
-    # TODO: FIX THE CONDITION AND TEST CONFIGS ON THE CLIENT SIDE
     if ss['security'] == 'reality':
         # ss['network'] = proxy['transport']
         add_reality_stream(ss, proxy, tls_info)
