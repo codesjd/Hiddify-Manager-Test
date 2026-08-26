@@ -17,7 +17,17 @@ with open("/opt/hiddify-manager/current.json") as f:
     configs["hconfigs"] = configs["chconfigs"][0]
 
 
+ALLOWED_COMMANDS = {
+    '/opt/hiddify-manager/.venv313/bin/python -c "import os,hiddifypanel;print(os.path.dirname(hiddifypanel.__file__),end=\'\')"',
+    "printf '%02d' $(($(date '+%H') + 1))",
+    'date "+%Y-%m-%dT(%H|"',
+    "ip -o -4 addr show | awk '{print $4}' | cut -d/ -f1 | sed 's/.*/\"&\"/' | tr '\n' ',' "
+}
+
 def exec(command):
+    if command not in ALLOWED_COMMANDS:
+        print(f"Command not allowed: {command}", file=sys.stderr)
+        return ""
     try:
         output = subprocess.check_output(
             command, shell=True, stderr=subprocess.STDOUT, text=True
