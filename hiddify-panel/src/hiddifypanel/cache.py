@@ -48,6 +48,42 @@ class CustomRedisCache(RedisCache):
         self.cached_functions.add(res)
         return res
 
+    def dynamic_ttl_cache(self, ttl_func):
+        """
+        A decorator that dynamically sets the TTL of a cached function based on its arguments.
+        Thread-safe version that creates a new CacheDecorator instance per call.
+        """
+        def decorator(func):
+            import functools
+            # Register the base function with 0 TTL to get it tracked in self.cached_functions
+            base_cached_func = self.cache(ttl=0)(func)
+
+            @functools.wraps(func)
+            def wrapper(*args, **kwargs):
+                ttl = ttl_func(*args, **kwargs)
+
+                # Get the underlying python-redis-cache CacheDecorator instance without adding to self.cached_functions
+                # The python-redis-cache RedisCache class actually provides a raw decorator via super().cache()
+                from redis_cache import CacheDecorator
+                cache_decorator = CacheDecorator(
+                    redis_client=self.client,
+                    prefix=self.prefix,
+                    serializer=self.serializer,
+                    deserializer=self.deserializer,
+                    key_serializer=self.key_serializer,
+                    ttl=ttl,
+                    limit=0,
+                    namespace=f'{func.__module__}.{func.__qualname__}',
+                    support_cluster=self.support_cluster,
+                    exception_handler=self.exception_handler
+                )
+                return cache_decorator(func)(*args, **kwargs)
+
+            wrapper.invalidate = base_cached_func.invalidate
+            wrapper.invalidate_all = base_cached_func.invalidate_all
+            return wrapper
+        return decorator
+
     def invalidate_all_cached_functions(self):
         try:
             for f in self.cached_functions:
