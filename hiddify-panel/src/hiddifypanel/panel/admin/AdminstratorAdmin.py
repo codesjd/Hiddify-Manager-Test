@@ -21,7 +21,7 @@ from hiddifypanel import hutils
 class AdminModeField(SelectField):
     def __init__(self, label=None, validators=None, **kwargs):
         super(AdminModeField, self).__init__(label, validators, **kwargs)
-        if g.account.mode in [AdminMode.agent, AdminMode.admin]:
+        if g.account.mode == AdminMode.agent:
             self.choices = [(AdminMode.agent.value, 'agent')]
         elif g.account.mode == AdminMode.admin:
             self.choices = [(AdminMode.agent.value, 'agent'), (AdminMode.admin.value, 'Admin'),]
@@ -227,20 +227,29 @@ class AdminstratorAdmin(AdminLTEModelView):
 
     def on_form_prefill(self, form, id=None):
         if g.account.mode != AdminMode.super_admin:
-            del form.mode
-            del form.can_add_admin
+            if hasattr(form, 'mode'):
+                del form.mode
+            if hasattr(form, 'can_add_admin'):
+                del form.can_add_admin
 
         if g.account.id == form._obj.id:
-            del form.max_users
-            del form.max_active_users
-            del form.comment
-            del form.can_add_admin
-            if getattr(form, 'mode'):
+            if hasattr(form, 'max_users'):
+                del form.max_users
+            if hasattr(form, 'max_active_users'):
+                del form.max_active_users
+            if hasattr(form, 'comment'):
+                del form.comment
+            if hasattr(form, 'can_add_admin'):
+                del form.can_add_admin
+            if hasattr(form, 'mode'):
                 del form.mode
         elif form._obj.mode == AdminMode.super_admin:
-            del form.max_users
-            del form.max_active_users
-            del form.can_add_admin
+            if hasattr(form, 'max_users'):
+                del form.max_users
+            if hasattr(form, 'max_active_users'):
+                del form.max_active_users
+            if hasattr(form, 'can_add_admin'):
+                del form.can_add_admin
 
     def after_model_change(self, form, model, is_created):
         if hutils.node.is_parent():
