@@ -202,9 +202,8 @@ def get_child(unique_id):
         child_id = 0
     else:
         child = Child.query.filter(Child.unique_id == str(unique_id)).first()
-        # TODO: this doesn't work because name and mode fields are nullable
         if not child:
-            child = Child(unique_id=str(unique_id))
+            child = Child(unique_id=str(unique_id), name=str(unique_id), mode=ChildMode.remote)
             db.session.add(child)
             db.session.commit()
             child = Child.query.filter(Child.unique_id == str(unique_id)).first()
