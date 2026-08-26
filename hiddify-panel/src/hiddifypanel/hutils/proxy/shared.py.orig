@@ -29,7 +29,7 @@ def is_proxy_valid(proxy: Proxy, domain_db: Domain, port: int) -> dict | None:
     l3 = proxy.l3
     if proxy.proto==ProxyProto.naive and not domain_db.need_valid_ssl:
         return {'name': name, 'msg': "naive only supports valid cert", 'type': 'error', 'proto': proxy.proto}
-    
+
     if proxy.proto!=ProxyProto.dnstt and domain_db.mode==DomainType.dnstt:
         return {'name': name, 'msg': "dnstt domain only works with dnstt protocol", 'type': 'error', 'proto': proxy.proto}
 
@@ -46,7 +46,7 @@ def is_proxy_valid(proxy: Proxy, domain_db: Domain, port: int) -> dict | None:
     if proxy.proto not in {ProxyProto.mieru,ProxyProto.dnstt} and not port:
         return {'name': name, 'msg': "port not defined", 'type': 'error', 'proto': proxy.proto}
     if proxy.proto==ProxyProto.naive and not domain_db.need_valid_ssl:
-        return {'name': name, 'msg': "naive only supports valid cert", 'type': 'error', 'proto': proxy.proto}    
+        return {'name': name, 'msg': "naive only supports valid cert", 'type': 'error', 'proto': proxy.proto}
     if "reality" not in l3 and 'reality' in domain_db.mode:
         return {'name': name, 'msg': "1reality proxy not in reality domain", 'type': 'debug', 'proto': proxy.proto}
 
@@ -92,7 +92,7 @@ def is_proxy_valid(proxy: Proxy, domain_db: Domain, port: int) -> dict | None:
     if l3 == "http" and proxy.proto in [ProxyProto.ss, ProxyProto.ssr]:
         return {'name': name, 'msg': "http and ss or ssr???", 'type': 'warning', 'proto': proxy.proto}
 
-    return 
+    return
 
 
 def _domain_port_from_hconfigs(domain_db: Domain, hconfigs: dict, override_value, config_key: ConfigEnum) -> int:
@@ -176,14 +176,14 @@ def ports_to_ranges(csv_ports: str) -> list[str]:
         if port == prev + 1:
             prev = port
         else:
-            
+
             # if start == prev:
             #     ranges.append(str(start))
             # else:
             ranges.append(f"{start}-{prev}")
             start = prev = port
 
-    
+
     # if start == prev:
     #     ranges.append(str(start))
     # else:
@@ -351,12 +351,8 @@ def _get_valid_proxies_uncached(domains: list[Domain]) -> list[dict]:
             domain_proxies = [p for p in domain_proxies if p.id not in disabled_ids]
             missing_ids = enabled_ids - {p.id for p in domain_proxies}
             if missing_ids:
-                if not all_proxies_by_id_map:
-                    child_ids = {d.child_id for d in domains}
-                    all_proxies = Proxy.query.filter(Proxy.child_id.in_(child_ids)).all()
-                    for cid in child_ids:
-                        all_proxies_by_id_map[cid] = {p.id: p for p in all_proxies if p.child_id == cid}
-
+                if domain.child_id not in all_proxies_by_id_map:
+                    all_proxies_by_id_map[domain.child_id] = {p.id: p for p in Proxy.query.filter_by(child_id=domain.child_id).all()}
                 by_id = all_proxies_by_id_map[domain.child_id]
                 domain_proxies = domain_proxies + [by_id[pid] for pid in missing_ids if pid in by_id]
 
@@ -440,18 +436,18 @@ split_pattern = re.compile(r'[ \t\r\n;,]+')
 
 
 def sni_host_server_extractor(domain_db: Domain, hconfigs):
-    
+
     server=sni=host = domain_db.domain.replace("*", hutils.random.get_random_string(5, 15))
     is_cdn = domain_db.mode in [DomainType.cdn, DomainType.auto_cdn_ip]
     if auto_ip:=domain_db.auto_cdn_ip():
         server=auto_ip[0]
     elif 'special' in domain_db.mode.value or domain_db.mode in [DomainType.fake]:
         server=hutils.network.get_direct_host_or_ip(4)
-    
+
     if domain_db.resolve_ip:
         server = str(random_or_none(hutils.network.get_domain_ips_cached(server)) or server)
 
-    
+
     allow_insecure=not domain_db.need_valid_ssl
     if all_snis := split_pattern.split((domain_db.servernames or "").strip()):
         sni = random_or_none(all_snis) or sni
@@ -459,10 +455,10 @@ def sni_host_server_extractor(domain_db: Domain, hconfigs):
             allow_insecure=False
             if hconfigs[ConfigEnum.core_type] == "singbox": #TODO
                 sni = all_snis[0]
-            
-        else: 
+
+        else:
             allow_insecure=True
-    
+
 
     base = {
         'sni': sni,
@@ -510,12 +506,12 @@ def sni_host_server_extractor(domain_db: Domain, hconfigs):
 def put_default_header(params: dict, hconfigs: dict):
     if not isinstance(params.get('headers'),dict):
         params['headers']={}
-        
+
     if not params['headers'].get('User-Agent'):
         params['headers']['User-Agent']=hconfigs[ConfigEnum.default_useragent_string]
     if not params['headers'].get('Pragma'):
         params['headers']['Pragma']="no-cache"
-    
+
 
 
 def apply_proxy_overrides(pinfo: dict, proxy: Proxy) -> None:
@@ -645,9 +641,9 @@ def make_proxy(hconfigs: dict, proxy: Proxy, domain_db: Domain, phttp=80, ptls=4
         # 'cdn': is_cdn,
         # 'mode': "CDN" if is_cdn else "direct",
         'l3': l3,
-        
+
         'port': port,
-        
+
         'uuid': str(g.account.uuid),
         'proto': proxy.proto,
         'transport': proxy.transport,
@@ -703,14 +699,14 @@ def make_proxy(hconfigs: dict, proxy: Proxy, domain_db: Domain, phttp=80, ptls=4
         base["quic"]=proxy.l3 in [ProxyL3.h3_quic]
         base['password']="h"
         return base
-    
+
     if hconfigs.get(ConfigEnum.tls_ech_enable) and not proxy.l3 in {ProxyL3.reality}:
         if ech:=hutils.network.get_ech_info(base.get('sni')):
             base['ech'] = ech
 
     if base['proto'] in {ProxyProto.mieru}:
         base["password"]="h"
-        
+
         base['tcp_ports']=ports_to_ranges(hconfigs.get(ConfigEnum.mieru_tcp_ports)) if proxy.transport == ProxyTransport.tcp else []
         base['udp_ports']=ports_to_ranges(hconfigs.get(ConfigEnum.mieru_udp_ports)) if proxy.transport == ProxyTransport.udp else []
         base['multiplexing']=hconfigs[ConfigEnum.mieru_multiplexing]
@@ -722,7 +718,7 @@ def make_proxy(hconfigs: dict, proxy: Proxy, domain_db: Domain, phttp=80, ptls=4
         base['download'] = sni_host_server_extractor(domain_db.download_domain,hconfigs)
     else:
         base['download']=domain_data
-        
+
     if 'download' not in base['params']:
         base['params']['download']={}
     base['download']['params']=base['params']['download']
@@ -733,9 +729,9 @@ def make_proxy(hconfigs: dict, proxy: Proxy, domain_db: Domain, phttp=80, ptls=4
             base['download']['ech'] = ech
     base['download']['alpn']=base['params']['download'].get('alpn',alpn)
 
-        
 
-            
+
+
     if proxy.proto in ['tuic', 'hysteria2']:
         base['alpn'] = "h3"
         if proxy.proto == 'hysteria2':
@@ -807,7 +803,7 @@ def make_proxy(hconfigs: dict, proxy: Proxy, domain_db: Domain, phttp=80, ptls=4
     if proxy.proto in [ProxyProto.vmess]:
         base['cipher'] = "auto"  # "chacha20-poly1305"
 
-    
+
     if l3 == "http" and not hconfigs[ConfigEnum.http_proxy_enable]:
         return {'name': name, 'msg': "http but http is disabled ", 'type': 'debug', 'proto': proxy.proto}
 
@@ -879,19 +875,19 @@ def make_proxy(hconfigs: dict, proxy: Proxy, domain_db: Domain, phttp=80, ptls=4
         base['transport'] = 'tcp'
         base['path'] = f'/{path[base["proto"]]}{hconfigs[ConfigEnum.path_tcp]}'
         return base
-    
+
     if proxy.transport in ["ws", "WS"]:
         base['transport'] = 'ws'
         base['path'] = f'/{path[base["proto"]]}{hconfigs[ConfigEnum.path_ws]}'
-        
+
         return base
 
     if proxy.transport in [ProxyTransport.httpupgrade]:
         base['transport'] = 'httpupgrade'
         base['path'] = f'/{path[base["proto"]]}{hconfigs[ConfigEnum.path_httpupgrade]}'
-        
+
         return base
-    
+
     if proxy.transport in [ProxyTransport.xhttp]:
         base['transport'] = 'xhttp'
         base['path'] = f'/{path[base["proto"]]}{hconfigs[ConfigEnum.path_xhttp]}'
@@ -932,7 +928,7 @@ def all_element_in_first_dict_is_exist_in_second(fdict,sdict):
                 return False
         if sdict.get(k,v)!=v:
             return False
-        
+
     return True
 
 class ProxyJsonEncoder(json.JSONEncoder):
@@ -940,8 +936,3 @@ class ProxyJsonEncoder(json.JSONEncoder):
         if isinstance(obj, IPv4Address) or isinstance(obj, IPv6Address):
             return str(obj)
         return super().default(obj)
-
-
-
-
-
