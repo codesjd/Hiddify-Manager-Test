@@ -380,12 +380,12 @@ def add_stream_settings(base: dict, proxy: dict):
 
 
 def add_tcp_stream(ss: dict, proxy: dict):
-    
+
     if proxy.get('params',{}).get('headers',{}).get("type",'')=='none' or proxy['l3'] != ProxyL3.http:
         ss['tcpSettings'] = {
             'header':{'type':'none'}
         }
-    else:    
+    else:
         ss['tcpSettings'] = {
             'header': {
                 'type': 'http',
@@ -462,7 +462,7 @@ def add_xhttp_stream(ss: dict, proxy: dict):
     else:
         _add_xhttp_details(ss, proxy)
 
-        
+
 
 
 def _add_xhttp_details(ss: dict, proxy: dict):
@@ -510,7 +510,8 @@ def _add_xhttp_details(ss: dict, proxy: dict):
 
 
 def add_kcp_stream(ss: dict, proxy: dict):
-    pass
+    ss['kcpSettings'] = {}
+    return
 
 
 def add_mask_finalmask_stream(ss: dict, proxy: dict):
@@ -584,7 +585,16 @@ def add_mask_finalmask_stream(ss: dict, proxy: dict):
 
 
 def add_quic_stream(ss: dict, proxy: dict):
-    pass
+    # TODO: fix server side configs first
+    return
+
+    ss['quicSettings'] = {
+        'security': 'chacha20-poly1305',
+        'key': proxy['path'],
+        'header': {
+            'type': 'none'
+        }
+    }
 
 
 def add_reality_stream(ss: dict, proxy: dict, domain_info: dict):

@@ -1,0 +1,21 @@
+--- hiddify-panel/src/hiddifypanel/hutils/proxy/xrayjson.py
++++ hiddify-panel/src/hiddifypanel/hutils/proxy/xrayjson.py
+@@ -511,19 +511,5 @@
+
+ def add_kcp_stream(ss: dict, proxy: dict):
+-    # TODO: fix server side configs first
+     ss['kcpSettings'] = {}
+     return
+-    ss['kcpSettings'] = {
+-        'seed': proxy['path'],
+-        # 'mtu': 1350, # optional, default value is written
+-        # 'tti': 50, # optional, default value is written
+-        # 'uplinkCapacity': 5, # optional, default value is written
+-        # 'downlinkCapacity': 20, # optional, default value is written
+-        # 'congestion':False, # optional, default value is written
+-        # 'readBufferSize': 2,# optional, default value is written
+-        # 'writeBufferSize':2 # optional, default value is written
+-        # 'header': { # must be same as server (hiddify doesn't use yet)
+-        #     'type': 'none'  # choices: none(default), srtp, utp, wechat-video, dtls, wireguards
+-        # }
+-    }

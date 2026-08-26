@@ -1,0 +1,14 @@
+--- hiddify-panel/src/hiddifypanel/hutils/proxy/xrayjson.py
++++ hiddify-panel/src/hiddifypanel/hutils/proxy/xrayjson.py
+@@ -583,14 +583,5 @@
+ def add_quic_stream(ss: dict, proxy: dict):
+-    # TODO: fix server side configs first
+     return
+-
+-    ss['quicSettings'] = {
+-        'security': 'chacha20-poly1305',
+-        'key': proxy['path'],
+-        'header': {
+-            'type': 'none'
+-        }
+-    }

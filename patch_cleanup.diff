@@ -1,0 +1,12 @@
+--- hiddify-panel/src/hiddifypanel/hutils/proxy/xrayjson.py
++++ hiddify-panel/src/hiddifypanel/hutils/proxy/xrayjson.py
+@@ -512,4 +512,3 @@
+ def add_kcp_stream(ss: dict, proxy: dict):
+-    ss['kcpSettings'] = {}
+-    return
++    pass
+
+@@ -587,3 +586,3 @@
+ def add_quic_stream(ss: dict, proxy: dict):
+-    return
++    pass
