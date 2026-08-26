@@ -202,9 +202,8 @@ def get_child(unique_id):
         child_id = 0
     else:
         child = Child.query.filter(Child.unique_id == str(unique_id)).first()
-        # TODO: this doesn't work because name and mode fields are nullable
         if not child:
-            child = Child(unique_id=str(unique_id))
+            child = Child(unique_id=str(unique_id), name=str(unique_id), mode=ChildMode.remote)
             db.session.add(child)
             db.session.commit()
             child = Child.query.filter(Child.unique_id == str(unique_id)).first()
@@ -452,7 +451,7 @@ def all_configs_for_cli():
     # UI; still honored for backward compatibility.
     try:
         import json
-        db_extra = build_custom_xray_extra()
+        db_extra = build_custom_xray_extra(Child.current().id)
         manual_raw = configs['chconfigs'][0].get('additional_configs_xrayjson') or ''
         manual = json.loads(manual_raw) if manual_raw.strip() else {}
         merged = {
@@ -466,7 +465,7 @@ def all_configs_for_cli():
     # Same merge, sing-box schema - see the comment above, same reasoning.
     try:
         import json
-        db_extra_sb = build_custom_singbox_extra()
+        db_extra_sb = build_custom_singbox_extra(Child.current().id)
         manual_raw_sb = configs['chconfigs'][0].get('additional_configs_singbox') or ''
         manual_sb = json.loads(manual_raw_sb) if manual_raw_sb.strip() else {}
         merged_sb = {
@@ -519,7 +518,7 @@ def all_configs_for_cli():
     # resolves to a live row.
     try:
         from hiddifypanel.models.routing import get_l2tp_route_interface
-        configs['l2tp_route_interface'] = get_l2tp_route_interface()
+        configs['l2tp_route_interface'] = get_l2tp_route_interface(child_id=Child.current().id)
     except Exception:
         logger.exception("Failed to resolve l2tp_outbound_tag (non-fatal, other/l2tp/ will route direct)")
         configs['l2tp_route_interface'] = None
