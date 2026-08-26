@@ -1255,6 +1255,27 @@ def get_l2tp_client_outbounds() -> list[dict]:
     return result
 
 
+from hiddifypanel.cache import cache
+
+@cache.cache(ttl=500)
+def _get_l2tp_route_interface_cached(child_id: int) -> str | None:
+    from hiddifypanel.models.config import hconfig
+    from hiddifypanel.models.config_enum import ConfigEnum
+
+    tag = hconfig(ConfigEnum.l2tp_outbound_tag)
+    if not tag:
+        return None
+
+    row = CustomOutbound.query.filter_by(child_id=child_id, tag=tag, enable=True).first()
+    if row is None:
+        return None
+    if row.protocol == OutboundProtocol.l2tp:
+        return row.l2tp_interface
+    if row.protocol == OutboundProtocol.amneziawg:
+        return row.amneziawg_interface
+    return None
+
+
 def get_l2tp_route_interface() -> str | None:
     """Resolves ConfigEnum.l2tp_outbound_tag to the kernel interface
     L2TP-inbound clients' traffic should route through, or None for the
@@ -1271,19 +1292,6 @@ def get_l2tp_route_interface() -> str | None:
     chosen outbound should degrade to "just works, direct" rather than
     silently keep pointing at nothing."""
     from hiddifypanel.models.child import Child
-    from hiddifypanel.models.config import hconfig
-    from hiddifypanel.models.config_enum import ConfigEnum
-
-    tag = hconfig(ConfigEnum.l2tp_outbound_tag)
-    if not tag:
-        return None
 
     child_id = Child.current().id
-    row = CustomOutbound.query.filter_by(child_id=child_id, tag=tag, enable=True).first()
-    if row is None:
-        return None
-    if row.protocol == OutboundProtocol.l2tp:
-        return row.l2tp_interface
-    if row.protocol == OutboundProtocol.amneziawg:
-        return row.amneziawg_interface
-    return None
+    return _get_l2tp_route_interface_cached(child_id)

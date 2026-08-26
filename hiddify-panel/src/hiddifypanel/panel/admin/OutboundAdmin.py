@@ -382,5 +382,13 @@ class OutboundAdmin(AdminLTEModelView):
         model.child_id = Child.current().id
 
     def after_model_change(self, form, model, is_created):
+        from hiddifypanel.models.routing import _get_l2tp_route_interface_cached
+        _get_l2tp_route_interface_cached.invalidate_all()
+        hutils.apply_scope.mark_dirty(hutils.apply_scope.OUTBOUND_CHANGE_SUBSYSTEMS)
+        hutils.flask.flash_config_success(restart_mode=ApplyMode.apply_config, domain_changed=False)
+
+    def after_model_delete(self, model):
+        from hiddifypanel.models.routing import _get_l2tp_route_interface_cached
+        _get_l2tp_route_interface_cached.invalidate_all()
         hutils.apply_scope.mark_dirty(hutils.apply_scope.OUTBOUND_CHANGE_SUBSYSTEMS)
         hutils.flask.flash_config_success(restart_mode=ApplyMode.apply_config, domain_changed=False)
