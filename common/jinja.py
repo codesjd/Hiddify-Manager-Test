@@ -29,7 +29,11 @@ ALLOWED_COMMANDS = {
 def exec(command):
     # dynamic regex match for the TLS cert check
     if command not in ALLOWED_COMMANDS:
-        tls_cert_pattern = r"^\[ -f /opt/hiddify-manager/ssl/[a-zA-Z0-9.-]+\.crt \] && echo -n 'true' \|\| echo -n 'false'$"
+        # The only interpolated part is the domain name (_tls_domain); a
+        # strict charset keeps shell=True safe here (no metacharacters that
+        # could break out of the `[ -f ... ]` test). '*'/'_' are allowed so
+        # wildcard/underscore hostnames still get their cert emitted.
+        tls_cert_pattern = r"^\[ -f /opt/hiddify-manager/ssl/[a-zA-Z0-9._*-]+\.crt \] && echo -n 'true' \|\| echo -n 'false'$"
         if not re.match(tls_cert_pattern, command):
             print(f"Command not allowed: {command}", file=sys.stderr)
             return ""
