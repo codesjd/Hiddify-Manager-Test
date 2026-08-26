@@ -4,3 +4,5 @@ hiddify_usages.json
 docker-data
 __pycache__/
 hiddify-panel/secret.key
+venv/
+
