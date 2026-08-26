@@ -19,9 +19,15 @@ def gen_username(model) -> None:
 
 def gen_password(model) -> None:
     from hiddifypanel import hutils
-    # TODO: hash the password
-    if not model.password or len(model.password) < 16:
+    from werkzeug.security import generate_password_hash
+
+    is_hashed = model.password and (model.password.startswith('scrypt:') or model.password.startswith('pbkdf2:'))
+    if not model.password or (not is_hashed and len(model.password) < 16):
         model.password = hutils.random.get_random_password(length=16)
+
+    is_hashed = model.password and (model.password.startswith('scrypt:') or model.password.startswith('pbkdf2:'))
+    if not is_hashed:
+        model.password = generate_password_hash(model.password)
 
 
 def gen_wg_keys(model) -> None:
