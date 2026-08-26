@@ -349,9 +349,6 @@ def add_stream_settings(base: dict, proxy: dict):
         ss['network'] = 'kcp'
         add_kcp_stream(ss, proxy)
 
-    if proxy['l3'] == ProxyL3.h3_quic:
-        add_quic_stream(ss, proxy)
-
     if (proxy['transport'] == 'tcp' and ss['security'] != 'reality') or (ss['security'] == 'none' and proxy['transport'] not in ('httpupgrade', 'ws') and proxy['proto'] != ProxyProto.ss):
         ss['network'] = proxy['transport']
         add_tcp_stream(ss, proxy)
@@ -596,19 +593,6 @@ def add_mask_finalmask_stream(ss: dict, proxy: dict):
                 }
             }]
         }
-
-
-def add_quic_stream(ss: dict, proxy: dict):
-    # TODO: fix server side configs first
-    return
-
-    ss['quicSettings'] = {
-        'security': 'chacha20-poly1305',
-        'key': proxy['path'],
-        'header': {
-            'type': 'none'
-        }
-    }
 
 
 def add_reality_stream(ss: dict, proxy: dict, domain_info: dict):
