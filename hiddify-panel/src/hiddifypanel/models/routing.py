@@ -3,6 +3,7 @@ from enum import auto
 from sqlalchemy import Column, String, Integer, Boolean, Enum, ForeignKey, Text
 
 from hiddifypanel.database import db
+from hiddifypanel.cache import cache
 
 
 class OutboundProtocol(StrEnum):
@@ -1147,27 +1148,29 @@ def get_available_inbound_tags() -> list[tuple[str, str]]:
         if tag:
             choices.append((tag, p.name))
 
-    # Reality inbounds are per-domain (one dedicated inbound per reality
-    # domain, unlike everything else). Same source as before.
-    if hconfig(ConfigEnum.reality_enable, child_id):
-        reality_streams = {
-            DomainType.special_reality_tcp: 'tcp',
-            DomainType.special_reality_xhttp: 'xhttp',
-            DomainType.special_reality_grpc: 'grpc',
-        }
-        for d in Domain.query.filter(Domain.child_id == child_id, Domain.mode.in_(list(reality_streams.keys()))).all():
-            if not d.internal_port_special:
-                continue
+    # Reality and non-reality per-domain inbounds.
+    reality_enabled = hconfig(ConfigEnum.reality_enable, child_id)
+    tuic_enabled = hconfig(ConfigEnum.tuic_enable, child_id)
+    hysteria_enabled = hconfig(ConfigEnum.hysteria_enable, child_id)
+    naive_enabled = hconfig(ConfigEnum.naive_enable, child_id)
+
+    reality_streams = {
+        DomainType.special_reality_tcp: 'tcp',
+        DomainType.special_reality_xhttp: 'xhttp',
+        DomainType.special_reality_grpc: 'grpc',
+    }
+
+    # Fetch all domains once to minimize DB roundtrips.
+    for d in Domain.query.filter(Domain.child_id == child_id).all():
+        if reality_enabled and d.mode in reality_streams and d.internal_port_special:
             stream = reality_streams[d.mode]
             choices.append((f'realityin_{stream}_{d.internal_port_special}', f'{d.domain} - reality {stream}'))
 
-    # Per-domain non-reality inbounds: tuic / hysteria2 / naive-quic.
-    for d in Domain.query.filter(Domain.child_id == child_id).all():
-        if hconfig(ConfigEnum.tuic_enable, child_id) and d.internal_port_tuic:
+        if tuic_enabled and d.internal_port_tuic:
             choices.append((f'tuic_in_{d.internal_port_tuic}', f'{d.domain} - tuic'))
-        if hconfig(ConfigEnum.hysteria_enable, child_id) and d.internal_port_hysteria2:
+        if hysteria_enabled and d.internal_port_hysteria2:
             choices.append((f'hysteria_in_{d.internal_port_hysteria2}', f'{d.domain} - hysteria2'))
-        if hconfig(ConfigEnum.naive_enable, child_id) and d.internal_port_naive:
+        if naive_enabled and d.internal_port_naive:
             choices.append((f'v10-naive-quic{d.internal_port_naive}', f'{d.domain} - naive quic'))
 
     return choices
@@ -1182,13 +1185,12 @@ def _deep_merge(base: dict, override: dict) -> dict:
     return base
 
 
-def build_custom_xray_extra() -> dict:
+@cache.cache(ttl=300)
+def build_custom_xray_extra(child_id: int) -> dict:
     """Serialize all enabled CustomOutbound/CustomRoutingRule rows (for the
     current child) into the {"outbounds": [...], "routing_rules": [...]}
     shape that xray/configs/06_outbounds.json.j2 and 03_routing.json.j2
     already know how to merge in."""
-    from hiddifypanel.models.child import Child
-    child_id = Child.current().id
     outbounds = [
         o.to_xray_dict()
         for o in CustomOutbound.query.filter_by(child_id=child_id, enable=True).all()
@@ -1200,7 +1202,8 @@ def build_custom_xray_extra() -> dict:
     return {"outbounds": outbounds, "routing_rules": rules}
 
 
-def build_custom_singbox_extra() -> dict:
+@cache.cache(ttl=300)
+def build_custom_singbox_extra(child_id: int) -> dict:
     """Same as build_custom_xray_extra() but in sing-box's schema, merged
     into additional_configs_singbox and read by singbox/configs/
     06_outbounds.json.j2 and 03_routing.json.j2. Same underlying
@@ -1208,8 +1211,6 @@ def build_custom_singbox_extra() -> dict:
     admin-entered outbounds/rules, rendered in whichever core's own schema
     is actually needed, so switching core_type doesn't require re-entering
     anything."""
-    from hiddifypanel.models.child import Child
-    child_id = Child.current().id
     outbounds = [
         o.to_singbox_dict()
         for o in CustomOutbound.query.filter_by(child_id=child_id, enable=True).all()
@@ -1255,7 +1256,8 @@ def get_l2tp_client_outbounds() -> list[dict]:
     return result
 
 
-def get_l2tp_route_interface() -> str | None:
+@cache.cache(ttl=300)
+def get_l2tp_route_interface(child_id: int) -> str | None:
     """Resolves ConfigEnum.l2tp_outbound_tag to the kernel interface
     L2TP-inbound clients' traffic should route through, or None for the
     default direct-out-the-public-NIC behavior.
@@ -1270,7 +1272,6 @@ def get_l2tp_route_interface() -> str | None:
     of the right protocol - an admin deleting/disabling/retagging the
     chosen outbound should degrade to "just works, direct" rather than
     silently keep pointing at nothing."""
-    from hiddifypanel.models.child import Child
     from hiddifypanel.models.config import hconfig
     from hiddifypanel.models.config_enum import ConfigEnum
 
@@ -1278,7 +1279,6 @@ def get_l2tp_route_interface() -> str | None:
     if not tag:
         return None
 
-    child_id = Child.current().id
     row = CustomOutbound.query.filter_by(child_id=child_id, tag=tag, enable=True).first()
     if row is None:
         return None

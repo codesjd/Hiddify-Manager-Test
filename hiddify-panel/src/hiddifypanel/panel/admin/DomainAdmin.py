@@ -314,13 +314,6 @@ class DomainAdmin(AdminLTEModelView):
             ).first() is not None
         return form
 
-    # def on_form_prefill(self, form, id):
-        # Get the Domain object being edited
-        # domain = self.session.query(Domain).get(id)
-
-        # Pre-select the related domains in the checkbox list
-        # form.show_domains = [d.id for d in Domain.query.all()]
-
     def on_model_change(self, form, model, is_created):
         self._sanitize_model(model)
         self._clear_inapplicable_fields(model, is_created)
