@@ -245,20 +245,23 @@ class Domain(db.Model):
         error pointing back at the cause.
         """
         import logging
-        port = base_port + offset
-        if port > 65535:
-            # wrap back into the high, mostly-unused range instead of
-            # producing an invalid port number
-            port = 20000 + (port % 10000)
+        raw_port = base_port + offset
+
+        # Valid non-reserved ports are 1024 through 65535 (inclusive)
+        # There are 64512 ports in this range (65536 - 1024)
+        port = 1024 + ((raw_port - 1024) % 64512)
+
+        if raw_port > 65535:
             logging.getLogger(__name__).warning(
                 f"Domain port offset overflowed 65535 (base={base_port}, offset={offset}); "
                 f"wrapped to {port}. Consider lowering the base port or the number of domains."
             )
-        elif port < 1024:
+        elif raw_port < 1024:
             logging.getLogger(__name__).warning(
-                f"Domain computed port {port} falls in the reserved/well-known range "
-                f"(base={base_port}, offset={offset}); this may collide with ssh/nginx/etc."
+                f"Domain computed port {raw_port} falls in the reserved/well-known range "
+                f"(base={base_port}, offset={offset}); wrapped to {port} to avoid collisions."
             )
+
         return port
 
     @property
