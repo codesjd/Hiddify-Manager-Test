@@ -385,15 +385,16 @@ def get_domain_information(no_domain=False, filter_domain=None, alternative=None
         domain = alternative if not no_domain else None
         db_domain = Domain.query.filter(Domain.domain == domain).first()
 
-        if not db_domain:
-            parts = domain.split('.')  # TODO fix bug domain maybe null
+        if not db_domain and domain:
+            parts = domain.split('.')
             parts[0] = "*"
             domain_new = ".".join(parts)
             db_domain = Domain.query.filter(Domain.domain == domain_new).first()
 
         if not db_domain:
             db_domain = Domain(domain=domain, show_domains=[])
-            hutils.flask.flash(_("This domain does not exist in the panel!" + domain))
+            flash_msg = _("This domain does not exist in the panel!") + (f" {domain}" if domain else "")
+            hutils.flask.flash(flash_msg)
 
         domains = db_domain.show_domains or Domain.query.filter(Domain.sub_link_only != True).all()
 
