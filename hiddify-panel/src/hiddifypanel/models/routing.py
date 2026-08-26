@@ -1254,7 +1254,8 @@ def get_l2tp_client_outbounds() -> list[dict]:
     return result
 
 
-def get_l2tp_route_interface() -> str | None:
+@cache.cache(ttl=300)
+def get_l2tp_route_interface(child_id: int) -> str | None:
     """Resolves ConfigEnum.l2tp_outbound_tag to the kernel interface
     L2TP-inbound clients' traffic should route through, or None for the
     default direct-out-the-public-NIC behavior.
@@ -1269,7 +1270,6 @@ def get_l2tp_route_interface() -> str | None:
     of the right protocol - an admin deleting/disabling/retagging the
     chosen outbound should degrade to "just works, direct" rather than
     silently keep pointing at nothing."""
-    from hiddifypanel.models.child import Child
     from hiddifypanel.models.config import hconfig
     from hiddifypanel.models.config_enum import ConfigEnum
 
@@ -1277,7 +1277,6 @@ def get_l2tp_route_interface() -> str | None:
     if not tag:
         return None
 
-    child_id = Child.current().id
     row = CustomOutbound.query.filter_by(child_id=child_id, tag=tag, enable=True).first()
     if row is None:
         return None
