@@ -25,33 +25,51 @@ def get_latest_release_url(repo):
 
 
 @cache.cache(ttl=600)
-def get_latest_release_version(repo_name):
+def get_latest_release_version(repo_name, package_mode='release'):
     try:
-        url = f"https://github.com/hiddify/{repo_name}/releases/latest"
-        response = requests.head(url, allow_redirects=False, timeout=5)
+        if package_mode == 'release':
+            url = f"https://github.com/hiddify/{repo_name}/releases/latest"
+            response = requests.head(url, allow_redirects=False, timeout=5)
 
-        location_header = response.headers.get("Location")
-        if location_header:
-            version = re.search(r"/([^/]+)/?$", location_header)
-            if version:
-                ver = version.group(1).replace('v', '')
-                if ver == "latest":
-                    return get_latest_release_version(repo_name.replace("-", ""))
-                return ver
+            location_header = response.headers.get("Location")
+            if location_header:
+                version = re.search(r"/([^/]+)/?$", location_header)
+                if version:
+                    ver = version.group(1).replace('v', '')
+                    if ver == "latest":
+                        return get_latest_release_version(repo_name.replace("-", ""), package_mode)
+                    return ver
+        elif package_mode == 'beta':
+            url = f"https://api.github.com/repos/hiddify/{repo_name}/releases"
+            response = requests.get(url, timeout=5)
+            response.raise_for_status()
+            releases = response.json()
+            for release in releases:
+                if release.get('prerelease') or 'b' in release.get('tag_name', ''):
+                    return release.get('tag_name', '').replace('v', '')
+            return get_latest_release_version(repo_name, 'release')
+        elif package_mode == 'develop':
+            url = f"https://api.github.com/repos/hiddify/{repo_name}/tags?per_page=100"
+            response = requests.get(url, timeout=5)
+            response.raise_for_status()
+            tags = response.json()
+            for tag in tags:
+                tag_name = tag.get('name', '')
+                if 'dev' in tag_name.lower():
+                    return tag_name.replace('v', '')
+            return get_latest_release_version(repo_name, 'beta')
     except Exception:
-        return None
+        pass
 
     return None
 
 
 def is_panel_outdated() -> bool:
-    # TODO: handle beta and develop version too
     pm = hconfig(ConfigEnum.package_mode)
     try:
-        if pm == 'release':
-            if latest_v := get_latest_release_version('hiddifypanel'):
-                if compare_versions(latest_v, current_version) == 1:
-                    return True
+        if latest_v := get_latest_release_version('hiddifypanel', pm):
+            if compare_versions(latest_v, current_version) == 1:
+                return True
     except Exception:
         pass
     return False

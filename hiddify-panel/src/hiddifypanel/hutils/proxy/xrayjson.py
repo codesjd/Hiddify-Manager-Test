@@ -44,12 +44,9 @@ def configs_as_json(domains: list[Domain], user: User, expire_days: int, remarks
         )
         # endregion
     else:
-        # TODO: seperate codes to small functions
-        # TODO: check what are unsupported protocols in other apps
         unsupported_protos:set[ProxyProto] = set()
         unsupported_transport:set[ProxyTransport] = set()
         if g.user_agent.get('is_v2rayng'):
-            # TODO: ensure which protocols are not supported in v2rayng
             unsupported_protos = {ProxyProto.hysteria, ProxyProto.hysteria2,
                                   ProxyProto.tuic, ProxyProto.ssr, ProxyProto.ssh}
             if not hutils.flask.is_client_version(hutils.flask.ClientVersion.v2ryang, 1, 8, 18):
@@ -285,15 +282,14 @@ def _add_security(base_dict, proxy, tls_info=None):
     ss['security'] = 'none'  # default
 
     # security
-    if 'reality' in tls_info['mode']:
+    if proxy.get('security'):
+        ss['security'] = proxy['security']
+    elif 'reality' in tls_info['mode']:
         ss['security'] = 'reality'
     elif proxy['l3'] in [ProxyL3.tls, ProxyL3.tls_h2, ProxyL3.tls_h2_h1, ProxyL3.h3_quic, ProxyL3.reality]:
         ss['security'] = 'tls'
 
     # network and transport settings
-    # THE CURRENT CODE WORKS BUT THE CORRECT CONDITINO SHOULD BE THIS:
-    # ss['security'] == 'tls' or 'xtls' -----> ss['security'] in ['tls','xtls']
-    # TODO: FIX THE CONDITION AND TEST CONFIGS ON THE CLIENT SIDE
     if ss['security'] == 'reality':
         # ss['network'] = proxy['transport']
         add_reality_stream(ss, proxy, tls_info)
@@ -348,9 +344,6 @@ def add_stream_settings(base: dict, proxy: dict):
     if proxy['l3'] == ProxyL3.kcp:
         ss['network'] = 'kcp'
         add_kcp_stream(ss, proxy)
-
-    if proxy['l3'] == ProxyL3.h3_quic:
-        add_quic_stream(ss, proxy)
 
     if (proxy['transport'] == 'tcp' and ss['security'] != 'reality') or (ss['security'] == 'none' and proxy['transport'] not in ('httpupgrade', 'ws') and proxy['proto'] != ProxyProto.ss):
         ss['network'] = proxy['transport']
@@ -596,19 +589,6 @@ def add_mask_finalmask_stream(ss: dict, proxy: dict):
                 }
             }]
         }
-
-
-def add_quic_stream(ss: dict, proxy: dict):
-    # TODO: fix server side configs first
-    return
-
-    ss['quicSettings'] = {
-        'security': 'chacha20-poly1305',
-        'key': proxy['path'],
-        'header': {
-            'type': 'none'
-        }
-    }
 
 
 def add_reality_stream(ss: dict, proxy: dict, domain_info: dict):

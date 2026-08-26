@@ -7,7 +7,7 @@ from hiddifypanel.auth import login_required
 
 from wtforms.validators import ValidationError
 
-from hiddifypanel.models import ConfigEnum, Domain
+from hiddifypanel.models import ConfigEnum, Domain, ApplyMode
 from .adminlte import AdminLTEModelView
 from flask import current_app
 
@@ -59,3 +59,9 @@ class ConfigAdmin(AdminLTEModelView):
                 raise ValidationError('Invalid domain: e.g., www.google.com')
             if len(Domain.query.filter(Domain.domain == model.value).all()) > 0:
                 raise ValidationError(f"Domain model.value is exist in domains section. Use a fake domain")
+
+    def after_model_change(self, form, model, is_created):
+        from hiddifypanel.models import get_hconfigs
+        get_hconfigs.invalidate_all()
+        hutils.apply_scope.mark_dirty(hutils.apply_scope.CORE_ONLY_SUBSYSTEMS)
+        hutils.flask.flash_config_success(restart_mode=ApplyMode.apply_config, domain_changed=False)
