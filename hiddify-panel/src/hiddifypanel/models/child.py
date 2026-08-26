@@ -40,22 +40,27 @@ class Child(db.Model):  # type: ignore
         }
 
     @staticmethod
-    def add_or_update(commit=True, **data) -> Child:
-        dbchild = Child.query.filter(Child.id == data['id']).first()
+    def add_or_update(commit=True, _dto=None, **data) -> Child:
+        from hiddifypanel.models.dto import ChildDTO, _as_dto
+        u = _dto or _as_dto(data, ChildDTO)
+        child_id = u.id if _dto else data['id']
+        dbchild = Child.query.filter(Child.id == child_id).first()
         if not dbchild:
             dbchild = Child()
             db.session.add(dbchild)
-        dbchild.name = data['name']
-        dbchild.mode = data['mode']
-        dbchild.unique_id = data['unique_id']
+        dbchild.name = u.name if _dto else data['name']
+        dbchild.mode = u.mode if _dto else data['mode']
+        dbchild.unique_id = u.unique_id if _dto else data['unique_id']
         if commit:
             db.session.commit()
         return dbchild
 
     @staticmethod
     def bulk_register(childs, commit=True):
+        from hiddifypanel.models.dto import ChildDTO, _as_dto
+        childs = [_as_dto(c, ChildDTO) for c in childs]
         for child in childs:
-            Child.add_or_update(commit=False, **child)
+            Child.add_or_update(commit=False, _dto=child)
         if commit:
             db.session.commit()
 

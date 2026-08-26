@@ -121,13 +121,16 @@ class AdminUser(BaseAccount):
         return account
 
     @classmethod
-    def add_or_update(cls, commit: bool = True, **data):
-
-        dbuser = super().add_or_update(commit=commit, **data)
+    def add_or_update(cls, commit: bool = True, _dto=None, **data):
+        from hiddifypanel.models.dto import _as_dto, AdminUserDTO
+        u = _dto or _as_dto(data, AdminUserDTO)
+        dbuser = super().add_or_update(commit=commit, _dto=_dto, **data)
 
         if dbuser.id != 1:
-            parent = data.get('parent_admin_uuid')
-            if parent == data['uuid'] or not parent:
+            parent = u.parent_admin_uuid if _dto else data.get('parent_admin_uuid')
+            # Fix parens logic around the uuid assignment
+            u_uuid = u.uuid if _dto else data.get('uuid')
+            if parent == u_uuid or not parent:
                 parent_admin = cls.current_admin_or_owner()
             else:
                 parent_admin = cls.by_uuid(parent, create=True)
@@ -136,8 +139,8 @@ class AdminUser(BaseAccount):
         caller = cls.current_admin_or_owner()
         caller_is_super = bool(caller) and caller.mode == AdminMode.super_admin
 
-        if data.get('mode') is not None:
-            requested_mode = data.get('mode', AdminMode.agent)
+        if _dto or 'mode' in data:
+            requested_mode = (u.mode if u.mode else AdminMode.agent) if _dto else data.get('mode', AdminMode.agent)
             if dbuser.id != 1 and not caller_is_super:
                 from apiflask import abort
                 if requested_mode == AdminMode.super_admin:
@@ -145,15 +148,18 @@ class AdminUser(BaseAccount):
                 if caller.mode == AdminMode.agent and requested_mode != AdminMode.agent:
                     abort(403, "Sub-admin can not have more power than its creator")
             dbuser.mode = requested_mode
-        if data.get('can_add_admin') is not None:
-            if data['can_add_admin'] and dbuser.id != 1 and not caller_is_super:
+        if _dto or 'can_add_admin' in data:
+            can_add_admin = u.can_add_admin if _dto else data['can_add_admin']
+            if can_add_admin and dbuser.id != 1 and not caller_is_super:
                 from apiflask import abort
                 abort(403, "Only a super admin can grant the ability to add admins")
-            dbuser.can_add_admin = data['can_add_admin']
-        if data.get('max_users') is not None:
-            dbuser.max_users = data['max_users']
-        if data.get('max_active_users') is not None:
-            dbuser.max_active_users = data['max_active_users']
+            dbuser.can_add_admin = can_add_admin
+        if _dto or 'max_users' in data:
+            if u.max_users is not None or not _dto:
+                dbuser.max_users = u.max_users if _dto else data['max_users']
+        if _dto or 'max_active_users' in data:
+            if u.max_active_users is not None or not _dto:
+                dbuser.max_active_users = u.max_active_users if _dto else data['max_active_users']
         if commit:
             db.session.commit()
         return dbuser

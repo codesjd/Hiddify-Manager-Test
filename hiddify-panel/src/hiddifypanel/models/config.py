@@ -161,18 +161,21 @@ def get_hconfigs_childs(child_ids: list[int], json=False):
     return {c: get_hconfigs(c, json) for c in child_ids}
 
 
-def add_or_update_config(commit: bool = True, child_id: int | None = None, override_unique_id: bool = True, **config):
+def add_or_update_config(commit: bool = True, child_id: int | None = None, override_unique_id: bool = True, _dto=None, **config):
+    from hiddifypanel.models.dto import HConfigDTO, _as_dto
+    u = _dto or _as_dto(config, HConfigDTO)
     if child_id is None:
         child_id = Child.current().id
-    c = config['key']
+    c = u.key if _dto else config['key']
     try:
-        ckey = ConfigEnum(c)
+        ckey = c if isinstance(c, ConfigEnum) else ConfigEnum(c)
     except Exception:
         return
-    if c == ConfigEnum.unique_id and not override_unique_id:
+    if ckey == ConfigEnum.unique_id and not override_unique_id:
         return
 
-    v = str(config['value']).lower() == "true" if ckey.type == bool else config['value']
+    value = u.value if _dto else config['value']
+    v = str(value).lower() == "true" if ckey.type == bool else value
     if ckey in [ConfigEnum.db_version]:
         return
     set_hconfig(ckey, v, child_id, commit=commit)
@@ -180,10 +183,17 @@ def add_or_update_config(commit: bool = True, child_id: int | None = None, overr
 
 def bulk_register_configs(hconfigs, commit: bool = True, froce_child_unique_id: str | None = None, override_unique_id: bool = True):
     from hiddifypanel.panel import hiddify
+    from hiddifypanel.models.dto import HConfigDTO, _as_dto
+    hconfigs = [_as_dto(c, HConfigDTO) for c in hconfigs]
     for conf in hconfigs:
-        if conf['key'] == ConfigEnum.unique_id and not override_unique_id:
+        c = conf.key
+        try:
+            ckey = c if isinstance(c, ConfigEnum) else ConfigEnum(c)
+        except Exception:
+            continue
+        if ckey == ConfigEnum.unique_id and not override_unique_id:
             continue
         child_id = hiddify.get_child(unique_id=froce_child_unique_id)
-        add_or_update_config(commit=False, child_id=child_id, **conf)
+        add_or_update_config(commit=False, child_id=child_id, _dto=conf)
     if commit:
         db.session.commit()
