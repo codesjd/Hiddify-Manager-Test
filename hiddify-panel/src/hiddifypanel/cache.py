@@ -60,24 +60,31 @@ class CustomRedisCache(RedisCache):
 
             @functools.wraps(func)
             def wrapper(*args, **kwargs):
-                ttl = ttl_func(*args, **kwargs)
-
-                # Get the underlying python-redis-cache CacheDecorator instance without adding to self.cached_functions
-                # The python-redis-cache RedisCache class actually provides a raw decorator via super().cache()
-                from redis_cache import CacheDecorator
-                cache_decorator = CacheDecorator(
-                    redis_client=self.client,
-                    prefix=self.prefix,
-                    serializer=self.serializer,
-                    deserializer=self.deserializer,
-                    key_serializer=self.key_serializer,
-                    ttl=ttl,
-                    limit=0,
-                    namespace=f'{func.__module__}.{func.__qualname__}',
-                    support_cluster=self.support_cluster,
-                    exception_handler=self.exception_handler
-                )
-                return cache_decorator(func)(*args, **kwargs)
+                # Fail-open: the dynamic-TTL path reaches into python-redis-cache's
+                # internals (CacheDecorator), so any incompatibility there must
+                # degrade to "just run the function uncached" rather than break
+                # the caller (this wraps a user-facing path - short links). A
+                # Redis hiccup is likewise swallowed by CacheDecorator itself.
+                try:
+                    ttl = ttl_func(*args, **kwargs)
+                    from redis_cache import CacheDecorator
+                    cache_decorator = CacheDecorator(
+                        redis_client=self.client,
+                        prefix=self.prefix,
+                        serializer=self.serializer,
+                        deserializer=self.deserializer,
+                        key_serializer=self.key_serializer,
+                        ttl=ttl,
+                        limit=0,
+                        namespace=f'{func.__module__}.{func.__qualname__}',
+                        support_cluster=self.support_cluster,
+                        exception_handler=self.exception_handler
+                    )
+                    return cache_decorator(func)(*args, **kwargs)
+                except Exception as err:
+                    with logger.contextualize(error=err):
+                        logger.warning(f"dynamic_ttl_cache falling back to uncached call for {func.__qualname__}")
+                    return func(*args, **kwargs)
 
             wrapper.invalidate = base_cached_func.invalidate
             wrapper.invalidate_all = base_cached_func.invalidate_all
