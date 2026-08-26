@@ -55,6 +55,16 @@ def configs_as_json(domains: list[Domain], user: User, expire_days: int, remarks
             if not hutils.flask.is_client_version(hutils.flask.ClientVersion.v2ryang, 1, 8, 18):
                 unsupported_transport = {ProxyTransport.httpupgrade}
                 unsupported_protos.update({ProxyProto.wireguard})
+        elif g.user_agent.get('is_streisand'):
+            unsupported_protos = {ProxyProto.hysteria, ProxyProto.hysteria2,
+                                  ProxyProto.tuic, ProxyProto.ssr, ProxyProto.ssh, ProxyProto.wireguard}
+        elif g.user_agent.get('is_shadowrocket'):
+            # Shadowrocket supports mostly everything
+            pass
+        else:
+            # Fallback for other generic Xray clients that might not support newer/custom protocols
+            unsupported_protos = {ProxyProto.hysteria, ProxyProto.hysteria2,
+                                  ProxyProto.tuic, ProxyProto.ssr, ProxyProto.ssh, ProxyProto.wireguard}
 
         # multiple outbounds needs multiple whole base config not just one with multiple outbounds (at least for v2rayng)
         # https://github.com/2dust/v2rayNG/pull/2827#issue-2127534078
