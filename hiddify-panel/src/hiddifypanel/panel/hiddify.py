@@ -452,7 +452,7 @@ def all_configs_for_cli():
     # UI; still honored for backward compatibility.
     try:
         import json
-        db_extra = build_custom_xray_extra()
+        db_extra = build_custom_xray_extra(host_child_ids[0])
         manual_raw = configs['chconfigs'][0].get('additional_configs_xrayjson') or ''
         manual = json.loads(manual_raw) if manual_raw.strip() else {}
         merged = {
@@ -466,7 +466,7 @@ def all_configs_for_cli():
     # Same merge, sing-box schema - see the comment above, same reasoning.
     try:
         import json
-        db_extra_sb = build_custom_singbox_extra()
+        db_extra_sb = build_custom_singbox_extra(host_child_ids[0])
         manual_raw_sb = configs['chconfigs'][0].get('additional_configs_singbox') or ''
         manual_sb = json.loads(manual_raw_sb) if manual_raw_sb.strip() else {}
         merged_sb = {
