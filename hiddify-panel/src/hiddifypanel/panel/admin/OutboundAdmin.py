@@ -392,7 +392,3 @@ class OutboundAdmin(AdminLTEModelView):
         build_custom_singbox_extra.invalidate_all()
         hutils.apply_scope.mark_dirty(hutils.apply_scope.OUTBOUND_CHANGE_SUBSYSTEMS)
         hutils.flask.flash_config_success(restart_mode=ApplyMode.apply_config, domain_changed=False)
-
-    def after_model_delete(self, model):
-        hutils.apply_scope.mark_dirty(hutils.apply_scope.OUTBOUND_CHANGE_SUBSYSTEMS)
-        hutils.flask.flash_config_success(restart_mode=ApplyMode.apply_config, domain_changed=False)
