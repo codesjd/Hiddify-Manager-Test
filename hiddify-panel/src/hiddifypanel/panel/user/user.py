@@ -506,34 +506,68 @@ def add_headers(res, c, mimetype="text/plain"):
 
 
 @cache.cache(ttl=300)
-def fetch_url(url:str):
+def _do_fetch_url(url:str, user_agent: str):
     if not (url.startswith("http://")or url.startswith("https://")):
         return url
     try:
         resp = requests.get(url, timeout=2,headers={
-            "User-Agent":[request.user_agent.string]
+            "User-Agent":[user_agent]
         })
         resp.raise_for_status()
         content = resp.text
- 
-    
         return content
- 
     except Exception:
-    
         return ""
- 
+
+def _fetch_url_stale_while_revalidate(url: str, user_agent: str):
+    """
+    Returns the cached result immediately. If not cached, kicks off a background fetch
+    to populate the cache without blocking the main web request handling thread.
+    """
+    if not (url.startswith("http://")or url.startswith("https://")):
+        return url
+
+    try:
+        # Get the cache instance created by the decorator
+        cache_instance = _do_fetch_url.instance
+        # Calculate the redis key based on the function args
+        key = cache_instance.get_key((url, user_agent), {})
+        val = cache_instance.client.get(key)
+
+        if val is not None:
+            return cache_instance.deserializer(val)
+    except Exception:
+        pass
+
+    # If not in cache or redis failed, spawn a background thread to fetch and cache it
+    # We use a daemon thread so it doesn't block shutdown, and we don't wait for it
+    import threading
+    t = threading.Thread(target=_do_fetch_url, args=(url, user_agent), daemon=True)
+    t.start()
+
+    # Return empty string immediately so we don't block the web request handling thread
+    return ""
+
+def fetch_url(url:str):
+    """Backwards compatibility wrapper if called elsewhere"""
+    try:
+        user_agent = request.user_agent.string
+    except Exception:
+        user_agent = ""
+    return _do_fetch_url(url, user_agent)
+
 def get_and_merge_urls(urls:list[str], max_workers=8):
     if len(urls)==0 or len(urls)==1 and urls[0]=="":
         return []
     urls=[u.replace('{{UUID}}',g.account.uuid) for u in urls]
-    with ThreadPoolExecutor(max_workers=max_workers) as executor:
-        contents = list(
-            executor.map(
-                lambda url: fetch_url(url),
-                urls
-            )
-        )
+
+    try:
+        user_agent_string = request.user_agent.string
+    except Exception:
+        user_agent_string = ""
+
+    # We no longer need a ThreadPoolExecutor because the fetching is non-blocking
+    contents = [_fetch_url_stale_while_revalidate(url, user_agent_string) for url in urls]
  
     return contents
  
