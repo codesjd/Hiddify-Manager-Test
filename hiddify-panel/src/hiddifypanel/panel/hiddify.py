@@ -35,8 +35,7 @@ def add_short_link(link: str, period_min: int = 5) -> Tuple[str, int]:
     return short_code, (expire_date - datetime.now()).seconds
 
 
-@cache.cache(ttl=300)
-# TODO: Change ttl dynamically
+@cache.dynamic_ttl_cache(ttl_func=lambda *args, **kwargs: kwargs.get('period_min', args[1] if len(args) > 1 else 5) * 60)
 def add_short_link_imp(link: str, period_min: int = 5) -> Tuple[str, datetime]:
     # pattern = "\^/([^/]+)(/)?\?\$\ {return 302 " + re.escape(link) + ";}"
 
