@@ -44,58 +44,74 @@ def configs_as_json(domains: list[Domain], user: User, expire_days: int, remarks
         )
         # endregion
     else:
-        # TODO: seperate codes to small functions
-        # TODO: check what are unsupported protocols in other apps
-        unsupported_protos:set[ProxyProto] = set()
-        unsupported_transport:set[ProxyTransport] = set()
-        if g.user_agent.get('is_v2rayng'):
-            # TODO: ensure which protocols are not supported in v2rayng
-            unsupported_protos = {ProxyProto.hysteria, ProxyProto.hysteria2,
-                                  ProxyProto.tuic, ProxyProto.ssr, ProxyProto.ssh}
-            if not hutils.flask.is_client_version(hutils.flask.ClientVersion.v2ryang, 1, 8, 18):
-                unsupported_transport = {ProxyTransport.httpupgrade}
-                unsupported_protos.update({ProxyProto.wireguard})
+        unsupported_protos, unsupported_transport = _get_unsupported_protos_and_transports(g.user_agent)
+        outbounds = _get_valid_outbounds(domains, unsupported_protos, unsupported_transport)
 
-        # multiple outbounds needs multiple whole base config not just one with multiple outbounds (at least for v2rayng)
-        # https://github.com/2dust/v2rayNG/pull/2827#issue-2127534078
-        outbounds = []
-        for proxy in hutils.proxy.get_valid_proxies(domains):
-            if proxy['proto'] in unsupported_protos:
-                continue
-            if proxy['transport'] in unsupported_transport:
-                continue
-            outbound = to_xray(proxy)
-            if len(outbound):
-                outbounds.append(outbound)
-
-        base_config = json.loads(render_template(
-            'base_xray_config.json.j2', remarks=remarks))
-        # base_xray_config.json.j2's catch-all routing rule always sends
-        # traffic to an outbound literally tagged "proxy" - the actual
-        # proxy outbound built above keeps its own descriptive tag (used
-        # for base['remarks'] below), so without this rename that rule
-        # matches nothing ("non existing outTag: proxy") and every
-        # connection silently falls through instead of using the proxy.
-        if len(outbounds) > 1:
-            for out in outbounds:
-                base = dict(base_config)
-                base['remarks'] = out['tag']
-                base['outbounds'] = [{**out, 'tag': 'proxy'}] + base_config['outbounds']
-                all_configs.append(base)
-
-        elif len(outbounds) == 1:  # single outbound
-            outbounds[0]['tag'] = 'proxy'
-            base_config['outbounds'].insert(0, outbounds[0])
-            all_configs = [base_config]
-        # len(outbounds) == 0 (active user, but every proxy was filtered out
-        # or unsupported by this client) falls through to the empty-return
-        # below - the old `else` ran outbounds[0] here and raised IndexError,
-        # surfacing as a 500 on the subscription endpoint.
+        configs = _build_xray_configs(outbounds, remarks)
+        all_configs.extend(configs)
 
     if not all_configs:
         return []
 
     return all_configs
+
+
+def _get_unsupported_protos_and_transports(user_agent) -> tuple[set[ProxyProto], set[ProxyTransport]]:
+    # TODO: check what are unsupported protocols in other apps
+    unsupported_protos:set[ProxyProto] = set()
+    unsupported_transport:set[ProxyTransport] = set()
+    if user_agent.get('is_v2rayng'):
+        # TODO: ensure which protocols are not supported in v2rayng
+        unsupported_protos = {ProxyProto.hysteria, ProxyProto.hysteria2,
+                              ProxyProto.tuic, ProxyProto.ssr, ProxyProto.ssh}
+        if not hutils.flask.is_client_version(hutils.flask.ClientVersion.v2ryang, 1, 8, 18):
+            unsupported_transport = {ProxyTransport.httpupgrade}
+            unsupported_protos.update({ProxyProto.wireguard})
+    return unsupported_protos, unsupported_transport
+
+
+def _get_valid_outbounds(domains, unsupported_protos: set[ProxyProto], unsupported_transport: set[ProxyTransport]) -> list:
+    # multiple outbounds needs multiple whole base config not just one with multiple outbounds (at least for v2rayng)
+    # https://github.com/2dust/v2rayNG/pull/2827#issue-2127534078
+    outbounds = []
+    for proxy in hutils.proxy.get_valid_proxies(domains):
+        if proxy['proto'] in unsupported_protos:
+            continue
+        if proxy['transport'] in unsupported_transport:
+            continue
+        outbound = to_xray(proxy)
+        if len(outbound):
+            outbounds.append(outbound)
+    return outbounds
+
+
+def _build_xray_configs(outbounds: list, remarks: str) -> list:
+    configs = []
+    base_config = json.loads(render_template('base_xray_config.json.j2', remarks=remarks))
+
+    # base_xray_config.json.j2's catch-all routing rule always sends
+    # traffic to an outbound literally tagged "proxy" - the actual
+    # proxy outbound built above keeps its own descriptive tag (used
+    # for base['remarks'] below), so without this rename that rule
+    # matches nothing ("non existing outTag: proxy") and every
+    # connection silently falls through instead of using the proxy.
+    if len(outbounds) > 1:
+        for out in outbounds:
+            base = dict(base_config)
+            base['remarks'] = out['tag']
+            base['outbounds'] = [{**out, 'tag': 'proxy'}] + base_config['outbounds']
+            configs.append(base)
+
+    elif len(outbounds) == 1:  # single outbound
+        outbounds[0]['tag'] = 'proxy'
+        base_config['outbounds'].insert(0, outbounds[0])
+        configs.append(base_config)
+    # len(outbounds) == 0 (active user, but every proxy was filtered out
+    # or unsupported by this client) falls through to the empty-return
+    # below - the old `else` ran outbounds[0] here and raised IndexError,
+    # surfacing as a 500 on the subscription endpoint.
+
+    return configs
 
 
 def to_xray(proxy: dict) -> dict:
