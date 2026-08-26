@@ -1,0 +1,13 @@
+--- hiddify-panel/src/hiddifypanel/hutils/node/child.py
++++ hiddify-panel/src/hiddifypanel/hutils/node/child.py
+@@ -15,8 +15,8 @@
+ # import schemas
+ from hiddifypanel.panel.commercial.restapi.v2.parent.schema import *
+ from hiddifypanel.panel.commercial.restapi.v2.child.schema import *
+-from hiddifypanel.panel.commercial.restapi.v2.admin.admin_user_api import AdminSchema
+-from hiddifypanel.panel.commercial.restapi.v2.admin.user_api import UserSchema
++from hiddifypanel.panel.commercial.restapi.v2.admin.schema import AdminSchema
++from hiddifypanel.panel.commercial.restapi.v2.admin.schema import UserSchema
+
+ from .api_client import NodeApiClient, NodeApiErrorSchema
+ # region private
