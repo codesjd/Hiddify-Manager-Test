@@ -12,7 +12,6 @@ from hiddifypanel.models.role import Role
 
 from hiddifypanel.panel.user.user import get_common_data
 from apiflask import fields
-from hiddifypanel.hutils.network.net import get_domain_ips_cached
 
 class MtproxySchema(Schema):
     link = String(required=True)
@@ -30,18 +29,10 @@ class MTProxiesAPI(MethodView):
             abort(status_code=404, message="Telegram mtproxy is not enable")
 
         dtos = []
-        seen_ips = set()
-
+        # TODO: Remove duplicated domains mapped to a same ipv4 and v6
         for d in c['domains']:
             if d.mode not in [DomainType.direct, DomainType.relay, DomainType.old_xtls_direct]:
                 continue
-
-            ips = get_domain_ips_cached(d.domain) or set()
-            if ips:
-                ips_frozen = frozenset(ips)
-                if ips_frozen in seen_ips:
-                    continue
-                seen_ips.add(ips_frozen)
 
             # make mtproxy link
             raw_sec = hconfig(ConfigEnum.shared_secret, d.child_id)

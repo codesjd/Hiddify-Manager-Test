@@ -10,13 +10,10 @@ from hiddifypanel.panel import hiddify
 from hiddifypanel.panel import usage
 from hiddifypanel.database import db
 from hiddifypanel.cache import cache
-from sqlalchemy.orm import joinedload
 
-# import schemas
+# import schmeas
 from hiddifypanel.panel.commercial.restapi.v2.parent.schema import *
 from hiddifypanel.panel.commercial.restapi.v2.child.schema import *
-from hiddifypanel.panel.commercial.restapi.v2.admin.schema import AdminSchema
-from hiddifypanel.panel.commercial.restapi.v2.admin.schema import UserSchema
 
 from .api_client import NodeApiClient, NodeApiErrorSchema
 # region private
@@ -30,15 +27,11 @@ def __get_register_data_for_api(name: str, mode: ChildMode) -> RegisterInputSche
     register_data.mode = mode  # type: ignore
 
     panel_data = RegisterDataSchema()  # type: ignore
-
-    panel_data.admin_users = AdminSchema(many=True).load([admin_user.to_dict() for admin_user in AdminUser.query.all()])
-    panel_data.users = UserSchema(many=True).load([user.to_dict(dump_id=True) for user in User.query.all()])
-    panel_data.domains = DomainSchema(many=True).load([domain.to_dict() for domain in Domain.query.options(joinedload(Domain.child), joinedload(Domain.show_domains), joinedload(Domain.download_domain)).all()])
-    panel_data.proxies = ProxySchema(many=True).load([proxy.to_dict() for proxy in Proxy.query.options(joinedload(Proxy.child)).all()])
-
-    str_configs = HConfigSchema(many=True).load([u.to_dict() for u in StrConfig.query.options(joinedload(StrConfig.child)).all()])
-    bool_configs = HConfigSchema(many=True).load([u.to_dict() for u in BoolConfig.query.options(joinedload(BoolConfig.child)).all()])
-    panel_data.hconfigs = [*str_configs, *bool_configs]  # type: ignore
+    panel_data.admin_users = [admin_user.to_schema() for admin_user in AdminUser.query.all()]  # type: ignore
+    panel_data.users = [user.to_schema() for user in User.query.all()]  # type: ignore
+    panel_data.domains = [domain.to_schema() for domain in Domain.query.all()]  # type: ignore
+    panel_data.proxies = [proxy.to_schema() for proxy in Proxy.query.all()]  # type: ignore
+    panel_data.hconfigs = [*[u.to_schema() for u in StrConfig.query.all()], *[u.to_schema() for u in BoolConfig.query.all()]]  # type: ignore
     register_data.panel_data = panel_data
 
     return register_data
@@ -52,31 +45,19 @@ class SyncFields(StrEnum):
 
 def __get_sync_data_for_api(*fields: SyncFields) -> SyncInputSchema:
     sync_data = SyncInputSchema()
-
-    def get_domains():
-        return DomainSchema(many=True).load([domain.to_dict() for domain in Domain.query.options(joinedload(Domain.child), joinedload(Domain.show_domains), joinedload(Domain.download_domain)).all()])
-
-    def get_proxies():
-        return ProxySchema(many=True).load([proxy.to_dict() for proxy in Proxy.query.options(joinedload(Proxy.child)).all()])
-
-    def get_hconfigs():
-        str_configs = HConfigSchema(many=True).load([u.to_dict() for u in StrConfig.query.options(joinedload(StrConfig.child)).all()])
-        bool_configs = HConfigSchema(many=True).load([u.to_dict() for u in BoolConfig.query.options(joinedload(BoolConfig.child)).all()])
-        return [*str_configs, *bool_configs]
-
     if len(fields) == 0:
-        sync_data.domains = get_domains()
-        sync_data.proxies = get_proxies()
-        sync_data.hconfigs = get_hconfigs()
+        sync_data.domains = [domain.to_schema() for domain in Domain.query.all()]  # type: ignore
+        sync_data.proxies = [proxy.to_schema() for proxy in Proxy.query.all()]  # type: ignore
+        sync_data.hconfigs = [*[u.to_schema() for u in StrConfig.query.all()], *[u.to_schema() for u in BoolConfig.query.all()]]  # type: ignore
     else:
         for f in fields:
             match f:
                 case SyncFields.domains:
-                    sync_data.domains = get_domains()
+                    sync_data.domains = [domain.to_schema() for domain in Domain.query.all()]  # type: ignore
                 case SyncFields.proxies:
-                    sync_data.proxies = get_proxies()
+                    sync_data.proxies = [proxy.to_schema() for proxy in Proxy.query.all()]  # type: ignore
                 case SyncFields.hconfigs:
-                    sync_data.hconfigs = get_hconfigs()
+                    sync_data.hconfigs = [*[u.to_schema() for u in StrConfig.query.all()], *[u.to_schema() for u in BoolConfig.query.all()]]  # type: ignore
 
     return sync_data
 

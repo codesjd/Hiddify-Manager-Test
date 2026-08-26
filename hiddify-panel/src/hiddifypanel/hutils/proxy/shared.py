@@ -351,12 +351,8 @@ def _get_valid_proxies_uncached(domains: list[Domain]) -> list[dict]:
             domain_proxies = [p for p in domain_proxies if p.id not in disabled_ids]
             missing_ids = enabled_ids - {p.id for p in domain_proxies}
             if missing_ids:
-                if not all_proxies_by_id_map:
-                    child_ids = {d.child_id for d in domains}
-                    all_proxies = Proxy.query.filter(Proxy.child_id.in_(child_ids)).all()
-                    for cid in child_ids:
-                        all_proxies_by_id_map[cid] = {p.id: p for p in all_proxies if p.child_id == cid}
-
+                if domain.child_id not in all_proxies_by_id_map:
+                    all_proxies_by_id_map[domain.child_id] = {p.id: p for p in Proxy.query.filter_by(child_id=domain.child_id).all()}
                 by_id = all_proxies_by_id_map[domain.child_id]
                 domain_proxies = domain_proxies + [by_id[pid] for pid in missing_ids if pid in by_id]
 
@@ -742,7 +738,7 @@ def make_proxy(hconfigs: dict, proxy: Proxy, domain_db: Domain, phttp=80, ptls=4
             base['hysteria_up_mbps'] = hconfigs.get(ConfigEnum.hysteria_up_mbps)
             base['hysteria_down_mbps'] = hconfigs.get(ConfigEnum.hysteria_down_mbps)
             base['hysteria_obfs_enable'] = hconfigs.get(ConfigEnum.hysteria_obfs_enable)
-            base['hysteria_obfs_password'] = hconfigs.get(ConfigEnum.proxy_path)  # The client obfs password must match the server's. The server template (05_inbounds_4100_hysteria.json.j2:17) uses proxy_path.
+            base['hysteria_obfs_password'] = hconfigs.get(ConfigEnum.proxy_path)  # TODO: it should not be correct
         elif proxy.proto == 'tuic':
             # Was missing entirely - add_tuic() in singbox.py hardcoded
             # "cubic" regardless of the admin's Settings choice, so the

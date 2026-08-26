@@ -139,8 +139,7 @@ class TelemtApi(DriverABS):
         enabled = {u['uuid']: 1 for u in old_usages.values()}
         not_included = new_wg_pubs - old_wg_pubs
         if not_included:
-            uuid_map = self.__convert_tg_to_uuid(not_included)
-            users = User.query.filter(User.uuid.in_(uuid_map.values())).all()
+            users = User.query.filter(User.wg_pub.in_(not_included)).all()
             for u in users:
                 enabled[u.uuid] = 1
 

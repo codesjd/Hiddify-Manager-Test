@@ -605,10 +605,10 @@ def add_hysteria(base: dict, proxy: dict):
             return None
     base['up_mbps'] = _to_int(proxy.get('hysteria_up_mbps'))
     base['down_mbps'] = _to_int(proxy.get('hysteria_down_mbps'))
-    obfs_password = proxy.get('hysteria_obfs_password')
-    if proxy.get('hysteria_obfs_enable') and obfs_password:
+    # TODO: check the obfs should be empty or not exists at all
+    if proxy.get('hysteria_obfs_enable'):
         base['obfs'] = {
             "type": "salamander",
-            "password": obfs_password
+            "password": proxy.get('hysteria_obfs_password')
         }
     base['password'] = proxy['uuid']

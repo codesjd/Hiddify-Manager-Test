@@ -176,6 +176,8 @@ class SettingAdmin(FlaskView):
                         hutils.flask.flash(_('node.diff-version'), 'danger')  # type: ignore
                     if not hutils.node.child.register_to_parent(name, parent_apikey, mode=ChildMode.remote):
                         hutils.flask.flash(_('child.register-failed'), 'danger')  # type: ignore
+                    else:  # TODO: it's just for debuging
+                        hutils.flask.flash(_('child.register-success'))  # type: ignore
 
             reset_action = hiddify.check_need_reset(old_configs)
 

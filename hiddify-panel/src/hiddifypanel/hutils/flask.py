@@ -319,11 +319,17 @@ class ClientVersion(StrEnum):
 def is_client_version(client: ClientVersion, major_v: int = 0, minor_v: int = 0, patch_v: int = 0) -> bool:
     '''If the user agent version be equals or higher than parameters returns True'''
     if raw_v := g.user_agent.get(client):
-        user_agent_v = '.'.join(map(str, raw_v))
+        # TODO: probably we don't need these checks and the compare_versions can handle it (need to be test)
+        raw_v_len = len(raw_v)
+        u_major_v = raw_v[0] if raw_v_len > 0 else 0
+        u_minor_v = raw_v[1] if raw_v_len > 1 else 0
+        u_patch_v = raw_v[2] if raw_v_len > 2 else 0
+
+        user_agent_v = f'{u_major_v}.{u_minor_v}.{u_patch_v}'
         needed_version = f'{major_v}.{minor_v}.{patch_v}'
 
         res = hutils.utils.compare_versions(user_agent_v, needed_version)
-        if res >= 0:
+        if res == 0 or res == 1:
             return True
     return False
 

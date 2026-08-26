@@ -43,7 +43,10 @@ def convert_usage_api_response_to_dict(data: dict) -> dict:
 
 # endregion
 
-@cache.cache(ttl=150)
+# TODO: use cache for these functions in release
+# @cache.cache(ttl=150)
+
+
 def is_panel_active(domain: str, proxy_path: str, apikey: str | None = None) -> bool:
     base_url = f'https://{domain}/{proxy_path}'
     res = NodeApiClient(base_url, apikey).get('/api/v2/panel/ping/', dict)
@@ -57,7 +60,7 @@ def is_panel_active(domain: str, proxy_path: str, apikey: str | None = None) -> 
     return False
 
 
-@cache.cache(ttl=300)
+# @cache.cache(300)
 def get_panel_info(domain: str, proxy_path: str, apikey: str | None = None) -> dict | None:
     base_url = f'https://{domain}/{proxy_path}'
     res = NodeApiClient(base_url, apikey).get('/api/v2/panel/info/', PanelInfoOutputSchema)

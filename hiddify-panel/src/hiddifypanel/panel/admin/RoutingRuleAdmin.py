@@ -132,8 +132,6 @@ class RoutingRuleAdmin(AdminLTEModelView):
                 neighbor = rules[neighbor_idx]
                 model.priority, neighbor.priority = neighbor.priority, model.priority
                 db.session.commit()
-                build_custom_xray_extra.invalidate_all()
-                build_custom_singbox_extra.invalidate_all()
                 hutils.apply_scope.mark_dirty(hutils.apply_scope.CORE_ONLY_SUBSYSTEMS)
                 hutils.flask.flash_config_success(restart_mode=ApplyMode.apply_config, domain_changed=False)
         return redirect(request.referrer or hutils.flask.hurl_for('flask.customroutingrule.index_view'))
@@ -198,13 +196,5 @@ class RoutingRuleAdmin(AdminLTEModelView):
             model.priority = (last.priority + 10) if last else 10
 
     def after_model_change(self, form, model, is_created):
-        build_custom_xray_extra.invalidate_all()
-        build_custom_singbox_extra.invalidate_all()
-        hutils.apply_scope.mark_dirty(hutils.apply_scope.CORE_ONLY_SUBSYSTEMS)
-        hutils.flask.flash_config_success(restart_mode=ApplyMode.apply_config, domain_changed=False)
-
-    def after_model_delete(self, model):
-        build_custom_xray_extra.invalidate_all()
-        build_custom_singbox_extra.invalidate_all()
         hutils.apply_scope.mark_dirty(hutils.apply_scope.CORE_ONLY_SUBSYSTEMS)
         hutils.flask.flash_config_success(restart_mode=ApplyMode.apply_config, domain_changed=False)

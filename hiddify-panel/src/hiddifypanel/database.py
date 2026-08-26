@@ -136,14 +136,8 @@ def backup_db() -> bool:
         password = db.engine.url.password or ''
         database_name = db.engine.url.database
         host = db.engine.url.host
-        cmd = ["mysqldump", "-h", str(host), "-u", str(user), f"-p{password}", str(database_name)]
-        try:
-            with open(backup_path, 'wb') as f:
-                res = subprocess.run(cmd, stdout=f, stderr=subprocess.PIPE)
-        except Exception as e:
-            logger.error(f"MySQL backup failed to execute: {e}")
-            return False
-
+        cmd = f"mysqldump -h {host} -u {user} -p{password} {database_name} > {backup_path}"
+        res = subprocess.run(cmd, shell=True, capture_output=True)
         if res.returncode != 0:
             logger.error(f"MySQL backup failed: {res.stderr.decode()}")
             return False

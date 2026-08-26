@@ -281,20 +281,17 @@ class User(BaseAccount):
             if u.wg_psk is not None:
                 dbuser.wg_psk = u.wg_psk
 
-        mode_val = u.mode if _dto else data.get('mode')
-        if mode_val is not None or dbuser.mode is None:
-            mode = mode_val if mode_val is not None else UserMode.no_reset
+        if data.get('mode') is not None or dbuser.mode is None:
+            mode = data.get('mode', UserMode.no_reset)
             if mode == 'disable':
                 mode = UserMode.no_reset
                 dbuser.enable = False
             dbuser.mode = mode
 
-        last_online_val = u.last_online if _dto else data.get('last_online')
-        if last_online_val is not None:
-            dbuser.last_online = hutils.convert.json_to_time(last_online_val) or datetime.datetime.min
-        last_reset_val = u.last_reset_time if _dto else (data['last_reset_time'] if 'last_reset_time' in data else None)
-        if last_reset_val is not None:
-            dbuser.last_reset_time = hutils.convert.json_to_date(last_reset_val)
+        if data.get('last_online') is not None:
+            dbuser.last_online = hutils.convert.json_to_time(data.get('last_online')) or datetime.datetime.min
+        if data.get('last_reset_time') is not None:
+            dbuser.last_reset_time = hutils.convert.json_to_date(data['last_reset_time'])
         if commit:
             db.session.commit()
         return dbuser
