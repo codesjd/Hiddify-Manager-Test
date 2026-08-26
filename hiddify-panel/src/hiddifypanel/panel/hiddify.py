@@ -519,7 +519,7 @@ def all_configs_for_cli():
     # resolves to a live row.
     try:
         from hiddifypanel.models.routing import get_l2tp_route_interface
-        configs['l2tp_route_interface'] = get_l2tp_route_interface()
+        configs['l2tp_route_interface'] = get_l2tp_route_interface(child_id=Child.current().id)
     except Exception:
         logger.exception("Failed to resolve l2tp_outbound_tag (non-fatal, other/l2tp/ will route direct)")
         configs['l2tp_route_interface'] = None
