@@ -33,7 +33,9 @@ def test_outbound_serialization(app):
 
 def test_migration_smoke(app):
     from hiddifypanel.models import hconfig
-    assert hconfig(ConfigEnum.is_parent) is not None
+    from hiddifypanel.panel.init_db import init_db
+    init_db()
+    assert hconfig(ConfigEnum.core_type) is not None
 
 def test_sqlite_usage_increment(app):
     '''Verify Plan 015 Phase 2: SQLite usage path replicates all three stored-procedure effects.'''

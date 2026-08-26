@@ -3,6 +3,7 @@ from enum import auto
 from sqlalchemy import Column, String, Integer, Boolean, Enum, ForeignKey, Text
 
 from hiddifypanel.database import db
+from hiddifypanel.cache import cache
 
 
 class OutboundProtocol(StrEnum):
@@ -1182,6 +1183,19 @@ def _deep_merge(base: dict, override: dict) -> dict:
     return base
 
 
+@cache.cache(ttl=300)
+def _build_custom_xray_extra(child_id: int) -> dict:
+    outbounds = [
+        o.to_xray_dict()
+        for o in CustomOutbound.query.filter_by(child_id=child_id, enable=True).all()
+    ]
+    rules = [
+        r.to_xray_dict()
+        for r in CustomRoutingRule.query.filter_by(child_id=child_id, enable=True).order_by(CustomRoutingRule.priority.asc()).all()
+    ]
+    return {"outbounds": outbounds, "routing_rules": rules}
+
+
 def build_custom_xray_extra() -> dict:
     """Serialize all enabled CustomOutbound/CustomRoutingRule rows (for the
     current child) into the {"outbounds": [...], "routing_rules": [...]}
@@ -1189,12 +1203,17 @@ def build_custom_xray_extra() -> dict:
     already know how to merge in."""
     from hiddifypanel.models.child import Child
     child_id = Child.current().id
+    return _build_custom_xray_extra(child_id)
+
+
+@cache.cache(ttl=300)
+def _build_custom_singbox_extra(child_id: int) -> dict:
     outbounds = [
-        o.to_xray_dict()
+        o.to_singbox_dict()
         for o in CustomOutbound.query.filter_by(child_id=child_id, enable=True).all()
     ]
     rules = [
-        r.to_xray_dict()
+        r.to_singbox_dict()
         for r in CustomRoutingRule.query.filter_by(child_id=child_id, enable=True).order_by(CustomRoutingRule.priority.asc()).all()
     ]
     return {"outbounds": outbounds, "routing_rules": rules}
@@ -1210,15 +1229,7 @@ def build_custom_singbox_extra() -> dict:
     anything."""
     from hiddifypanel.models.child import Child
     child_id = Child.current().id
-    outbounds = [
-        o.to_singbox_dict()
-        for o in CustomOutbound.query.filter_by(child_id=child_id, enable=True).all()
-    ]
-    rules = [
-        r.to_singbox_dict()
-        for r in CustomRoutingRule.query.filter_by(child_id=child_id, enable=True).order_by(CustomRoutingRule.priority.asc()).all()
-    ]
-    return {"outbounds": outbounds, "routing_rules": rules}
+    return _build_custom_singbox_extra(child_id)
 
 
 def get_amneziawg_outbounds() -> list[dict]:
