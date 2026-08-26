@@ -1183,13 +1183,12 @@ def _deep_merge(base: dict, override: dict) -> dict:
     return base
 
 
-def build_custom_xray_extra() -> dict:
+@cache.cache(ttl=300)
+def build_custom_xray_extra(child_id: int) -> dict:
     """Serialize all enabled CustomOutbound/CustomRoutingRule rows (for the
     current child) into the {"outbounds": [...], "routing_rules": [...]}
     shape that xray/configs/06_outbounds.json.j2 and 03_routing.json.j2
     already know how to merge in."""
-    from hiddifypanel.models.child import Child
-    child_id = Child.current().id
     outbounds = [
         o.to_xray_dict()
         for o in CustomOutbound.query.filter_by(child_id=child_id, enable=True).all()
@@ -1201,7 +1200,8 @@ def build_custom_xray_extra() -> dict:
     return {"outbounds": outbounds, "routing_rules": rules}
 
 
-def build_custom_singbox_extra() -> dict:
+@cache.cache(ttl=300)
+def build_custom_singbox_extra(child_id: int) -> dict:
     """Same as build_custom_xray_extra() but in sing-box's schema, merged
     into additional_configs_singbox and read by singbox/configs/
     06_outbounds.json.j2 and 03_routing.json.j2. Same underlying
@@ -1209,8 +1209,6 @@ def build_custom_singbox_extra() -> dict:
     admin-entered outbounds/rules, rendered in whichever core's own schema
     is actually needed, so switching core_type doesn't require re-entering
     anything."""
-    from hiddifypanel.models.child import Child
-    child_id = Child.current().id
     outbounds = [
         o.to_singbox_dict()
         for o in CustomOutbound.query.filter_by(child_id=child_id, enable=True).all()
