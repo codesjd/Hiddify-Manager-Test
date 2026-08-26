@@ -7,7 +7,7 @@ from hiddifypanel.auth import login_required
 
 from wtforms.validators import ValidationError
 
-from hiddifypanel.models import ConfigEnum, Domain
+from hiddifypanel.models import ConfigEnum, Domain, ApplyMode
 from .adminlte import AdminLTEModelView
 from flask import current_app
 
