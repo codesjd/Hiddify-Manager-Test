@@ -10,6 +10,7 @@ import subprocess
 from concurrent.futures import ThreadPoolExecutor
 import traceback
 from urllib.parse import quote
+import re
 
 with open("/opt/hiddify-manager/current.json") as f:
     configs = json.load(f)
@@ -17,7 +18,25 @@ with open("/opt/hiddify-manager/current.json") as f:
     configs["hconfigs"] = configs["chconfigs"][0]
 
 
+ALLOWED_COMMANDS = {
+    '/opt/hiddify-manager/.venv313/bin/python -c "import os,hiddifypanel;print(os.path.dirname(hiddifypanel.__file__),end=\'\')"',
+    "printf '%02d' $(($(date '+%H') + 1))",
+    'date "+%Y-%m-%dT(%H|"',
+    "ip -o -4 addr show | awk '{print $4}' | cut -d/ -f1 | sed 's/.*/\"&\"/' | tr '\n' ',' ",
+    "ls /opt/hiddify-manager/ssl/*.crt | tail -1",
+}
+
 def exec(command):
+    # dynamic regex match for the TLS cert check
+    if command not in ALLOWED_COMMANDS:
+        # The only interpolated part is the domain name (_tls_domain); a
+        # strict charset keeps shell=True safe here (no metacharacters that
+        # could break out of the `[ -f ... ]` test). '*'/'_' are allowed so
+        # wildcard/underscore hostnames still get their cert emitted.
+        tls_cert_pattern = r"^\[ -f /opt/hiddify-manager/ssl/[a-zA-Z0-9._*-]+\.crt \] && echo -n 'true' \|\| echo -n 'false'$"
+        if not re.match(tls_cert_pattern, command):
+            print(f"Command not allowed: {command}", file=sys.stderr)
+            return ""
     try:
         output = subprocess.check_output(
             command, shell=True, stderr=subprocess.STDOUT, text=True
