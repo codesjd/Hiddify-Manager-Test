@@ -738,7 +738,7 @@ def make_proxy(hconfigs: dict, proxy: Proxy, domain_db: Domain, phttp=80, ptls=4
             base['hysteria_up_mbps'] = hconfigs.get(ConfigEnum.hysteria_up_mbps)
             base['hysteria_down_mbps'] = hconfigs.get(ConfigEnum.hysteria_down_mbps)
             base['hysteria_obfs_enable'] = hconfigs.get(ConfigEnum.hysteria_obfs_enable)
-            base['hysteria_obfs_password'] = hconfigs.get(ConfigEnum.proxy_path)  # TODO: it should not be correct
+            base['hysteria_obfs_password'] = hconfigs.get(ConfigEnum.proxy_path)  # The client obfs password must match the server's. The server template (05_inbounds_4100_hysteria.json.j2:17) uses proxy_path.
         elif proxy.proto == 'tuic':
             # Was missing entirely - add_tuic() in singbox.py hardcoded
             # "cubic" regardless of the admin's Settings choice, so the
