@@ -1149,25 +1149,29 @@ def get_available_inbound_tags() -> list[tuple[str, str]]:
 
     # Reality inbounds are per-domain (one dedicated inbound per reality
     # domain, unlike everything else). Same source as before.
-    if hconfig(ConfigEnum.reality_enable, child_id):
-        reality_streams = {
-            DomainType.special_reality_tcp: 'tcp',
-            DomainType.special_reality_xhttp: 'xhttp',
-            DomainType.special_reality_grpc: 'grpc',
-        }
-        for d in Domain.query.filter(Domain.child_id == child_id, Domain.mode.in_(list(reality_streams.keys()))).all():
-            if not d.internal_port_special:
-                continue
-            stream = reality_streams[d.mode]
-            choices.append((f'realityin_{stream}_{d.internal_port_special}', f'{d.domain} - reality {stream}'))
+    reality_enable = hconfig(ConfigEnum.reality_enable, child_id)
+    tuic_enable = hconfig(ConfigEnum.tuic_enable, child_id)
+    hysteria_enable = hconfig(ConfigEnum.hysteria_enable, child_id)
+    naive_enable = hconfig(ConfigEnum.naive_enable, child_id)
 
-    # Per-domain non-reality inbounds: tuic / hysteria2 / naive-quic.
+    reality_streams = {
+        DomainType.special_reality_tcp: 'tcp',
+        DomainType.special_reality_xhttp: 'xhttp',
+        DomainType.special_reality_grpc: 'grpc',
+    }
+
+    # Combined loop for per-domain inbounds: reality, tuic, hysteria2, naive-quic.
     for d in Domain.query.filter(Domain.child_id == child_id).all():
-        if hconfig(ConfigEnum.tuic_enable, child_id) and d.internal_port_tuic:
+        if reality_enable and d.mode in reality_streams:
+            if d.internal_port_special:
+                stream = reality_streams[d.mode]
+                choices.append((f'realityin_{stream}_{d.internal_port_special}', f'{d.domain} - reality {stream}'))
+
+        if tuic_enable and d.internal_port_tuic:
             choices.append((f'tuic_in_{d.internal_port_tuic}', f'{d.domain} - tuic'))
-        if hconfig(ConfigEnum.hysteria_enable, child_id) and d.internal_port_hysteria2:
+        if hysteria_enable and d.internal_port_hysteria2:
             choices.append((f'hysteria_in_{d.internal_port_hysteria2}', f'{d.domain} - hysteria2'))
-        if hconfig(ConfigEnum.naive_enable, child_id) and d.internal_port_naive:
+        if naive_enable and d.internal_port_naive:
             choices.append((f'v10-naive-quic{d.internal_port_naive}', f'{d.domain} - naive quic'))
 
     return choices
