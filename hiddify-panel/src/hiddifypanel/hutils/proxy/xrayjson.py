@@ -44,12 +44,9 @@ def configs_as_json(domains: list[Domain], user: User, expire_days: int, remarks
         )
         # endregion
     else:
-        # TODO: seperate codes to small functions
-        # TODO: check what are unsupported protocols in other apps
         unsupported_protos:set[ProxyProto] = set()
         unsupported_transport:set[ProxyTransport] = set()
         if g.user_agent.get('is_v2rayng'):
-            # TODO: ensure which protocols are not supported in v2rayng
             unsupported_protos = {ProxyProto.hysteria, ProxyProto.hysteria2,
                                   ProxyProto.tuic, ProxyProto.ssr, ProxyProto.ssh}
             if not hutils.flask.is_client_version(hutils.flask.ClientVersion.v2ryang, 1, 8, 18):
