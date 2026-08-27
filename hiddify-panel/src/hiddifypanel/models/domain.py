@@ -245,23 +245,20 @@ class Domain(db.Model):
         error pointing back at the cause.
         """
         import logging
-        raw_port = base_port + offset
-
-        # Valid non-reserved ports are 1024 through 65535 (inclusive)
-        # There are 64512 ports in this range (65536 - 1024)
-        port = 1024 + ((raw_port - 1024) % 64512)
-
-        if raw_port > 65535:
+        port = base_port + offset
+        if port > 65535:
+            # wrap back into the high, mostly-unused range instead of
+            # producing an invalid port number
+            port = 20000 + (port % 10000)
             logging.getLogger(__name__).warning(
                 f"Domain port offset overflowed 65535 (base={base_port}, offset={offset}); "
                 f"wrapped to {port}. Consider lowering the base port or the number of domains."
             )
-        elif raw_port < 1024:
+        elif port < 1024:
             logging.getLogger(__name__).warning(
-                f"Domain computed port {raw_port} falls in the reserved/well-known range "
-                f"(base={base_port}, offset={offset}); wrapped to {port} to avoid collisions."
+                f"Domain computed port {port} falls in the reserved/well-known range "
+                f"(base={base_port}, offset={offset}); this may collide with ssh/nginx/etc."
             )
-
         return port
 
     @property
@@ -375,31 +372,46 @@ class Domain(db.Model):
         return domains
 
     @classmethod
-    def add_or_update(cls, commit=True, child_id=0, **domain):
-        dbdomain = Domain.query.filter(Domain.domain == domain['domain']).first()
+    def add_or_update(cls, commit=True, child_id=0, _dto=None, **domain):
+        from hiddifypanel.models.dto import DomainDTO, _as_dto
+        u = _dto or _as_dto(domain, DomainDTO)
+        domain_name = u.domain if _dto else domain['domain']
+        dbdomain = Domain.query.filter(Domain.domain == domain_name).first()
         if not dbdomain:
-            dbdomain = Domain(domain=domain['domain'])  # type: ignore
+            dbdomain = Domain(domain=domain_name)  # type: ignore
             db.session.add(dbdomain)
         dbdomain.child_id = child_id
 
-        dbdomain.mode = domain['mode']
-        if (str(domain.get('sub_link_only', False)).lower() == 'true'):
+        dbdomain.mode = u.mode if _dto else domain['mode']
+
+        sub_link_only = u.sub_link_only if _dto else domain.get('sub_link_only', False)
+        if (str(sub_link_only).lower() == 'true'):
             dbdomain.mode = DomainType.sub_link_only
-        dbdomain.cdn_ip = domain.get('cdn_ip', '')
-        dbdomain.alias = domain.get('alias', '')
-        dbdomain.grpc = domain.get('grpc', False)
-        dbdomain.servernames = domain.get('servernames', '')
-        dbdomain.resolve_ip=domain.get("resolve_ip",False)
-        dbdomain.extra_params=domain.get("extra_params","")
-        dbdomain.http_port = domain.get("http_port") or None
-        dbdomain.tls_port = domain.get("tls_port") or None
-        dbdomain.reality_port = domain.get("reality_port") or None
-        dbdomain.reality_private_key = domain.get("reality_private_key") or None
-        dbdomain.reality_public_key = domain.get("reality_public_key") or None
-        dbdomain.reality_short_id = domain.get("reality_short_id") or None
-        show_domains = domain.get('show_domains', [])
+
+        dbdomain.cdn_ip = (u.cdn_ip if u.cdn_ip is not None else '') if _dto else domain.get('cdn_ip', '')
+        dbdomain.alias = (u.alias if u.alias is not None else '') if _dto else domain.get('alias', '')
+        dbdomain.grpc = (u.grpc if u.grpc is not None else False) if _dto else domain.get('grpc', False)
+        dbdomain.servernames = (u.servernames if u.servernames is not None else '') if _dto else domain.get('servernames', '')
+        dbdomain.resolve_ip= (u.resolve_ip if u.resolve_ip is not None else False) if _dto else domain.get("resolve_ip",False)
+        extra_params = (u.extra_params if u.extra_params is not None else '') if _dto else domain.get("extra_params", "")
+        # extra_params is a String column, but to_dict() (and thus a JSON
+        # backup) emits it as a parsed dict - assigning that dict straight to
+        # the column raises "type 'dict' is not supported" on flush. Re-encode
+        # any dict/list back to its JSON-string on-disk form so backup restore
+        # (set_db_from_json) roundtrips; plain strings pass through unchanged.
+        if isinstance(extra_params, (dict, list)):
+            extra_params = json.dumps(extra_params)
+        dbdomain.extra_params = extra_params
+        dbdomain.http_port = (u.http_port or None) if _dto else (domain.get("http_port") or None)
+        dbdomain.tls_port = (u.tls_port or None) if _dto else (domain.get("tls_port") or None)
+        dbdomain.reality_port = (u.reality_port or None) if _dto else (domain.get("reality_port") or None)
+        dbdomain.reality_private_key = (u.reality_private_key or None) if _dto else (domain.get("reality_private_key") or None)
+        dbdomain.reality_public_key = (u.reality_public_key or None) if _dto else (domain.get("reality_public_key") or None)
+        dbdomain.reality_short_id = (u.reality_short_id or None) if _dto else (domain.get("reality_short_id") or None)
+
+        show_domains = (u.show_domains if u.show_domains is not None else []) if _dto else domain.get('show_domains', [])
         dbdomain.show_domains = Domain.query.filter(Domain.domain.in_(show_domains)).all()
-        dl_domain=domain.get("download_domain")
+        dl_domain= u.download_domain if _dto else domain.get("download_domain")
         if dl_domain:
             dbdldomain = Domain.query.filter(Domain.domain == dl_domain).first()
             if not dbdldomain:
@@ -417,13 +429,15 @@ class Domain(db.Model):
     @classmethod
     def bulk_register(cls, domains, commit=True, remove=False, force_child_unique_id: str | None = None):
         from hiddifypanel.panel import hiddify
+        from hiddifypanel.models.dto import DomainDTO, _as_dto
         child_ids = {}
+        domains = [_as_dto(d, DomainDTO) for d in domains]
         for domain in domains:
             child_id = hiddify.get_child(unique_id=force_child_unique_id)
             child_ids[child_id] = 1
-            cls.add_or_update(commit=False, child_id=child_id, **domain)
+            cls.add_or_update(commit=False, child_id=child_id, _dto=domain)
         if remove and len(child_ids):
-            dd = {d['domain']: 1 for d in domains}
+            dd = {d.domain: 1 for d in domains}
             for d in Domain.query.filter(Domain.child_id.in_(child_ids)):
                 if d.domain not in dd:
                     db.session.delete(d)

@@ -102,31 +102,51 @@ class BaseAccount(db.Model, FlaskLoginUserMixin):  # type: ignore
         return None
 
     @classmethod
-    def add_or_update(cls, commit: bool = True, old_uuid=None, **data):
-        db_account: BaseAccount = cls.by_uuid(old_uuid or data.get('uuid'), create=True)
+    def get_dto_class(cls):
+        from hiddifypanel.models.dto import BaseAccountDTO, UserDTO, AdminUserDTO
+        if cls.__name__ == 'User': return UserDTO
+        if cls.__name__ == 'AdminUser': return AdminUserDTO
+        return BaseAccountDTO
+
+    @classmethod
+    def add_or_update(cls, commit: bool = True, old_uuid=None, _dto=None, **data):
+        from hiddifypanel.models.dto import _as_dto
+        u = _dto or _as_dto(data, cls.get_dto_class())
+        uuid_val = u.uuid if _dto else data.get('uuid')
+        db_account: BaseAccount = cls.by_uuid(old_uuid or uuid_val, create=True)
         from hiddifypanel import hutils
-        if hutils.auth.is_uuid_valid(data.get('uuid')):
-            db_account.uuid = data['uuid']
+        if hutils.auth.is_uuid_valid(uuid_val):
+            db_account.uuid = uuid_val
 
-        if data.get('name') is not None:
-            db_account.name = data.get('name')
+        if _dto or 'name' in data:
+            val = u.name if _dto else data.get('name')
+            if val is not None:
+                db_account.name = val
 
-        if data.get('comment') is not None:
-            db_account.comment = data.get('comment')
-        if data.get('telegram_id') is not None:
-            db_account.telegram_id = hutils.convert.to_int(data.get('telegram_id'))
-        if data.get('lang') is not None:
-            db_account.lang = data.get('lang')
+        if _dto or 'comment' in data:
+            val = u.comment if _dto else data.get('comment')
+            if val is not None:
+                db_account.comment = val
+        if _dto or 'telegram_id' in data:
+            val = u.telegram_id if _dto else data.get('telegram_id')
+            if val is not None:
+                db_account.telegram_id = hutils.convert.to_int(val)
+        if _dto or 'lang' in data:
+            val = u.lang if _dto else data.get('lang')
+            if val is not None:
+                db_account.lang = val
         if commit:
             db.session.commit()  # type: ignore
         return db_account
 
     @classmethod
     def bulk_register(cls, accounts: list = [], commit: bool = True, remove: bool = False):
+        from hiddifypanel.models.dto import _as_dto
+        accounts = [_as_dto(u, cls.get_dto_class()) for u in accounts]
         for u in accounts:
-            cls.add_or_update(commit=False, **u)
+            cls.add_or_update(commit=False, _dto=u)
         if remove:
-            dd = {str(u['uuid']): 1 for u in accounts}
+            dd = {str(u.uuid): 1 for u in accounts}
             for d in cls.query.all():
                 if d.uuid not in dd:
                     db.session.delete(d)  # type: ignore

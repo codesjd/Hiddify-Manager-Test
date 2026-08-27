@@ -222,64 +222,81 @@ class User(BaseAccount):
             dbuser.remove(commit)
 
     @classmethod
-    def add_or_update(cls, commit: bool = True, **data):
+    def add_or_update(cls, commit: bool = True, _dto=None, **data):
         from hiddifypanel import hutils
-        dbuser: User = super().add_or_update(commit=commit, **data)
-        if data.get('added_by_uuid'):
-            admin = AdminUser.by_uuid(data.get('added_by_uuid')) or AdminUser.current_admin_or_owner()  # type: ignore
+        from hiddifypanel.models.dto import UserDTO, _as_dto
+        u = _dto or _as_dto(data, UserDTO)
+        dbuser: User = super().add_or_update(commit=commit, _dto=_dto, **data)
+
+        added_by_uuid = u.added_by_uuid if _dto else data.get('added_by_uuid')
+        if added_by_uuid:
+            admin = AdminUser.by_uuid(added_by_uuid) or AdminUser.current_admin_or_owner()  # type: ignore
             dbuser.added_by = admin.id
         elif not dbuser.added_by:
             dbuser.added_by = 1
 
-        # if data.get('expiry_time', ''): #v4
-        #     last_reset_time = hutils.convert.json_to_time(data.get('last_reset_time', '')) or datetime.date.today()
+        if _dto or 'package_days' in data:
+            if u.package_days is not None:
+                dbuser.package_days = u.package_days
 
-        #     expiry_time = hutils.convert.json_to_date(data['expiry_time'])
-        #     dbuser.start_date = last_reset_time
-        #     dbuser.package_days = (expiry_time - last_reset_time).days  # type: ignore
-        # el
-        if data.get('package_days') is not None:
-            dbuser.package_days = data['package_days']
+            if _dto or 'start_date' in data:
+                if u.start_date:
+                    dbuser.start_date = hutils.convert.json_to_date(u.start_date)
+                elif not _dto and 'start_date' in data and data['start_date'] is None:
+                    dbuser.start_date = None
+                elif _dto and u.start_date is None:
+                    dbuser.start_date = None
 
-            if data.get('start_date'):
-                dbuser.start_date = hutils.convert.json_to_date(data['start_date'])
-            elif 'start_date' in data and data['start_date'] is None:
-                dbuser.start_date = None
+        if _dto or 'current_usage_GB' in data or 'current_usage' in data:
+            if (c_GB := u.current_usage_GB) is not None:
+                dbuser.current_usage_GB = c_GB
+            elif (c := u.current_usage) is not None:
+                dbuser.current_usage = c
+            elif dbuser.current_usage is None:
+                dbuser.current_usage = 0
 
-        if (c_GB := data.get('current_usage_GB')) is not None:
-            dbuser.current_usage_GB = c_GB
-        elif (c := data.get('current_usage')) is not None:
-            dbuser.current_usage = c
-        elif dbuser.current_usage is None:
-            dbuser.current_usage = 0
+        if _dto or 'usage_limit_GB' in data or 'usage_limit' in data:
+            if (l_GB := u.usage_limit_GB) is not None:
+                dbuser.usage_limit_GB = l_GB
+            elif (l := u.usage_limit) is not None:
+                dbuser.usage_limit = l
+            elif dbuser.usage_limit_GB is None:
+                dbuser.usage_limit_GB = 1000
 
-        if (l_GB := data.get('usage_limit_GB')) is not None:
-            dbuser.usage_limit_GB = l_GB
-        elif (l := data.get('usage_limit')) is not None:
-            dbuser.usage_limit = l
-        elif dbuser.usage_limit_GB is None:
-            dbuser.usage_limit_GB = 1000
+        if _dto or 'enable' in data:
+            if u.enable is not None:
+                dbuser.enable = u.enable
 
-        if data.get('enable') is not None:
-            dbuser.enable = data['enable']
+        if _dto or 'ed25519_private_key' in data or 'ed25519_public_key' in data:
+            if u.ed25519_private_key and u.ed25519_public_key:
+                dbuser.ed25519_private_key = u.ed25519_private_key
+                dbuser.ed25519_public_key = u.ed25519_public_key
+        if _dto or 'wg_pk' in data:
+            if u.wg_pk is not None:
+                dbuser.wg_pk = u.wg_pk
+        if _dto or 'wg_pub' in data:
+            if u.wg_pub is not None:
+                dbuser.wg_pub = u.wg_pub
+        if _dto or 'wg_psk' in data:
+            if u.wg_psk is not None:
+                dbuser.wg_psk = u.wg_psk
 
-        if data.get('ed25519_private_key', '') and data.get('ed25519_public_key', ''):
-            dbuser.ed25519_private_key = data.get('ed25519_private_key', '')
-            dbuser.ed25519_public_key = data.get('ed25519_public_key', '')
-        if data.get('wg_pk') is not None:
-            dbuser.wg_pk = data['wg_pk']
-        if data.get('wg_pub') is not None:
-            dbuser.wg_pub = data['wg_pub']
-        if data.get('wg_psk') is not None:
-            dbuser.wg_psk = data['wg_psk']
-
-        if data.get('mode') is not None or dbuser.mode is None:
-            mode = data.get('mode', UserMode.no_reset)
+        mode = u.mode if _dto else data.get('mode')
+        if mode is not None or dbuser.mode is None:
+            if mode is None:
+                mode = UserMode.no_reset
             if mode == 'disable':
                 mode = UserMode.no_reset
                 dbuser.enable = False
             dbuser.mode = mode
 
+        # last_online / last_reset_time stay on the dict-only path (as in the
+        # original code): they are not part of the DTO restore here because
+        # to_dict() serializes last_reset_time with time_to_json (a datetime
+        # string) while json_to_date only parses '%Y-%m-%d' - reviving them on
+        # the _dto path would surface that pre-existing serialization mismatch
+        # as a Date-column TypeError. Left untouched to keep this refactor
+        # behavior-preserving.
         if data.get('last_online') is not None:
             dbuser.last_online = hutils.convert.json_to_time(data.get('last_online')) or datetime.datetime.min
         if data.get('last_reset_time') is not None:

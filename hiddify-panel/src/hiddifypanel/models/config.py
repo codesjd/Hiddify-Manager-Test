@@ -93,12 +93,21 @@ def hconfig(key: ConfigEnum, child_id: Optional[int] = None):  # -> str | int | 
     return value
 
 
-def _set_hconfig_core(key: ConfigEnum, value: str | int | bool, child_id: int):
+def set_hconfig(key: ConfigEnum, value: str | int | bool, child_id: int | None = None, commit: bool = True):
+    if child_id is None:
+        child_id = Child.current().id
+
+    if key.type == int and value != None:
+        int(value)  # for testing int
+
+    # hconfig.invalidate(key, child_id)
+    # get_hconfigs.invalidate(child_id)
     hconfig.invalidate(key, child_id)
     hconfig.invalidate(key, child_id=child_id)
     hconfig.invalidate(key=key, child_id=child_id)
     if child_id == Child.current().id:
         hconfig.invalidate(key)
+    # hconfig.invalidate_all()
     get_hconfigs.invalidate_all()
     old_v = None
     if key.type == bool:
@@ -120,49 +129,9 @@ def _set_hconfig_core(key: ConfigEnum, value: str | int | bool, child_id: int):
     logger.trace(f"changing {key} from {old_v} to {value}")
     Events.config_changed.notify(conf=dbconf, old_value=old_v)
 
-def set_hconfig(key: ConfigEnum, value: str | int | bool, child_id: int | None = None, commit: bool = True):
-    if child_id is None:
-        child_id = Child.current().id
-
-    if key.type == int and value != None:
-        int(value)  # for testing int
-
-    _set_hconfig_core(key, value, child_id)
-
     if child_id == 0 and key.hide_in_virtual_child:
-        children = Child.query.filter(Child.mode == ChildMode.virtual, Child.id != 0).all()
-        if children:
-            child_ids = [c.id for c in children]
-
-            if key.type == bool:
-                existing_confs = db.session.query(BoolConfig).filter(BoolConfig.key == key, BoolConfig.child_id.in_(child_ids)).all()
-            else:
-                existing_confs = db.session.query(StrConfig).filter(StrConfig.key == key, StrConfig.child_id.in_(child_ids)).all()
-
-            existing_conf_dict = {c.child_id: c for c in existing_confs}
-
-            for child_id_virtual in child_ids:
-                hconfig.invalidate(key, child_id_virtual)
-                hconfig.invalidate(key, child_id=child_id_virtual)
-                hconfig.invalidate(key=key, child_id=child_id_virtual)
-                if child_id_virtual == Child.current().id:
-                    hconfig.invalidate(key)
-                get_hconfigs.invalidate_all()
-
-                dbconf_child = existing_conf_dict.get(child_id_virtual)
-                old_v_child = None
-                if not dbconf_child:
-                    if key.type == bool:
-                        dbconf_child = BoolConfig(key=key, value=value, child_id=child_id_virtual)
-                    else:
-                        dbconf_child = StrConfig(key=key, value=str(value), child_id=child_id_virtual)
-                    db.session.add(dbconf_child)
-                else:
-                    old_v_child = dbconf_child.value
-
-                dbconf_child.value = value if key.type == bool else str(value)
-                logger.trace(f"changing {key} from {old_v_child} to {dbconf_child.value}")
-                Events.config_changed.notify(conf=dbconf_child, old_value=old_v_child)
+        for child in Child.query.filter(Child.mode == ChildMode.virtual, Child.id != 0).all():
+            set_hconfig(key, value, child.id)
 
     if commit:
         db.session.commit()
@@ -192,18 +161,21 @@ def get_hconfigs_childs(child_ids: list[int], json=False):
     return {c: get_hconfigs(c, json) for c in child_ids}
 
 
-def add_or_update_config(commit: bool = True, child_id: int | None = None, override_unique_id: bool = True, **config):
+def add_or_update_config(commit: bool = True, child_id: int | None = None, override_unique_id: bool = True, _dto=None, **config):
+    from hiddifypanel.models.dto import HConfigDTO, _as_dto
+    u = _dto or _as_dto(config, HConfigDTO)
     if child_id is None:
         child_id = Child.current().id
-    c = config['key']
+    c = u.key if _dto else config['key']
     try:
-        ckey = ConfigEnum(c)
+        ckey = c if isinstance(c, ConfigEnum) else ConfigEnum(c)
     except Exception:
         return
-    if c == ConfigEnum.unique_id and not override_unique_id:
+    if ckey == ConfigEnum.unique_id and not override_unique_id:
         return
 
-    v = str(config['value']).lower() == "true" if ckey.type == bool else config['value']
+    value = u.value if _dto else config['value']
+    v = str(value).lower() == "true" if ckey.type == bool else value
     if ckey in [ConfigEnum.db_version]:
         return
     set_hconfig(ckey, v, child_id, commit=commit)
@@ -211,10 +183,17 @@ def add_or_update_config(commit: bool = True, child_id: int | None = None, overr
 
 def bulk_register_configs(hconfigs, commit: bool = True, froce_child_unique_id: str | None = None, override_unique_id: bool = True):
     from hiddifypanel.panel import hiddify
+    from hiddifypanel.models.dto import HConfigDTO, _as_dto
+    hconfigs = [_as_dto(c, HConfigDTO) for c in hconfigs]
     for conf in hconfigs:
-        if conf['key'] == ConfigEnum.unique_id and not override_unique_id:
+        c = conf.key
+        try:
+            ckey = c if isinstance(c, ConfigEnum) else ConfigEnum(c)
+        except Exception:
+            continue
+        if ckey == ConfigEnum.unique_id and not override_unique_id:
             continue
         child_id = hiddify.get_child(unique_id=froce_child_unique_id)
-        add_or_update_config(commit=False, child_id=child_id, **conf)
+        add_or_update_config(commit=False, child_id=child_id, _dto=conf)
     if commit:
         db.session.commit()
