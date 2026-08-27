@@ -1,4 +1,5 @@
-﻿from hiddifypanel.cache import cache
+﻿import asyncio
+from hiddifypanel.cache import cache
 from hiddifypanel import __version__
 from hiddifypanel.panel import hiddify, custom_widgets
 from hiddifypanel.database import db
@@ -103,7 +104,7 @@ class SettingAdmin(FlaskView):
             parent_apikey = ''
             if p_p := changed_configs.get(ConfigEnum.parent_panel):
                 domain, proxy_path, uuid = hutils.flask.extract_parent_info_from_url(p_p)
-                if not domain or not proxy_path or not uuid or not hutils.node.is_panel_active(domain, proxy_path, uuid):
+                if not domain or not proxy_path or not uuid or not asyncio.run(hutils.node.is_panel_active(domain, proxy_path, uuid)):
                     hutils.flask.flash(_('parent.invalid-parent-url'), 'danger')  # type: ignore
                     return render_template('config.html', form=form)
                 else:
@@ -167,14 +168,14 @@ class SettingAdmin(FlaskView):
 
             # sync with parent if needed
             if hutils.node.is_child():
-                if hutils.node.child.is_registered():
+                if asyncio.run(hutils.node.child.is_registered()):
                     hutils.node.run_node_op_in_bg(hutils.node.child.sync_with_parent, *[hutils.node.child.SyncFields.hconfigs])
                 else:
                     name = hconfig(ConfigEnum.unique_id)
-                    parent_info = hutils.node.get_panel_info(hconfig(ConfigEnum.parent_domain), hconfig(ConfigEnum.parent_admin_proxy_path), parent_apikey)
-                    if parent_info.get('version') != __version__:
+                    parent_info = asyncio.run(hutils.node.get_panel_info(hconfig(ConfigEnum.parent_domain), hconfig(ConfigEnum.parent_admin_proxy_path), parent_apikey))
+                    if parent_info and parent_info.get('version') != __version__:
                         hutils.flask.flash(_('node.diff-version'), 'danger')  # type: ignore
-                    if not hutils.node.child.register_to_parent(name, parent_apikey, mode=ChildMode.remote):
+                    if not asyncio.run(hutils.node.child.register_to_parent(name, parent_apikey, mode=ChildMode.remote)):
                         hutils.flask.flash(_('child.register-failed'), 'danger')  # type: ignore
 
             reset_action = hiddify.check_need_reset(old_configs)

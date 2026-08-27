@@ -1,3 +1,4 @@
+import asyncio
 from flask import g
 from flask_babel import lazy_gettext as _
 from typing import List
@@ -11,14 +12,24 @@ from .api_client import NodeApiClient, NodeApiErrorSchema
 from hiddifypanel.cache import cache
 
 
-def request_childs_to_sync():
-    for c in Child.query.filter(Child.id != 0).all():
-        if not request_child_to_sync(c):
+async def request_childs_to_sync():
+    # Fan out the per-child sync requests concurrently instead of waiting on
+    # each one in turn - a parent with several children now spends roughly
+    # one request's worth of time, not the sum. All the DB reads each child
+    # needs happen inside request_child_to_sync() before its first await, so
+    # the concurrent coroutines never touch the (single-threaded) SQLAlchemy
+    # session at the same instant.
+    childs = Child.query.filter(Child.id != 0).all()
+    results = await asyncio.gather(*[request_child_to_sync(c) for c in childs], return_exceptions=True)
+    for c, ok in zip(childs, results):
+        if isinstance(ok, Exception) or not ok:
+            if isinstance(ok, Exception):
+                logger.error(f'{c.name}: sync request raised: {ok}')
             logger.error(f'{c.name}: {_("parent.sync-req-failed")}')
-            hutils.flask.flash(f'{c.name}: ' + _('parent.sync-req-failed'), 'danger') # just for debug
+            hutils.flask.flash(f'{c.name}: ' + _('parent.sync-req-failed'), 'danger')  # just for debug
 
 
-def request_child_to_sync(child: Child) -> bool:
+async def request_child_to_sync(child: Child) -> bool:
     '''Requests to a child to sync itself with the current panel'''
     child_domain = Domain.get_panel_link(child.id)  # type:ignore
     if not child_domain:
@@ -28,7 +39,7 @@ def request_child_to_sync(child: Child) -> bool:
     child_admin_proxy_path = hconfig(ConfigEnum.proxy_path_admin, child.id)
     base_url = f'https://{child_domain}/{child_admin_proxy_path}'
     path = '/api/v2/child/sync-parent/'
-    res = NodeApiClient(base_url).post(path, payload=None, output=dict)
+    res = await NodeApiClient(base_url).post(path, payload=None, output=dict)
     if isinstance(res, NodeApiErrorSchema):
         logger.error(f"Error while requesting child {child.name} to sync: {res.msg}")
         return False
@@ -44,7 +55,7 @@ def request_child_to_sync(child: Child) -> bool:
 
 
 # TODO: not used
-def request_chlid_to_register(name: str, child_link: str, apikey: str) -> bool:
+async def request_chlid_to_register(name: str, child_link: str, apikey: str) -> bool:
     '''Requests to a child to register itself with the current panel'''
     if not child_link or not apikey:
         logger.error("Child link or apikey is empty")
@@ -60,7 +71,7 @@ def request_chlid_to_register(name: str, child_link: str, apikey: str) -> bool:
     payload.apikey = payload.name = hconfig(ConfigEnum.unique_id)
 
     logger.debug(f"Requesting child {name} to register")
-    res = NodeApiClient(child_link, apikey).post('/api/v2/child/register-parent/', payload, dict)
+    res = await NodeApiClient(child_link, apikey).post('/api/v2/child/register-parent/', payload, dict)
     if isinstance(res, NodeApiErrorSchema):
         logger.error(f"Error while requesting child {name} to register: {res.msg}")
         return False
@@ -74,7 +85,7 @@ def request_chlid_to_register(name: str, child_link: str, apikey: str) -> bool:
     return False
 
 
-def is_child_domain_active(child: Child, domain: Domain) -> bool:
+async def is_child_domain_active(child: Child, domain: Domain) -> bool:
     '''Checks whether a child's domain is responsive'''
     if not domain.need_valid_ssl:
         return False
@@ -82,19 +93,25 @@ def is_child_domain_active(child: Child, domain: Domain) -> bool:
     if not child_admin_proxy_path:
         return False
 
-    return hutils.node.is_panel_active(domain.domain, child_admin_proxy_path)
+    return await hutils.node.is_panel_active(domain.domain, child_admin_proxy_path)
 
 
-def get_child_active_domains(child: Child) -> List[Domain]:
-    actives = []
-    for d in child.domains:  # type: ignore
-        if is_child_domain_active(child, d):
-            actives.append(d)
-    return actives
+async def get_child_active_domains(child: Child) -> List[Domain]:
+    '''Returns the child's SSL-capable domains that are currently responsive,
+    probing them concurrently. All DB reads (proxy path + the domain list)
+    are done up front so only the network probes run under asyncio.gather.'''
+    child_admin_proxy_path = hconfig(ConfigEnum.proxy_path_admin, child.id)
+    if not child_admin_proxy_path:
+        return []
+    candidates = [d for d in child.domains if d.need_valid_ssl]  # type: ignore
+    if not candidates:
+        return []
+    checks = await asyncio.gather(
+        *[hutils.node.is_panel_active(d.domain, child_admin_proxy_path) for d in candidates],
+        return_exceptions=True,
+    )
+    return [d for d, ok in zip(candidates, checks) if ok is True]
 
 
-def is_child_active(child: Child) -> bool:
-    for d in child.domains:  # type: ignore
-        if is_child_domain_active(child, d):
-            return True
-    return False
+async def is_child_active(child: Child) -> bool:
+    return len(await get_child_active_domains(child)) > 0
