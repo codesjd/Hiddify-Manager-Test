@@ -167,15 +167,14 @@ class SettingAdmin(FlaskView):
 
             # sync with parent if needed
             if hutils.node.is_child():
-                import asyncio
-                if asyncio.run(hutils.node.child.is_registered()):
+                if hutils.node.child.is_registered():
                     hutils.node.run_node_op_in_bg(hutils.node.child.sync_with_parent, *[hutils.node.child.SyncFields.hconfigs])
                 else:
                     name = hconfig(ConfigEnum.unique_id)
-                    parent_info = asyncio.run(hutils.node.get_panel_info(hconfig(ConfigEnum.parent_domain), hconfig(ConfigEnum.parent_admin_proxy_path), parent_apikey))
-                    if parent_info and parent_info.get('version') != __version__:
+                    parent_info = hutils.node.get_panel_info(hconfig(ConfigEnum.parent_domain), hconfig(ConfigEnum.parent_admin_proxy_path), parent_apikey)
+                    if parent_info.get('version') != __version__:
                         hutils.flask.flash(_('node.diff-version'), 'danger')  # type: ignore
-                    if not asyncio.run(hutils.node.child.register_to_parent(name, parent_apikey, mode=ChildMode.remote)):
+                    if not hutils.node.child.register_to_parent(name, parent_apikey, mode=ChildMode.remote):
                         hutils.flask.flash(_('child.register-failed'), 'danger')  # type: ignore
                     else:  # TODO: it's just for debuging
                         hutils.flask.flash(_('child.register-success'))  # type: ignore

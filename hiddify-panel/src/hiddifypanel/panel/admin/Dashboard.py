@@ -77,8 +77,7 @@ class Dashboard(FlaskView):
             for c in childs:
                 c.is_active = False
                 for d in c.domains:
-                    import asyncio
-                    d.is_active = asyncio.run(hutils.node.parent.is_child_domain_active(c, d))
+                    d.is_active = hutils.node.parent.is_child_domain_active(c, d)
                     if d.is_active:
                         c.is_active = True
 

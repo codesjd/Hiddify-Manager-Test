@@ -13,72 +13,66 @@ class NodeApiErrorSchema(Schema):
     reason = fields.String(required=True)
 
 
-import aiohttp
-import asyncio
-
-
 class NodeApiClient():
     def __init__(self, base_url: str, apikey: Optional[str] = None, max_retry: int = 3):
         self.base_url = base_url if base_url.endswith('/') else base_url+'/'
         self.max_retry = max_retry
         self.headers = {'Hiddify-API-Key': apikey or hconfig(ConfigEnum.unique_id)}
 
-    async def __call(self, method: str, path: str, payload: Optional[Schema], output_schema: Type[Union[Schema, dict]]) -> Union[dict, NodeApiErrorSchema]:  # type: ignore
+    def __call(self, method: str, path: str, payload: Optional[Schema], output_schema: Type[Union[Schema, dict]]) -> Union[dict, NodeApiErrorSchema]:  # type: ignore
         retry_count = 1
         full_url = self.base_url + path.removeprefix('/')
+        while 1:
+            try:
+                # TODO: implement it with aiohttp
 
-        timeout = aiohttp.ClientTimeout(total=5)
-        async with aiohttp.ClientSession(timeout=timeout) as session:
-            while 1:
-                try:
-                    logger.trace(f"Attempting {method} request to node at {full_url}")
+                logger.trace(f"Attempting {method} request to node at {full_url}")
 
-                    kwargs = {"headers": self.headers}
-                    if payload:
-                        kwargs['json'] = payload.dump(payload)
+                # send request
+                if payload:
+                    response = requests.request(method, full_url, json=payload.dump(payload), headers=self.headers, timeout=5)
+                else:
+                    response = requests.request(method, full_url, headers=self.headers, timeout=5)
 
-                    async with session.request(method, full_url, **kwargs) as response:
-                        response.raise_for_status()
-                        resp = await response.json()
+                # parse response
+                response.raise_for_status()
+                resp = response.json()
+                if not resp:
+                    err = NodeApiErrorSchema()
+                    err.msg = 'Empty response'  # type: ignore
+                    err.stacktrace = ''  # type: ignore
+                    err.code = response.status_code  # type: ignore
+                    err.reason = response.reason  # type: ignore
+                    with logger.contextualize(payload=payload):
+                        logger.warning(f"Received empty response from {full_url} with method {method}")
+                    return err
 
-                    if not resp:
-                        err = NodeApiErrorSchema()
-                        err.msg = 'Empty response'  # type: ignore
-                        err.stacktrace = ''  # type: ignore
-                        err.code = response.status  # type: ignore
-                        err.reason = response.reason  # type: ignore
-                        with logger.contextualize(payload=payload):
-                            logger.warning(f"Received empty response from {full_url} with method {method}")
-                        return err
+                logger.trace(f"Successfully received response from {full_url}")
+                return resp if output_schema is dict else output_schema().load(resp)  # type: ignore
 
-                    logger.trace(f"Successfully received response from {full_url}")
-                    return resp if output_schema is dict else output_schema().load(resp)  # type: ignore
+            except requests.RequestException as e:
+                if retry_count >= self.max_retry:
+                    stack_trace = traceback.format_exc()
+                    err = NodeApiErrorSchema()
+                    err.msg = str(e)  # type: ignore
+                    err.stacktrace = stack_trace  # type: ignore
+                    err.code = response.status_code  # type: ignore
+                    err.reason = response.reason  # type: ignore
+                    with logger.contextualize(status_code=err.code, reason=err.reason, stack_trace=stack_trace, payload=payload):
+                        logger.error(f"HTTP error after {self.max_retry} retries")
+                        logger.exception(e)
+                    return err
 
-                except (aiohttp.ClientError, asyncio.TimeoutError) as e:
-                    status_code = getattr(e, 'status', 0)
-                    reason = getattr(e, 'message', str(e))
+                logger.warning(f"Error occurred: {e} from {full_url} with method {method}, retrying... ({retry_count}/{self.max_retry})")
+                retry_count += 1
+                import time
+                time.sleep(1)
 
-                    if retry_count >= self.max_retry:
-                        stack_trace = traceback.format_exc()
-                        err = NodeApiErrorSchema()
-                        err.msg = str(e)  # type: ignore
-                        err.stacktrace = stack_trace  # type: ignore
-                        err.code = status_code  # type: ignore
-                        err.reason = reason  # type: ignore
-                        with logger.contextualize(status_code=status_code, reason=reason, stack_trace=stack_trace, payload=payload):
-                            logger.error(f"HTTP error after {self.max_retry} retries")
-                            logger.exception(e)
-                        return err
+    def get(self, path: str, output: Type[Union[Schema, dict]]) -> Union[dict, NodeApiErrorSchema]:
+        return self.__call("GET", path, None, output)
 
-                    logger.warning(f"Error occurred: {e} from {full_url} with method {method}, retrying... ({retry_count}/{self.max_retry})")
-                    retry_count += 1
-                    await asyncio.sleep(1)
+    def post(self, path: str, payload: Optional[Schema], output: Type[Union[Schema, dict]]) -> Union[dict, NodeApiErrorSchema]:
+        return self.__call("POST", path, payload, output)
 
-    async def get(self, path: str, output: Type[Union[Schema, dict]]) -> Union[dict, NodeApiErrorSchema]:
-        return await self.__call("GET", path, None, output)
-
-    async def post(self, path: str, payload: Optional[Schema], output: Type[Union[Schema, dict]]) -> Union[dict, NodeApiErrorSchema]:
-        return await self.__call("POST", path, payload, output)
-
-    async def put(self, path: str, payload: Optional[Schema], output: Type[Union[Schema, dict]]) -> Union[dict, NodeApiErrorSchema]:
-        return await self.__call("PUT", path, payload, output)
+    def put(self, path: str, payload: Optional[Schema], output: Type[Union[Schema, dict]]) -> Union[dict, NodeApiErrorSchema]:
+        return self.__call("PUT", path, payload, output)

@@ -69,7 +69,7 @@ def __get_parent_panel_url() -> str:
 # endregion
 
 
-async def is_registered() -> bool:
+def is_registered() -> bool:
     '''Checks if the current parent registered as a child'''
     try:
         logger.debug("Checking if current panel is registered with parent")
@@ -79,7 +79,7 @@ async def is_registered() -> bool:
         payload = ChildStatusInputSchema()
         payload.child_unique_id = hconfig(ConfigEnum.unique_id)
 
-        res = await NodeApiClient(base_url).post('/api/v2/parent/status/', payload, ChildStatusOutputSchema)
+        res = NodeApiClient(base_url).post('/api/v2/parent/status/', payload, ChildStatusOutputSchema)
         if isinstance(res, NodeApiErrorSchema):
             logger.error(f"Error while checking if current panel is registered with parent: {res.msg}")
             return False
@@ -93,7 +93,7 @@ async def is_registered() -> bool:
         return False
 
 
-async def register_to_parent(name: str, apikey: str, mode: ChildMode = ChildMode.remote) -> bool:
+def register_to_parent(name: str, apikey: str, mode: ChildMode = ChildMode.remote) -> bool:
     # get parent link its format is "https://panel.hiddify.com/<admin_proxy_path>/"
     p_url = __get_parent_panel_url()
     if not p_url:
@@ -101,7 +101,7 @@ async def register_to_parent(name: str, apikey: str, mode: ChildMode = ChildMode
         return False
 
     payload = __get_register_data_for_api(name, mode)
-    res = await NodeApiClient(p_url, apikey).put('/api/v2/parent/register/', payload, RegisterOutputSchema)
+    res = NodeApiClient(p_url, apikey).put('/api/v2/parent/register/', payload, RegisterOutputSchema)
     if isinstance(res, NodeApiErrorSchema):
         logger.error(f"Error while registering to parent: {res.msg}")
         return False
@@ -150,8 +150,7 @@ def periodic_full_resync_with_parent() -> None:
     """
     if not hutils.node.is_child():
         return
-    import asyncio
-    if not asyncio.run(sync_with_parent()):
+    if not sync_with_parent():
         # sync_with_parent() already logs specifics; raise so the
         # @shared_task retry/backoff below actually engages - it only
         # triggers on a raised exception, not a False return, and
@@ -160,9 +159,9 @@ def periodic_full_resync_with_parent() -> None:
         raise RuntimeError("periodic_full_resync_with_parent: sync_with_parent() failed")
 
 
-async def sync_with_parent(*fields: SyncFields) -> bool:
+def sync_with_parent(*fields: SyncFields) -> bool:
     # sync usage first
-    if not await sync_users_usage_with_parent():
+    if not sync_users_usage_with_parent():
         logger.error("Error while syncing with parent: Failed to sync users usage")
         return False
 
@@ -171,7 +170,7 @@ async def sync_with_parent(*fields: SyncFields) -> bool:
         logger.error("Error while syncing with parent: Parent url is empty")
         return False
     payload = __get_sync_data_for_api(*fields)
-    res = await NodeApiClient(p_url).put('/api/v2/parent/sync/', payload, SyncOutputSchema)
+    res = NodeApiClient(p_url).put('/api/v2/parent/sync/', payload, SyncOutputSchema)
     if isinstance(res, NodeApiErrorSchema):
         logger.error(f"Error while syncing with parent: {res.msg}")
         return False
@@ -183,7 +182,7 @@ async def sync_with_parent(*fields: SyncFields) -> bool:
     return True
 
 
-async def sync_users_usage_with_parent() -> bool:
+def sync_users_usage_with_parent() -> bool:
     p_url = __get_parent_panel_url()
     if not p_url:
         logger.error("Parent url is empty")
@@ -191,7 +190,7 @@ async def sync_users_usage_with_parent() -> bool:
 
     payload = hutils.node.get_users_usage_data_for_api()
     if payload:
-        res = await NodeApiClient(p_url).put('/api/v2/parent/usage/', payload, UsageInputOutputSchema)  # type: ignore
+        res = NodeApiClient(p_url).put('/api/v2/parent/usage/', payload, UsageInputOutputSchema)  # type: ignore
         if isinstance(res, NodeApiErrorSchema):
             logger.error(f"Error while syncing users usage with parent: {res.msg}")
             return False

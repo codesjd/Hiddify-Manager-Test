@@ -13,9 +13,8 @@ class SyncWithParentApi(MethodView):
     decorators = [login_required(node_auth=True)]
 
     def post(self):
-        import asyncio
         logger.info(f"Syncing panel with parent called by {Child.node.unique_id}")
-        if not asyncio.run(hutils.node.child.sync_with_parent()):
+        if not hutils.node.child.sync_with_parent():
             logger.error("Sync with parent failed")
             abort(400, _('child.sync-failed'))  # type: ignore
         logger.success(f"Synced panel with parent {Child.node.unique_id}")

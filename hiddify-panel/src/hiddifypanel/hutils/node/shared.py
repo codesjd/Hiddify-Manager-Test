@@ -47,9 +47,9 @@ def convert_usage_api_response_to_dict(data: dict) -> dict:
 # @cache.cache(ttl=150)
 
 
-async def is_panel_active(domain: str, proxy_path: str, apikey: str | None = None) -> bool:
+def is_panel_active(domain: str, proxy_path: str, apikey: str | None = None) -> bool:
     base_url = f'https://{domain}/{proxy_path}'
-    res = await NodeApiClient(base_url, apikey).get('/api/v2/panel/ping/', dict)
+    res = NodeApiClient(base_url, apikey).get('/api/v2/panel/ping/', dict)
     if isinstance(res, NodeApiErrorSchema):
         logger.error(f"Error while checking if panel is active: {res.msg}")
         return False
@@ -61,9 +61,9 @@ async def is_panel_active(domain: str, proxy_path: str, apikey: str | None = Non
 
 
 # @cache.cache(300)
-async def get_panel_info(domain: str, proxy_path: str, apikey: str | None = None) -> dict | None:
+def get_panel_info(domain: str, proxy_path: str, apikey: str | None = None) -> dict | None:
     base_url = f'https://{domain}/{proxy_path}'
-    res = await NodeApiClient(base_url, apikey).get('/api/v2/panel/info/', PanelInfoOutputSchema)
+    res = NodeApiClient(base_url, apikey).get('/api/v2/panel/info/', PanelInfoOutputSchema)
     if isinstance(res, NodeApiErrorSchema):
         logger.error(f"Error while getting panel info from {domain}: {res.msg}")
         return None
@@ -73,11 +73,6 @@ async def get_panel_info(domain: str, proxy_path: str, apikey: str | None = None
 def run_node_op_in_bg(op: Callable, *args, **kwargs):
     @copy_current_request_context
     def wrapped_op():
-        import asyncio
-        import inspect
-        if inspect.iscoroutinefunction(op):
-            asyncio.run(op(*args, **kwargs))
-        else:
-            op(*args, **kwargs)
+        op(*args, **kwargs)
 
     threading.Thread(target=wrapped_op).start()
