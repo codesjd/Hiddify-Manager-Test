@@ -106,20 +106,24 @@ class Proxy(db.Model):  # type: ignore
         return str(self.to_dict())
 
     @staticmethod
-    def add_or_update(commit=True, child_id=0, **proxy):
-        dbproxy = Proxy.query.filter(Proxy.name == proxy['name']).first()
+    def add_or_update(commit=True, child_id=0, _dto=None, **proxy):
+        from hiddifypanel.models.dto import ProxyDTO, _as_dto
+        u = _dto or _as_dto(proxy, ProxyDTO)
+        proxy_name = u.name if _dto else proxy['name']
+        dbproxy = Proxy.query.filter(Proxy.name == proxy_name).first()
         if not dbproxy:
             dbproxy = Proxy()
             db.session.add(dbproxy)  # type: ignore
-        dbproxy.enable = proxy['enable']
-        dbproxy.name = proxy['name']
-        dbproxy.proto = proxy['proto']
-        if proxy['transport']=="splithttp":
-            proxy['transport']="xhttp"
-        dbproxy.transport = proxy['transport']
-        dbproxy.cdn = proxy['cdn']
-        dbproxy.l3 = proxy['l3']
-        dbproxy.params=proxy['params']
+        dbproxy.enable = u.enable if _dto else proxy['enable']
+        dbproxy.name = proxy_name
+        dbproxy.proto = u.proto if _dto else proxy['proto']
+        transport = u.transport if _dto else proxy['transport']
+        if transport == "splithttp":
+            transport = "xhttp"
+        dbproxy.transport = transport
+        dbproxy.cdn = u.cdn if _dto else proxy['cdn']
+        dbproxy.l3 = u.l3 if _dto else proxy['l3']
+        dbproxy.params = u.params if _dto else proxy['params']
         dbproxy.child_id = child_id
         if commit:
             db.session.commit()  # type: ignore
@@ -136,9 +140,11 @@ class Proxy(db.Model):  # type: ignore
     @staticmethod
     def bulk_register(proxies, commit=True, force_child_unique_id: str | None = None):
         from hiddifypanel.panel import hiddify
+        from hiddifypanel.models.dto import ProxyDTO, _as_dto
+        proxies = [_as_dto(p, ProxyDTO) for p in proxies]
         for proxy in proxies:
             child_id = hiddify.get_child(unique_id=force_child_unique_id)
-            Proxy.add_or_update(commit=False, child_id=child_id, **proxy)
+            Proxy.add_or_update(commit=False, child_id=child_id, _dto=proxy)
         if commit:
             db.session.commit()  # type: ignore
 
