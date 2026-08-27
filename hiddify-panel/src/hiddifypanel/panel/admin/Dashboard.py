@@ -73,11 +73,16 @@ class Dashboard(FlaskView):
         if admin_id:
             user_query = user_query.filter(User.added_by == admin_id)
         if hutils.node.is_parent():
+            import asyncio
             childs = Child.query.filter(Child.id != 0).all()
             for c in childs:
                 c.is_active = False
+                # get_child_active_domains probes this child's domains
+                # concurrently (async node client), so one asyncio.run per
+                # child replaces the old per-domain sequential checks.
+                active_ids = {d.id for d in asyncio.run(hutils.node.parent.get_child_active_domains(c))}
                 for d in c.domains:
-                    d.is_active = hutils.node.parent.is_child_domain_active(c, d)
+                    d.is_active = d.id in active_ids
                     if d.is_active:
                         c.is_active = True
 

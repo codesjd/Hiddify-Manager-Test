@@ -58,6 +58,7 @@ dependencies = [
     "python-slugify==8.0.4",
     "redis==7.2.0",
     "requests==2.32.5",
+    "aiohttp==3.13.3",
     "pytelegrambotapi==4.31.0",
     "user-agents==2.2.0",
     "xtlsapi==3.3.0",
