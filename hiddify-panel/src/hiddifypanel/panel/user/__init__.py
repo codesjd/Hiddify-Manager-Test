@@ -17,8 +17,12 @@ def init_app(app):
     @app.route('/<proxy_path>/<user_secret>')
     @app.route('/<proxy_path>/<user_secret>/')
     @app.doc(hide=True)
-    def backward_compatibality(proxy_path, user_secret):
+    def backward_compatibality(user_secret):
         from flask import request, redirect, render_template, g
+
+        # proxy_path is stripped from the view args by the app's
+        # url_value_preprocessor and stashed on g.proxy_path instead.
+        proxy_path = g.proxy_path
 
         # Handle non-browser requests by redirecting directly to the client route
         if not g.user_agent.get('is_browser', False):
