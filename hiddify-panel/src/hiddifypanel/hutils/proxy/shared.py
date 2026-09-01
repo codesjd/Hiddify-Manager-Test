@@ -843,7 +843,13 @@ def make_proxy(hconfigs: dict, proxy: Proxy, domain_db: Domain, phttp=80, ptls=4
 
     if proxy.proto in {'vless', 'trojan', 'vmess'} and hconfigs.get(ConfigEnum.mux_enable):
         if hconfigs[ConfigEnum.mux_enable]:
-            base['mux_enable'] = hconfigs[ConfigEnum.core_type]
+            # vless/vmess/trojan over ws/grpc/tcp/httpupgrade/xhttp are
+            # always served by Xray now, regardless of core_type (see
+            # xray/configs/05_inbounds_new.json.j2) - only REALITY's
+            # grpc/xhttp sub-modes still reach here depending on
+            # core_type (tcp+vision already returned above), since that
+            # one still needs a single core to claim it.
+            base['mux_enable'] = hconfigs[ConfigEnum.core_type] if proxy.l3 in [ProxyL3.reality] else "xray"
 
             base['mux_protocol'] = hconfigs.get(ConfigEnum.mux_protocol, "h2mux")
             base['mux_max_connections'] = hconfigs.get(ConfigEnum.mux_max_connections, 0)
