@@ -19,10 +19,23 @@ def init_app(app):
     @app.doc(hide=True)
     def backward_compatibality(user_secret):
         from flask import request, redirect, render_template, g
+        from hiddifypanel.auth import get_account_by_uuid, login_user
 
         # proxy_path is stripped from the view args by the app's
         # url_value_preprocessor and stashed on g.proxy_path instead.
         proxy_path = g.proxy_path
+
+        # get_account_panel_link() still hands out links in exactly this
+        # shape (/<proxy_path>/<uuid>/), so this is not just an old format
+        # to wave through - it's the account's live secret. Log it in here,
+        # the same way auth_before_request() does for a direct hit on the
+        # uuid route, so the redirect below lands the user on their client
+        # page instead of an empty login form. Once a real password is set,
+        # auth_before_request() no longer trusts the bare secret either, so
+        # mirror that and leave the login prompt in place.
+        account = get_account_by_uuid(user_secret, False)
+        if account and account.password == "":
+            login_user(account, force=True)
 
         # Handle non-browser requests by redirecting directly to the client route
         if not g.user_agent.get('is_browser', False):
